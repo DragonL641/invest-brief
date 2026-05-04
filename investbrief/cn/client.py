@@ -253,6 +253,170 @@ class AKShareClient:
         except (ValueError, TypeError):
             return None
 
+    # ---- 高管与股东变动 ----
+
+    def get_insider_trades(self, symbol: str, days: int = 30) -> list[dict[str, Any]]:
+        """获取高管持股变动（东方财富）。
+
+        调用 stock_ggcg_em() 拿全量数据，按代码和日期过滤。
+        注意：该接口分页较多，耗时较长。
+        """
+        try:
+            df = ak.stock_ggcg_em(symbol="全部")
+            if df is None or df.empty:
+                return []
+            cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            df = df[df["代码"] == symbol]
+            df = df[df["公告日"] >= cutoff]
+            results = []
+            for _, r in df.iterrows():
+                results.append({
+                    "name": str(r.get("名称", "")),
+                    "position": str(r.get("股东名称", "")),
+                    "action": str(r.get("持股变动信息-增减", "")),
+                    "shares": self._safe_float(r.get("持股变动信息-变动数量")),
+                    "amount": None,  # 该接口不直接提供变动金额
+                    "date": str(r.get("公告日", "")),
+                })
+            return results
+        except Exception as e:
+            logger.warning(f"AKShare get_insider_trades failed for {symbol}: {e}")
+            return []
+
+    def get_major_shareholder_trades(self, symbol: str, days: int = 90) -> list[dict[str, Any]]:
+        """获取大股东增减持变动（同花顺）。
+
+        调用 stock_shareholder_change_ths()，返回历史全量数据，按日期过滤。
+        """
+        try:
+            df = ak.stock_shareholder_change_ths(symbol=symbol)
+            if df is None or df.empty:
+                return []
+            cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            df["公告日期"] = df["公告日期"].astype(str)
+            df = df[df["公告日期"] >= cutoff]
+            results = []
+            for _, r in df.iterrows():
+                results.append({
+                    "shareholder": str(r.get("变动股东", "")),
+                    "action": str(r.get("变动数量", "")),
+                    "shares": None,  # 同花顺返回的是 "增持4.16万" 文本，不是数值
+                    "amount": None,
+                    "date": str(r.get("公告日期", "")),
+                })
+            return results
+        except Exception as e:
+            logger.warning(
+                f"AKShare get_major_shareholder_trades failed for {symbol}: {e}"
+            )
+            return []
+
+    # ---- 龙虎榜 ----
+
+    def get_dragon_tiger_list(self, days: int = 5) -> list[dict[str, Any]]:
+        """获取龙虎榜数据。
+
+        遍历最近 days 个交易日，逐日调用 stock_lhb_detail_em()，汇总结果。
+        """
+        try:
+            results = []
+            end = datetime.now()
+            for i in range(days):
+                d = end - timedelta(days=i)
+                date_str = d.strftime("%Y%m%d")
+                try:
+                    df = ak.stock_lhb_detail_em(
+                        start_date=date_str, end_date=date_str
+                    )
+                    if df is None or df.empty:
+                        continue
+                except Exception:
+                    # 非交易日或接口异常，跳过
+                    continue
+                for _, r in df.iterrows():
+                    results.append({
+                        "symbol": str(r.get("代码", "")),
+                        "name": str(r.get("名称", "")),
+                        "change_pct": self._safe_float(r.get("涨跌幅")),
+                        "buy_amount": self._safe_float(r.get("龙虎榜买入额")),
+                        "sell_amount": self._safe_float(r.get("龙虎榜卖出额")),
+                        "net_buy": self._safe_float(r.get("龙虎榜净买额")),
+                        "reason": str(r.get("上榜原因", "")),
+                        "date": str(r.get("上榜日", "")),
+                    })
+            return results
+        except Exception as e:
+            logger.warning(f"AKShare get_dragon_tiger_list failed: {e}")
+            return []
+
+    # ---- 机构调研 ----
+
+    def get_institutional_research(
+        self, symbol: str, days: int = 30
+    ) -> list[dict[str, Any]]:
+        """获取个股机构调研统计（东方财富）。
+
+        调用 stock_jgdy_tj_em() 按日期拉取，过滤指定代码。
+        注意：该接口按日期分页，需要遍历多个日期。
+        """
+        try:
+            results = []
+            seen_dates: set[str] = set()
+            end = datetime.now()
+            cutoff = (end - timedelta(days=days)).strftime("%Y%m%d")
+            # 遍历最近 days 天，逐日查询
+            for i in range(days):
+                d = end - timedelta(days=i)
+                date_str = d.strftime("%Y%m%d")
+                try:
+                    df = ak.stock_jgdy_tj_em(date=date_str)
+                    if df is None or df.empty:
+                        continue
+                except Exception:
+                    continue
+                df = df[df["代码"] == symbol]
+                for _, r in df.iterrows():
+                    date_val = str(r.get("接待日期", ""))
+                    key = f"{symbol}_{date_val}"
+                    if key in seen_dates:
+                        continue
+                    seen_dates.add(key)
+                    results.append({
+                        "institution": str(r.get("接待机构数量", "")),
+                        "date": date_val,
+                        "type": str(r.get("接待方式", "")),
+                        "researchers": str(r.get("接待人员", "")),
+                    })
+            return results
+        except Exception as e:
+            logger.warning(
+                f"AKShare get_institutional_research failed for {symbol}: {e}"
+            )
+            return []
+
+    # ---- 个股新闻 ----
+
+    def get_stock_news(self, symbol: str, limit: int = 20) -> list[dict[str, Any]]:
+        """获取个股新闻（东方财富）。"""
+        try:
+            df = ak.stock_news_em(symbol=symbol)
+            if df is None or df.empty:
+                return []
+            df = df.head(limit)
+            results = []
+            for _, r in df.iterrows():
+                results.append({
+                    "title": str(r.get("新闻标题", "")),
+                    "content": str(r.get("新闻内容", "")),
+                    "url": str(r.get("新闻链接", "")),
+                    "date": str(r.get("发布时间", "")),
+                    "source": str(r.get("文章来源", "")),
+                })
+            return results
+        except Exception as e:
+            logger.warning(f"AKShare get_stock_news failed for {symbol}: {e}")
+            return []
+
     # ---- 工具方法 ----
 
     @staticmethod
