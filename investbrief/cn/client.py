@@ -158,6 +158,101 @@ class AKShareClient:
             logger.warning(f"AKShare get_stock_history failed for {symbol}: {e}")
             return None
 
+    # ---- 研报与财务 ----
+
+    def get_research_reports(self, symbol: str, limit: int = 10) -> list[dict[str, Any]]:
+        """获取个股研报列表。"""
+        try:
+            df = ak.stock_research_report_em(symbol=symbol)
+            if df is None or df.empty:
+                return []
+            df = df.head(limit)
+            results = []
+            for _, r in df.iterrows():
+                results.append({
+                    "title": str(r.get("报告名称", "")),
+                    "rating": str(r.get("东财评级", "")),
+                    "target_price": None,  # 东财研报接口无直接目标价字段
+                    "institution": str(r.get("机构", "")),
+                    "analyst": "",  # 接口不提供分析师姓名
+                    "date": str(r.get("日期", "")),
+                })
+            return results
+        except Exception as e:
+            logger.warning(f"AKShare get_research_reports failed for {symbol}: {e}")
+            return []
+
+    _RATING_MAP: dict[str, str] = {
+        "买入": "buy", "强烈推荐": "buy", "推荐": "buy",
+        "增持": "outperform", "优于大市": "outperform",
+        "中性": "neutral", "持有": "neutral", "观望": "neutral",
+        "减持": "underperform", "落后大市": "underperform",
+        "卖出": "sell",
+    }
+
+    def get_analyst_rating_summary(self, symbol: str) -> dict[str, Any] | None:
+        """汇总研报评级分布。"""
+        try:
+            reports = self.get_research_reports(symbol, limit=50)
+            if not reports:
+                return None
+            counts: dict[str, int] = {
+                "buy": 0, "outperform": 0, "neutral": 0,
+                "underperform": 0, "sell": 0,
+            }
+            target_prices: list[float] = []
+            for rpt in reports:
+                en = self._RATING_MAP.get(rpt["rating"], "")
+                if en:
+                    counts[en] += 1
+                tp = rpt.get("target_price")
+                if tp is not None:
+                    target_prices.append(tp)
+            return {
+                **counts,
+                "avg_target_price": (
+                    sum(target_prices) / len(target_prices)
+                    if target_prices else None
+                ),
+                "total_reports": len(reports),
+            }
+        except Exception as e:
+            logger.warning(f"AKShare get_analyst_rating_summary failed for {symbol}: {e}")
+            return None
+
+    def get_financial_indicators(self, symbol: str) -> dict[str, Any] | None:
+        """获取个股最新财务指标（来自同花顺）。"""
+        try:
+            df = ak.stock_financial_abstract_ths(symbol=symbol)
+            if df is None or df.empty:
+                return None
+            # 取最近一期报告（DataFrame 按时间升序排列，最后一条最新）
+            r = df.iloc[-1]
+            return {
+                "eps": self._safe_float(r.get("基本每股收益")),
+                "roe": self._parse_pct(r.get("净资产收益率")),
+                "revenue_growth": self._parse_pct(r.get("营业总收入同比增长率")),
+                "profit_growth": self._parse_pct(r.get("净利润同比增长率")),
+                "gross_margin": self._parse_pct(r.get("销售毛利率")),
+                "net_margin": self._parse_pct(r.get("销售净利率")),
+                "debt_ratio": self._parse_pct(r.get("资产负债率")),
+                "report_date": str(r.get("报告期", "")),
+            }
+        except Exception as e:
+            logger.warning(f"AKShare get_financial_indicators failed for {symbol}: {e}")
+            return None
+
+    @staticmethod
+    def _parse_pct(val) -> float | None:
+        """将 '23.38%' 或纯数字转为 float（去掉百分号）。"""
+        if val is None or val == "-" or val == "" or val is False:
+            return None
+        try:
+            s = str(val).replace("%", "").strip()
+            return float(s)
+        except (ValueError, TypeError):
+            return None
+
     # ---- 工具方法 ----
 
     @staticmethod
