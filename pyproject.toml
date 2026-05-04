@@ -10,6 +10,8 @@ dependencies = [
     "python-dotenv",
     "matplotlib",
     "croniter",
+    "pydantic",
+    "akshare",
 ]
 
 [project.scripts]
