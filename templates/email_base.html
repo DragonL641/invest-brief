@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: {{font_family}};
+      background: #f5f5f5;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .header {
+      background: linear-gradient(135deg, #1a5276, #2980b9);
+      color: #fff;
+      padding: 30px 20px;
+      text-align: center;
+    }
+    .header h1 { margin: 0 0 10px 0; font-size: 28px; }
+    .header p { margin: 0; opacity: 0.9; font-size: 14px; }
+    .section {
+      padding: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .section:last-child { border-bottom: none; }
+    .section h2 {
+      margin: 0 0 15px 0;
+      font-size: 18px;
+      color: #2c3e50;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .stock-up { color: {{color_up}}; font-weight: bold; }
+    .stock-down { color: {{color_down}}; font-weight: bold; }
+    .stock-neutral { color: #7f8c8d; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 12px 10px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #495057;
+    }
+    tr:hover { background: #f8f9fa; }
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      margin: 10px 0;
+      border: 1px solid #e9ecef;
+    }
+    .card-header {
+      padding: 12px 15px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+      font-weight: 600;
+    }
+    .card-body { padding: 15px; }
+    /* Country section header */
+    .country-header {
+      background: linear-gradient(135deg, #2c3e50, #34495e);
+      color: white;
+      padding: 15px 20px;
+      margin: 0 -20px 15px -20px;
+    }
+    .country-header h3 { margin: 0; font-size: 16px; }
+    /* Stock detail card */
+    .stock-detail {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 8px 0;
+    }
+    .stock-detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .stock-name { font-weight: 600; font-size: 15px; }
+    .stock-price { font-size: 18px; font-weight: bold; }
+    /* Metric sub-sections */
+    .metrics-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 13px;
+      color: #555;
+      margin: 6px 0;
+    }
+    .metrics-row .metric {
+      background: #fff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #eee;
+    }
+    .metrics-row .label { color: #999; margin-right: 4px; }
+    /* Analyst section */
+    .analyst-section {
+      background: #e8f4f8;
+      border-radius: 6px;
+      padding: 10px;
+      margin: 8px 0;
+      border-left: 3px solid #17a2b8;
+    }
+    .analyst-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+    .analyst-label { color: #7f8c8d; }
+    .analyst-source {
+      font-size: 12px;
+      color: #999;
+      margin-top: 5px;
+    }
+    /* Rating bar */
+    .rating-bar {
+      display: flex;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 6px 0;
+    }
+    .rating-bar .buy { background: #27ae60; }
+    .rating-bar .hold { background: #f39c12; }
+    .rating-bar .sell { background: #e74c3c; }
+    .rating-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #666;
+    }
+    /* Upgrade/downgrade list */
+    .upgrade-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      font-size: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    .upgrade-item:last-child { border-bottom: none; }
+    .upgrade-firm { font-weight: 500; color: #2c3e50; }
+    .upgrade-grade { color: #555; }
+    .upgrade-date { color: #999; font-size: 11px; }
+    /* EPS section */
+    .eps-section {
+      background: #f0f7ff;
+      border-radius: 6px;
+      padding: 10px;
+      margin: 8px 0;
+      border-left: 3px solid #3498db;
+    }
+    .eps-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .eps-label { color: #7f8c8d; }
+    /* Insider trades */
+    .insider-section {
+      background: #fff8f0;
+      border-radius: 6px;
+      padding: 10px;
+      margin: 8px 0;
+      border-left: 3px solid #e67e22;
+    }
+    .insider-item {
+      font-size: 12px;
+      padding: 3px 0;
+      border-bottom: 1px solid #f0e8d8;
+    }
+    .insider-item:last-child { border-bottom: none; }
+    .insider-name { font-weight: 500; color: #2c3e50; }
+    .insider-action { color: #e74c3c; }
+    .insider-action.buy { color: #27ae60; }
+    /* News in stock card */
+    .stock-news-item {
+      font-size: 12px;
+      padding: 3px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .stock-news-item:last-child { border-bottom: none; }
+    .stock-news-source { color: #999; font-size: 11px; }
+    /* Recommendation badge */
+    .recommendation {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .rec-buy { background: #fce4ec; color: #c62828; }
+    .rec-sell { background: #e3f2fd; color: #1565c0; }
+    .rec-hold { background: #e2e3e5; color: #383d41; }
+    /* No data */
+    .no-data {
+      text-align: center;
+      color: #999;
+      padding: 20px;
+      font-size: 14px;
+    }
+    /* Global metrics */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .metric-card {
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .metric-value { font-size: 22px; font-weight: bold; }
+    .metric-label { font-size: 11px; opacity: 0.9; margin-top: 5px; }
+    /* News section */
+    .news-item {
+      padding: 12px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .news-item:last-child { border-bottom: none; }
+    .news-title {
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+    .news-summary {
+      font-size: 13px;
+      color: #6c757d;
+      line-height: 1.5;
+    }
+    .news-meta {
+      font-size: 12px;
+      color: #adb5bd;
+      margin-top: 5px;
+    }
+    /* Summary */
+    .summary-box {
+      background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 10px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #2c3e50;
+    }
+    .summary-box p {
+      margin: 0 0 10px 0;
+    }
+    .summary-box ul, .summary-box ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+    .summary-box li {
+      margin-bottom: 4px;
+    }
+    .summary-box strong {
+      color: #2c3e50;
+    }
+    /* Footer */
+    .footer {
+      padding: 20px;
+      text-align: center;
+      color: #6c757d;
+      font-size: 12px;
+      background: #f8f9fa;
+    }
+    /* Institutional participation */
+    .institution-section {
+      background: #f3f0ff;
+      border-radius: 6px;
+      padding: 10px;
+      margin: 8px 0;
+      border-left: 3px solid #8e44ad;
+    }
+    /* Fundamental metrics */
+    .fundamental-section {
+      background: #eafaf1;
+      border-radius: 6px;
+      padding: 10px;
+      margin: 8px 0;
+      border-left: 3px solid #27ae60;
+    }
+    /* Earnings surprise */
+    .earnings-beat { color: #27ae60; font-weight: 600; }
+    .earnings-miss { color: #e74c3c; font-weight: 600; }
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+      .header h1 { font-size: 22px; }
+      .section { padding: 15px; }
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      table { table-layout: fixed; width: 100%; }
+      th, td { padding: 4px 5px; font-size: 11px; word-break: break-word; }
+      .stock-detail-header { flex-direction: column; align-items: flex-start; }
+      .upgrade-item { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header" style="background-color:#1a5276; color:#ffffff; padding:30px 20px; text-align:center;">
+      <h1 style="margin:0 0 10px 0; font-size:28px; color:#ffffff;">{{title}}</h1>
+      <p style="margin:0; font-size:14px; color:#ffffff;">{{date}} | {{data_time_label}}: {{data_time}}</p>
+    </div>
+
+    <!-- Global Metrics -->
+    <div class="section">
+      <h2 style="margin:0 0 15px 0; font-size:18px; color:#2c3e50;">{{global_market_title}}</h2>
+      {{global_metrics}}
+    </div>
+
+    <!-- Market Sections (dynamically inserted per market) -->
+    {{market_sections}}
+
+    <!-- News -->
+    <div class="section">
+      <h2 style="margin:0 0 15px 0; font-size:18px; color:#2c3e50;">{{global_news_title}}</h2>
+      {{global_news}}
+    </div>
+
+    <!-- Daily Summary -->
+    <div class="section">
+      <h2 style="margin:0 0 15px 0; font-size:18px; color:#2c3e50;">{{summary_title}}</h2>
+      <div class="summary-box" style="font-size:14px; line-height:1.6; color:#2c3e50;">
+        {{daily_summary}}
+      </div>
+    </div>
+
+    <div class="footer" style="padding:20px; text-align:center; color:#6c757d; font-size:12px; background:#f8f9fa;">
+      <p style="margin:0;">{{disclaimer}}</p>
+      <p style="margin:10px 0 0 0;">{{generated_by}} | {{generated_at}}</p>
+    </div>
+  </div>
+</body>
+</html>
