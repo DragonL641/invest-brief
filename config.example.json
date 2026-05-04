@@ -1,0 +1,30 @@
+{
+  "schedule": {
+    "enabled": true,
+    "cron": "0 23 * * 1-5"
+  },
+  "email_service": {
+    "provider": "qq",
+    "smtp_server": "smtp.qq.com",
+    "smtp_port": 465,
+    "sender_email": "YOUR_EMAIL@qq.com",
+    "sender_name": "投资简报"
+  },
+  "recipients": [
+    {
+      "id": 1,
+      "email": "recipient@example.com",
+      "name": "Recipient1",
+      "active": true,
+      "language": "zh-CN",
+      "settings": {
+        "industries": ["semiconductor_ai", "aerospace_defense"],
+        "holdings": [
+          {"symbol": "AMD", "name": "AMD"},
+          {"symbol": "NVDA", "name": "NVIDIA"}
+        ],
+        "news_count": 10
+      }
+    }
+  ]
+}

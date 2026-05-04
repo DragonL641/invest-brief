@@ -1,0 +1,11 @@
+services:
+  invest-brief:
+    build: .
+    container_name: invest-brief
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./.env:/app/.env:ro
+      - ./logs:/app/logs
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
