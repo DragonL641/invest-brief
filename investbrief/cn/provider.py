@@ -364,6 +364,44 @@ class CNMarketProvider(MarketProvider):
     </table>
   </div>'''
 
+            # 盈利预测一致预期
+            consensus = rating.get("consensus", [])
+            institutions = rating.get("institutions", 0)
+            growth_rates = rating.get("eps_growth_rates", [])
+            if consensus:
+                consensus_rows = ""
+                for c in consensus:
+                    eps_str = f'EPS ¥{c["eps_avg"]:.2f}' if "eps_avg" in c else ""
+                    pe_str = f'PE {c["pe_avg"]:.1f}x' if "pe_avg" in c else ""
+                    consensus_rows += f'''
+          <tr>
+            <td style="color:#666; padding:3px 8px 3px 0; font-weight:600;">{c["year"]}</td>
+            <td style="padding:3px 8px 3px 0;">{eps_str}</td>
+            <td style="padding:3px 0;">{pe_str}</td>
+          </tr>'''
+
+                growth_str = ""
+                if growth_rates:
+                    parts = []
+                    for i, g in enumerate(growth_rates):
+                        yr = consensus[i + 1]["year"] if i + 1 < len(consensus) else f"Y{i+2}"
+                        color = "#e74c3c" if g > 0 else "#27ae60"
+                        parts.append(f'<span style="color:{color};">{yr} {g:+.1f}%</span>')
+                    growth_str = f'''
+      <div style="font-size:12px; margin-top:4px; color:#555;">
+        盈利增速: {" → ".join(parts)}
+      </div>'''
+
+                inst_str = f" · {institutions}家机构覆盖" if institutions else ""
+                html += f'''
+  <div style="background:#f0f4f8; border-radius:6px; padding:10px; margin:8px 0; border-left:3px solid #3498db;">
+    <div style="font-weight:600; margin-bottom:6px; color:#2c3e50;">📈 一致预期{inst_str}</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:12px; margin:4px 0;">
+{consensus_rows}
+    </table>
+    {growth_str}
+  </div>'''
+
         # Technical indicators
         techs = stock.get("technicals")
         if techs:

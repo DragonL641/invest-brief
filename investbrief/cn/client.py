@@ -194,30 +194,69 @@ class AKShareClient:
     }
 
     def get_analyst_rating_summary(self, symbol: str) -> dict[str, Any] | None:
-        """汇总研报评级分布（取全量研报以反映真实分布）。"""
+        """汇总研报评级分布 + 盈利预测一致预期。"""
         try:
-            reports = self.get_research_reports(symbol, limit=500)
-            if not reports:
+            df = ak.stock_research_report_em(symbol=symbol)
+            if df is None or df.empty:
                 return None
+
             counts: dict[str, int] = {
                 "buy": 0, "outperform": 0, "neutral": 0,
                 "underperform": 0, "sell": 0,
             }
-            target_prices: list[float] = []
-            for rpt in reports:
-                en = self._RATING_MAP.get(rpt["rating"], "")
+            for _, r in df.iterrows():
+                en = self._RATING_MAP.get(str(r.get("东财评级", "")), "")
                 if en:
                     counts[en] += 1
-                tp = rpt.get("target_price")
-                if tp is not None:
-                    target_prices.append(tp)
+
+            # 盈利预测：按年份聚合 EPS 和 PE 的一致预期
+            eps_forecasts: dict[str, list[float]] = {}
+            pe_forecasts: dict[str, list[float]] = {}
+            institutions: set[str] = set()
+            for _, r in df.iterrows():
+                inst = str(r.get("机构", ""))
+                if inst:
+                    institutions.add(inst)
+                for col in df.columns:
+                    val = pd.to_numeric(r.get(col), errors="coerce")
+                    if pd.isna(val):
+                        continue
+                    if "盈利预测-收益" in col:
+                        year = col.split("-")[0]
+                        eps_forecasts.setdefault(year, []).append(float(val))
+                    elif "盈利预测-市盈率" in col:
+                        year = col.split("-")[0]
+                        pe_forecasts.setdefault(year, []).append(float(val))
+
+            consensus: list[dict] = []
+            for year in sorted(set(eps_forecasts) | set(pe_forecasts)):
+                eps_vals = eps_forecasts.get(year, [])
+                pe_vals = pe_forecasts.get(year, [])
+                entry: dict[str, Any] = {"year": year}
+                if eps_vals:
+                    entry["eps_avg"] = round(sum(eps_vals) / len(eps_vals), 2)
+                if pe_vals:
+                    entry["pe_avg"] = round(sum(pe_vals) / len(pe_vals), 1)
+                if len(eps_vals) >= 2:
+                    entry["eps_growth"] = round(
+                        (max(eps_vals) - min(eps_vals)) / entry["eps_avg"] * 100, 1
+                    )
+                consensus.append(entry)
+
+            # 盈利增速：相邻年份 EPS 增长
+            growth_rates: list[float] = []
+            for i in range(1, len(consensus)):
+                prev = consensus[i - 1].get("eps_avg")
+                curr = consensus[i].get("eps_avg")
+                if prev and curr and prev > 0:
+                    growth_rates.append(round((curr - prev) / prev * 100, 1))
+
             return {
                 **counts,
-                "avg_target_price": (
-                    sum(target_prices) / len(target_prices)
-                    if target_prices else None
-                ),
-                "total_reports": len(reports),
+                "total_reports": len(df),
+                "institutions": len(institutions),
+                "consensus": consensus,
+                "eps_growth_rates": growth_rates,
             }
         except Exception as e:
             logger.warning(f"AKShare get_analyst_rating_summary failed for {symbol}: {e}")
