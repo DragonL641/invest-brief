@@ -5,6 +5,7 @@ Data fetching + HTML rendering for A-share market reports.
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import pandas as pd
@@ -12,7 +13,7 @@ import pandas as pd
 from investbrief.core.charts import generate_stock_chart
 from investbrief.core.provider import MarketProvider
 from investbrief.cn.client import AKShareClient
-from investbrief.cn.watchlist import get_watchlist_stocks, INDUSTRY_LABELS, INDUSTRY_SECTOR_NAMES
+from investbrief.cn.watchlist import INDUSTRY_LABELS, INDUSTRY_SECTOR_NAMES
 from investbrief.cn.calendar import get_upcoming_events
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,15 @@ class CNMarketProvider(MarketProvider):
 
     # ==================== Data Methods ====================
 
+    def _batch_stock_quotes(self, symbols: list[str]) -> dict[str, dict]:
+        """Batch fetch stock quotes. Returns {symbol: quote_dict}."""
+        try:
+            quotes_list = self.client.get_stock_quotes(symbols)
+            return {q["symbol"]: q for q in quotes_list}
+        except Exception as e:
+            logger.warning(f"Batch quote fetch failed: {e}")
+            return {}
+
     def get_indices(self) -> list[dict[str, Any]]:
         """获取 A 股主要指数行情。"""
         results = []
@@ -54,17 +64,17 @@ class CNMarketProvider(MarketProvider):
         return results
 
     def get_holdings_data(self, holdings: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """获取持仓个股详情。"""
+        """获取持仓个股详情。并发拉取每只股票的多个数据源。"""
         symbols = [h["symbol"] for h in holdings]
 
         # Batch fetch quotes to avoid repeated full-table scans
-        batch_quotes = {}
+        batch_quotes = self._batch_stock_quotes(symbols)
+
+        # Batch fetch institutional research to avoid per-symbol date iteration
         try:
-            quotes_list = self.client.get_stock_quotes(symbols)
-            for q in quotes_list:
-                batch_quotes[q["symbol"]] = q
-        except Exception as e:
-            logger.warning(f"Batch quote fetch failed, falling back: {e}")
+            batch_research = self.client.get_institutional_research_batch(symbols)
+        except Exception:
+            batch_research = {}
 
         results = []
         for h in holdings:
@@ -82,104 +92,191 @@ class CNMarketProvider(MarketProvider):
                 data["pe"] = quote.get("pe")
                 data["turnover_rate"] = quote.get("turnover_rate")
 
-            # History + chart
-            history = self.client.get_stock_history(symbol, days=180)
-            if history is not None and not history.empty:
-                # generate_stock_chart expects uppercase column names (Close, etc.)
-                chart_df = history.rename(columns={
-                    "open": "Open", "high": "High", "low": "Low",
-                    "close": "Close", "volume": "Volume",
-                })
-                chart_b64 = generate_stock_chart(symbol, chart_df, period="6月")
-                if chart_b64:
-                    data["chart_b64"] = chart_b64
-                data["technicals"] = self._calc_technicals(history)
+            # Fetch independent data sources concurrently
+            details = self._fetch_stock_details(symbol)
 
-            # Analyst rating summary
-            rating = self.client.get_analyst_rating_summary(symbol)
-            if rating:
-                data["rating_summary"] = rating
+            # Override inst_research with batch result
+            if symbol in batch_research:
+                details["inst_research"] = batch_research[symbol]
 
-            # Financial indicators
-            financial = self.client.get_financial_indicators(symbol)
-            if financial:
-                data["financial"] = financial
-
-            # Insider trades
-            insiders = self.client.get_insider_trades(symbol)
-            if insiders:
-                data["insider_trades"] = insiders
-
-            # Institutional research
-            inst = self.client.get_institutional_research(symbol)
-            if inst:
-                data["institutional_research"] = inst
-
-            # Research reports
-            reports = self.client.get_research_reports(symbol, limit=5)
-            if reports:
-                data["research_reports"] = reports
-
-            # Fund flow (主力资金)
-            fund_flow = self.client.get_stock_fund_flow(symbol)
-            if fund_flow:
-                data["fund_flow"] = fund_flow
+            data.update(details)
 
             results.append(data)
         return results
 
+    def _fetch_stock_details(self, symbol: str) -> dict[str, Any]:
+        """并发拉取单只股票的多个独立数据源。"""
+        client = self.client
+        tasks = {
+            "history": lambda: client.get_stock_history(symbol, days=180),
+            "rating": lambda: client.get_analyst_rating_summary(symbol),
+            "financial": lambda: client.get_financial_indicators(symbol),
+            "insiders": lambda: client.get_insider_trades(symbol),
+            "inst_research": lambda: client.get_institutional_research(symbol),
+            "reports": lambda: client.get_research_reports(symbol, limit=5),
+            "fund_flow": lambda: client.get_stock_fund_flow(symbol),
+        }
+
+        results: dict[str, Any] = {}
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = {pool.submit(fn): key for key, fn in tasks.items()}
+            for future in as_completed(futures):
+                key = futures[future]
+                try:
+                    results[key] = future.result()
+                except Exception as e:
+                    logger.warning(f"Concurrent fetch error ({symbol}.{key}): {e}")
+
+        data: dict[str, Any] = {}
+
+        history = results.get("history")
+        if history is not None and not history.empty:
+            chart_df = history.rename(columns={
+                "open": "Open", "high": "High", "low": "Low",
+                "close": "Close", "volume": "Volume",
+            })
+            chart_b64 = generate_stock_chart(symbol, chart_df, period="6月")
+            if chart_b64:
+                data["chart_b64"] = chart_b64
+            data["technicals"] = self._calc_technicals(history)
+
+        if results.get("rating"):
+            data["rating_summary"] = results["rating"]
+        if results.get("financial"):
+            data["financial"] = results["financial"]
+        if results.get("insiders"):
+            data["insider_trades"] = results["insiders"]
+        if results.get("inst_research"):
+            data["institutional_research"] = results["inst_research"]
+        if results.get("reports"):
+            data["research_reports"] = results["reports"]
+        if results.get("fund_flow"):
+            data["fund_flow"] = results["fund_flow"]
+
+        return data
+
     def get_recommendations(
-        self, industries: list[str], exclude: list[str] | None = None
+        self, industries: list[str], exclude: list[str] | None = None,
+        max_recommendations: int = 3,
     ) -> list[dict[str, Any]]:
-        """按行业获取推荐关注个股（买入评级 > 50%）。"""
+        """动态选股：基于行业成分股 + 资金流粗排，分析师评级精排。"""
         exclude = exclude or []
-        watchlist = get_watchlist_stocks(industries)
-        if not watchlist:
+
+        # Step 1: 批量获取行业成分股
+        industry_stocks: list[dict[str, Any]] = []
+        for industry_key in industries:
+            board_name = INDUSTRY_SECTOR_NAMES.get(industry_key)
+            if not board_name:
+                continue
+            stocks = self.client.get_industry_stocks(board_name)
+            for s in stocks:
+                s["industry"] = industry_key
+            industry_stocks.extend(stocks)
+
+        if not industry_stocks:
             return []
 
-        results = []
-        for stock in watchlist:
-            symbol = stock["symbol"]
-            if symbol in exclude:
+        # Filter out holdings
+        candidates = [s for s in industry_stocks if s["symbol"] not in exclude]
+        if not candidates:
+            return []
+
+        # Step 2: 获取全量资金流
+        fund_flow_map = self.client.get_all_fund_flow()
+
+        # Step 3: 粗排 — 过滤 + 评分
+        scored = []
+        for s in candidates:
+            pe = s.get("pe")
+            if pe is None or pe <= 0 or pe >= 200:
                 continue
 
+            ff = fund_flow_map.get(s["symbol"], {})
+            main_pct = ff.get("main_pct")
+            if main_pct is None or main_pct <= 0:
+                continue
+
+            s["fund_flow"] = ff
+            scored.append(s)
+
+        if not scored:
+            return []
+
+        # Normalize indicators (min-max within candidate pool)
+        def _normalize(values: list[float]) -> list[float]:
+            mn, mx = min(values), max(values)
+            rng = mx - mn
+            if rng == 0:
+                return [0.5] * len(values)
+            return [(v - mn) / rng for v in values]
+
+        main_pcts = [s["fund_flow"]["main_pct"] for s in scored]
+        turnovers = [s.get("turnover_rate") or 0 for s in scored]
+        changes = [s.get("change_pct") or 0 for s in scored]
+
+        norm_main = _normalize(main_pcts)
+        norm_turnover = _normalize(turnovers)
+        norm_change = _normalize(changes)
+
+        for i, s in enumerate(scored):
+            s["_score"] = (
+                norm_main[i] * 0.4
+                + norm_turnover[i] * 0.2
+                + norm_change[i] * 0.2
+            )
+
+        scored.sort(key=lambda x: x["_score"], reverse=True)
+        top_candidates = scored[:10]
+
+        # Step 4: 精排 — 并发调研报评级
+        def _rate_stock(stock: dict) -> dict | None:
+            symbol = stock["symbol"]
             rating = self.client.get_analyst_rating_summary(symbol)
             if not rating:
-                continue
-
+                return None
             total = rating["total_reports"]
             if total == 0:
-                continue
-
+                return None
             buy_count = rating.get("buy", 0) + rating.get("outperform", 0)
             buy_pct = buy_count / total * 100
             if buy_pct <= 50:
-                continue
+                return None
+            return {**stock, "rating_summary": rating, "buy_pct": round(buy_pct, 1)}
 
+        rated = []
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = {pool.submit(_rate_stock, s): s for s in top_candidates}
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    if result:
+                        rated.append(result)
+                except Exception as e:
+                    logger.warning(f"Rating fetch error: {e}")
+
+        rated.sort(key=lambda x: x.get("buy_pct", 0), reverse=True)
+
+        # Step 5: Build output
+        results = []
+        for r in rated[:max_recommendations]:
+            label = INDUSTRY_LABELS.get(r["industry"], r["industry"])
+            total_reports = r["rating_summary"]["total_reports"]
             data: dict[str, Any] = {
-                "symbol": symbol,
-                "name": stock["name"],
-                "industry": stock["industry"],
-                "rating_summary": rating,
-                "buy_pct": round(buy_pct, 1),
+                "symbol": r["symbol"],
+                "name": r["name"],
+                "industry": r["industry"],
+                "rating_summary": r["rating_summary"],
+                "buy_pct": r["buy_pct"],
+                "price": r.get("price"),
+                "change": r.get("change_pct"),
+                "currency": "¥",
+                "recommendation_reason": (
+                    f"{label} · {r['buy_pct']:.0f}%买入评级 · {total_reports}份研报"
+                ),
             }
-
-            # Basic quote
-            quote = self.client.get_stock_quote(symbol)
-            if quote:
-                data["price"] = quote["price"]
-                data["change"] = quote.get("change_pct")
-                data["currency"] = "¥"
-
-            label = INDUSTRY_LABELS.get(stock["industry"], stock["industry"])
-            data["recommendation_reason"] = (
-                f"{label} · {buy_pct:.0f}%买入评级 · {total}份研报"
-            )
-
             results.append(data)
 
-        results.sort(key=lambda x: x.get("buy_pct", 0), reverse=True)
-        return results[:5]
+        return results
 
     def fetch_all(self, holdings: list[dict], industries: list[str]) -> dict[str, Any]:
         """获取 A 股全部数据。"""
@@ -206,8 +303,11 @@ class CNMarketProvider(MarketProvider):
 
     # ==================== Rendering ====================
 
-    def render_section(self, data: dict[str, Any], config: dict[str, Any]) -> str:
+    def render_section(self, data: dict[str, Any], config: dict[str, Any], *,
+                       guidance: dict[str, str] | None = None) -> str:
         """渲染 A 股市场 HTML 区块。"""
+        guidance = guidance or {}
+
         indices_html = self._render_indices_table(data.get("indices", []), config)
         holdings_html = self._render_holdings(data.get("holdings", []), config)
 
@@ -227,6 +327,11 @@ class CNMarketProvider(MarketProvider):
             data.get("recommendations", []), config
         )
 
+        # Section guidance snippets
+        overview_tip = self._guidance_html(guidance.get("market_overview"))
+        holdings_tip = self._guidance_html(guidance.get("holdings"))
+        recs_tip = self._guidance_html(guidance.get("recommendations"))
+
         return f'''
     <div class="section">
       <div class="country-header" style="background-color:#c0392b; color:#ffffff; padding:15px 20px; margin-bottom:15px;">
@@ -239,6 +344,7 @@ class CNMarketProvider(MarketProvider):
           {indices_html}
         </div>
       </div>
+      {overview_tip}
       {sector_html}
       <div class="card">
         <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">💼 持仓股票</div>
@@ -246,6 +352,7 @@ class CNMarketProvider(MarketProvider):
           {holdings_html}
         </div>
       </div>
+      {holdings_tip}
       {dt_html}
       {econ_html}
       <div class="card">
@@ -254,6 +361,7 @@ class CNMarketProvider(MarketProvider):
           {recommendations_html}
         </div>
       </div>
+      {recs_tip}
     </div>'''
 
     # ==================== Render Helpers ====================
@@ -331,6 +439,16 @@ class CNMarketProvider(MarketProvider):
       <td style="text-align:right; font-size:18px; font-weight:bold; color:{color};">{currency}{price:,.2f} <small>{change_str}</small></td>
     </tr>
   </table>'''
+
+        # Rule-based stock annotations
+        annotations = self._get_stock_annotations(stock)
+        if annotations:
+            tags_html = " ".join(
+                f'<span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:3px; margin:2px 2px 2px 0; {a["style"]}">{a["text"]}</span>'
+                for a in annotations
+            )
+            html += f'''
+  <div style="margin:4px 0 6px 0;">{tags_html}</div>'''
 
         # Key metrics: 市值 / PE / 换手率 + 行情明细
         metrics_items = []
@@ -753,6 +871,65 @@ class CNMarketProvider(MarketProvider):
                     card_html = card_html[:-6] + badge + "</div>"
             html += card_html
         return html
+
+    @staticmethod
+    def _guidance_html(text: str | None) -> str:
+        """Render a guidance tip block. Returns empty string if no text."""
+        if not text:
+            return ""
+        return f'''
+      <div style="font-size:12px; color:#6c757d; background:#f8f9fa; padding:8px 12px; border-radius:4px; margin:4px 0 8px 0; border-left:3px solid #adb5bd; line-height:1.5;">
+        💡 {text}
+      </div>'''
+
+    @staticmethod
+    def _get_stock_annotations(stock: dict) -> list[dict]:
+        """Rule-based annotations for CN stock cards."""
+        annotations = []
+        techs = stock.get("technicals", {})
+
+        # RSI signals
+        rsi = techs.get("rsi_14")
+        if rsi:
+            if rsi > 70:
+                annotations.append({"text": "⚠️ RSI超买，注意回调", "style": "background:#fde8e8; color:#c62828;"})
+            elif rsi < 30:
+                annotations.append({"text": "💡 RSI超卖，关注反弹机会", "style": "background:#e8f5e9; color:#2e7d32;"})
+
+        # MACD signals
+        macd_hist = techs.get("macd_hist")
+        if macd_hist is not None:
+            if macd_hist > 0:
+                annotations.append({"text": "📊 MACD金叉", "style": "background:#e8f5e9; color:#2e7d32;"})
+            elif macd_hist < 0 and (rsi and rsi < 50):
+                annotations.append({"text": "📊 MACD死叉，短期承压", "style": "background:#fde8e8; color:#c62828;"})
+
+        # Main force fund flow
+        ff = stock.get("fund_flow")
+        if ff:
+            main_net = ff.get("main_net")
+            if main_net is not None and abs(main_net) > 50_000_000:  # > 5000万
+                if main_net > 0:
+                    annotations.append({"text": "💰 主力资金大幅流入", "style": "background:#e8f5e9; color:#2e7d32;"})
+                else:
+                    annotations.append({"text": "💰 主力资金大幅流出", "style": "background:#fde8e8; color:#c62828;"})
+
+        # Insider trades
+        insiders = stock.get("insider_trades")
+        if insiders:
+            buy_count = sum(1 for t in insiders if "增" in t.get("action", ""))
+            if buy_count >= 2:
+                annotations.append({"text": "👔 多位高管增持", "style": "background:#e8f5e9; color:#2e7d32;"})
+
+        # Financial growth
+        fin = stock.get("financial")
+        if fin:
+            rev_growth = fin.get("revenue_growth")
+            profit_growth = fin.get("profit_growth")
+            if rev_growth and profit_growth and rev_growth > 20 and profit_growth > 20:
+                annotations.append({"text": f"📈 营收+利润双增长(营收{rev_growth:+.0f}%)", "style": "background:#e3f2fd; color:#1565c0;"})
+
+        return annotations[:4]
 
     # ==================== Utilities ====================
 
