@@ -265,9 +265,9 @@ class AKShareClient:
             df = ak.stock_ggcg_em(symbol="全部")
             if df is None or df.empty:
                 return []
-            cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            cutoff = (datetime.now() - timedelta(days=days)).date()
             df = df[df["代码"] == symbol]
-            df = df[df["公告日"] >= cutoff]
+            df = df[df["公告日"].apply(lambda x: x.date() if hasattr(x, "date") else x) >= cutoff]
             results = []
             for _, r in df.iterrows():
                 results.append({
