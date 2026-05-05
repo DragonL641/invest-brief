@@ -46,6 +46,14 @@ INDUSTRY_LABELS: dict[str, str] = {
     "ai_digital": "AI/数字经济",
 }
 
+# AKShare 板块名称映射（用于行业板块行情查询）
+INDUSTRY_SECTOR_NAMES: dict[str, str] = {
+    "semiconductor": "半导体",
+    "new_energy": "光伏设备",
+    "consumption": "白酒",
+    "ai_digital": "软件开发",
+}
+
 
 def get_watchlist_stocks(industries: list[str]) -> list[dict[str, str]]:
     """获取指定行业的关注股票列表。"""

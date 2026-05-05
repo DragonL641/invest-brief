@@ -459,6 +459,57 @@ class AKShareClient:
             logger.warning(f"AKShare get_stock_news failed for {symbol}: {e}")
             return []
 
+    # ---- 主力资金 ----
+
+    def get_stock_fund_flow(self, symbol: str) -> dict[str, Any] | None:
+        """获取个股最新主力资金流向。
+
+        market 从代码推断: 6 开头=sh, 其他=sz。
+        """
+        try:
+            market = "sh" if symbol.startswith("6") else "sz"
+            df = ak.stock_individual_fund_flow(stock=symbol, market=market)
+            if df is None or df.empty:
+                return None
+            r = df.iloc[-1]
+            return {
+                "date": str(r.get("日期", "")),
+                "main_net": self._safe_float(r.get("主力净流入-净额")),
+                "main_pct": self._safe_float(r.get("主力净流入-净占比")),
+                "huge_net": self._safe_float(r.get("超大单净流入-净额")),
+                "huge_pct": self._safe_float(r.get("超大单净流入-净占比")),
+                "big_net": self._safe_float(r.get("大单净流入-净额")),
+                "big_pct": self._safe_float(r.get("大单净流入-净占比")),
+            }
+        except Exception as e:
+            logger.warning(f"AKShare get_stock_fund_flow failed for {symbol}: {e}")
+            return None
+
+    def get_sector_performance(self, sector_names: list[str]) -> list[dict[str, Any]]:
+        """获取指定行业板块的涨跌幅表现。"""
+        try:
+            df = ak.stock_board_industry_name_em()
+            if df is None or df.empty:
+                return []
+            results = []
+            for name in sector_names:
+                matched = df[df["板块名称"] == name]
+                if matched.empty:
+                    continue
+                r = matched.iloc[0]
+                results.append({
+                    "name": name,
+                    "change_pct": self._safe_float(r.get("涨跌幅")),
+                    "up_count": self._safe_float(r.get("上涨家数")),
+                    "down_count": self._safe_float(r.get("下跌家数")),
+                    "leader": str(r.get("领涨股票", "")),
+                    "leader_change": self._safe_float(r.get("领涨股票-涨跌幅")),
+                })
+            return results
+        except Exception as e:
+            logger.warning(f"AKShare get_sector_performance failed: {e}")
+            return []
+
     # ---- 工具方法 ----
 
     @staticmethod

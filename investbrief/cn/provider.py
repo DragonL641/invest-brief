@@ -12,7 +12,7 @@ import pandas as pd
 from investbrief.core.charts import generate_stock_chart
 from investbrief.core.provider import MarketProvider
 from investbrief.cn.client import AKShareClient
-from investbrief.cn.watchlist import get_watchlist_stocks, INDUSTRY_LABELS
+from investbrief.cn.watchlist import get_watchlist_stocks, INDUSTRY_LABELS, INDUSTRY_SECTOR_NAMES
 from investbrief.cn.calendar import get_upcoming_events
 
 logger = logging.getLogger(__name__)
@@ -120,6 +120,11 @@ class CNMarketProvider(MarketProvider):
             if reports:
                 data["research_reports"] = reports
 
+            # Fund flow (主力资金)
+            fund_flow = self.client.get_stock_fund_flow(symbol)
+            if fund_flow:
+                data["fund_flow"] = fund_flow
+
             results.append(data)
         return results
 
@@ -186,12 +191,17 @@ class CNMarketProvider(MarketProvider):
         dragon_tiger = self.client.get_dragon_tiger_list(days=3)
         economic_calendar = get_upcoming_events()
 
+        # Industry sector performance
+        sector_names = [INDUSTRY_SECTOR_NAMES[i] for i in industries if i in INDUSTRY_SECTOR_NAMES]
+        sector_perf = self.client.get_sector_performance(sector_names) if sector_names else []
+
         return {
             "indices": indices,
             "holdings": holdings_data,
             "recommendations": recommendations,
             "dragon_tiger": dragon_tiger,
             "economic_calendar": economic_calendar,
+            "sector_performance": sector_perf,
         }
 
     # ==================== Rendering ====================
@@ -209,6 +219,10 @@ class CNMarketProvider(MarketProvider):
         econ = data.get("economic_calendar", [])
         econ_html = self._render_economic_calendar(econ) if econ else ""
 
+        # Industry sector performance
+        sector = data.get("sector_performance", [])
+        sector_html = self._render_sector_performance(sector) if sector else ""
+
         recommendations_html = self._render_recommendations(
             data.get("recommendations", []), config
         )
@@ -225,6 +239,7 @@ class CNMarketProvider(MarketProvider):
           {indices_html}
         </div>
       </div>
+      {sector_html}
       <div class="card">
         <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">💼 持仓股票</div>
         <div class="card-body">
@@ -317,7 +332,7 @@ class CNMarketProvider(MarketProvider):
     </tr>
   </table>'''
 
-        # Key metrics: 市值 / PE / 换手率
+        # Key metrics: 市值 / PE / 换手率 + 行情明细
         metrics_items = []
         if stock.get("market_cap"):
             metrics_items.append(f'<span class="label">市值:</span> {self._format_cap_cn(stock["market_cap"])}')
@@ -325,6 +340,16 @@ class CNMarketProvider(MarketProvider):
             metrics_items.append(f'<span class="label">PE:</span> {stock["pe"]:.1f}')
         if stock.get("turnover_rate") is not None:
             metrics_items.append(f'<span class="label">换手率:</span> {stock["turnover_rate"]:.2f}%')
+        # 行情明细: 开高低 + 成交额
+        detail_parts = []
+        if stock.get("open") is not None:
+            detail_parts.append(f"开 {currency}{stock['open']:.2f}")
+        if stock.get("high") is not None and stock.get("low") is not None:
+            detail_parts.append(f"高 {currency}{stock['high']:.2f} / 低 {currency}{stock['low']:.2f}")
+        if stock.get("amount") is not None:
+            detail_parts.append(f"成交额 {self._format_amount(stock['amount'])}")
+        if detail_parts:
+            metrics_items.append('<span class="label">行情:</span> ' + " | ".join(detail_parts))
 
         if metrics_items:
             metrics_html = "".join(f'<div class="metric">{m}</div>' for m in metrics_items)
@@ -402,6 +427,24 @@ class CNMarketProvider(MarketProvider):
     {growth_str}
   </div>'''
 
+        # Main force fund flow (主力资金)
+        ff = stock.get("fund_flow")
+        if ff:
+            main_net = ff.get("main_net")
+            main_pct = ff.get("main_pct")
+            huge_net = ff.get("huge_net")
+            if main_net is not None:
+                net_color = "#e74c3c" if main_net > 0 else "#27ae60"
+                direction = "净流入" if main_net > 0 else "净流出"
+                main_str = f'<strong style="color:{net_color};">{self._format_amount(abs(main_net))} {direction}</strong> ({main_pct:+.2f}%)'
+                huge_str = ""
+                if huge_net is not None:
+                    huge_str = f' | 超大单 {self._format_amount(abs(huge_net))}'
+                html += f'''
+  <div style="background:#fff8f0; border-radius:6px; padding:8px 10px; margin:8px 0; border-left:3px solid #e67e22; font-size:13px;">
+    <strong>💰 主力资金:</strong> {main_str}{huge_str}
+  </div>'''
+
         # Technical indicators
         techs = stock.get("technicals")
         if techs:
@@ -421,6 +464,11 @@ class CNMarketProvider(MarketProvider):
         inst = stock.get("institutional_research")
         if inst:
             html += self._render_institutional_research(inst)
+
+        # Research reports list (最新研报)
+        reports = stock.get("research_reports")
+        if reports:
+            html += self._render_research_reports(reports)
 
         # Chart
         chart_b64 = stock.get("chart_b64")
@@ -476,6 +524,12 @@ class CNMarketProvider(MarketProvider):
             items.append(f"营收增长: {fin['revenue_growth']:+.2f}%")
         if fin.get("profit_growth") is not None:
             items.append(f"净利润增长: {fin['profit_growth']:+.2f}%")
+        if fin.get("gross_margin") is not None:
+            items.append(f"毛利率: {fin['gross_margin']:.2f}%")
+        if fin.get("net_margin") is not None:
+            items.append(f"净利率: {fin['net_margin']:.2f}%")
+        if fin.get("debt_ratio") is not None:
+            items.append(f"负债率: {fin['debt_ratio']:.2f}%")
 
         if not items:
             return ""
@@ -538,6 +592,35 @@ class CNMarketProvider(MarketProvider):
         <th style="text-align:left; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">日期</th>
         <th style="text-align:left; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">参与机构</th>
         <th style="text-align:left; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">方式</th>
+      </tr>
+      {rows}
+    </table>
+  </div>'''
+
+    def _render_research_reports(self, reports: list[dict]) -> str:
+        """渲染最新研报列表。"""
+        rows = ""
+        for r in reports[:5]:
+            rating = r.get("rating", "")
+            rating_color = "#e74c3c" if rating in ("买入", "强烈推荐", "推荐") else "#e67e22" if rating in ("增持",) else "#f39c12" if rating in ("中性", "持有") else "#7f8c8d"
+            rows += f'''
+      <tr>
+        <td style="padding:4px 5px; border-bottom:1px solid #f0e8d8; color:#2c3e50; font-size:11px; line-height:1.4;">{r.get("title", "")}</td>
+        <td style="padding:4px 5px; border-bottom:1px solid #f0e8d8; font-size:11px; color:#555;">{r.get("institution", "")}</td>
+        <td style="padding:4px 5px; border-bottom:1px solid #f0e8d8; font-size:11px; color:{rating_color}; font-weight:500;">{rating}</td>
+        <td style="padding:4px 5px; border-bottom:1px solid #f0e8d8; font-size:11px; color:#999;">{r.get("date", "")}</td>
+      </tr>'''
+
+        return f'''
+  <div class="research-section">
+    <div style="font-weight:600; margin-bottom:6px; color:#2c3e50;">📝 最新研报</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; font-size:12px; table-layout:fixed;">
+      <colgroup><col style="width:45%"/><col style="width:22%"/><col style="width:15%"/><col style="width:18%"/></colgroup>
+      <tr style="background:rgba(0,0,0,0.03);">
+        <th style="text-align:left; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc; font-size:11px;">标题</th>
+        <th style="text-align:left; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc; font-size:11px;">机构</th>
+        <th style="text-align:left; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc; font-size:11px;">评级</th>
+        <th style="text-align:left; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc; font-size:11px;">日期</th>
       </tr>
       {rows}
     </table>
@@ -613,6 +696,45 @@ class CNMarketProvider(MarketProvider):
 <thead><tr><th>事件</th><th>日期</th><th>倒计时</th></tr></thead>
 <tbody>{rows}</tbody>
 </table>
+        </div>
+      </div>'''
+
+    def _render_sector_performance(self, sectors: list[dict]) -> str:
+        """渲染行业板块表现。"""
+        if not sectors:
+            return ""
+        rows = ""
+        for s in sectors:
+            change = s.get("change_pct") or 0
+            color = "#e74c3c" if change > 0 else "#27ae60" if change < 0 else "#7f8c8d"
+            change_str = f"+{change:.2f}%" if change > 0 else f"{change:.2f}%"
+            up = int(s.get("up_count") or 0)
+            down = int(s.get("down_count") or 0)
+            leader = s.get("leader", "")
+            leader_change = s.get("leader_change")
+            leader_str = f"{leader} {leader_change:+.1f}%" if leader and leader_change is not None else leader
+            rows += f'''
+      <tr>
+        <td style="padding:4px 8px; border-bottom:1px solid #eee; font-weight:500;">{s["name"]}</td>
+        <td style="padding:4px 8px; border-bottom:1px solid #eee; color:{color}; font-weight:bold;">{change_str}</td>
+        <td style="padding:4px 8px; border-bottom:1px solid #eee; color:#555; font-size:11px;">{up}涨 / {down}跌</td>
+        <td style="padding:4px 8px; border-bottom:1px solid #eee; color:#999; font-size:11px;">领涨: {leader_str}</td>
+      </tr>'''
+
+        return f'''
+      <div class="card">
+        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">🏭 行业板块</div>
+        <div class="card-body">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; font-size:12px;">
+            <colgroup><col style="width:20%"/><col style="width:15%"/><col style="width:25%"/><col style="width:40%"/></colgroup>
+            <tr style="background:rgba(0,0,0,0.03);">
+              <th style="text-align:left; padding:4px 8px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">行业</th>
+              <th style="text-align:left; padding:4px 8px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">涨跌幅</th>
+              <th style="text-align:left; padding:4px 8px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">涨跌比</th>
+              <th style="text-align:left; padding:4px 8px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">领涨股</th>
+            </tr>
+            {rows}
+          </table>
         </div>
       </div>'''
 
