@@ -263,7 +263,7 @@ class CNMarketProvider(MarketProvider):
             amount = idx.get("amount")
             amount_str = f'<div style="font-size:11px; color:#999;">额 {self._format_amount(amount)}</div>' if amount else ""
             cards += f'''
-        <td style="padding:8px 6px; width:20%; vertical-align:top;">
+        <td style="padding:8px 6px; width:33.3%; vertical-align:top;">
           <div style="background:#f8f9fa; border-radius:8px; padding:10px; text-align:center;">
             <div style="font-size:12px; color:#7f8c8d; margin-bottom:4px;">{idx['name']}</div>
             <div style="font-size:18px; font-weight:bold; color:#2c3e50;">{point:,.2f}</div>
@@ -272,15 +272,15 @@ class CNMarketProvider(MarketProvider):
           </div>
         </td>'''
 
-        # Wrap in rows of 5
+        # Wrap in rows of 3
         cells = cards.split("</td>")
         cells = [c + "</td>" for c in cells if c.strip()]
         rows_html = ""
-        for i in range(0, len(cells), 5):
-            row_cells = "".join(cells[i : i + 5])
-            remaining = 5 - len(cells[i : i + 5])
+        for i in range(0, len(cells), 3):
+            row_cells = "".join(cells[i : i + 3])
+            remaining = 3 - len(cells[i : i + 3])
             for _ in range(remaining):
-                row_cells += '<td style="width:20%;"></td>'
+                row_cells += '<td style="width:33.3%;"></td>'
             rows_html += f"<tr>{row_cells}</tr>"
 
         return f'''
@@ -337,35 +337,30 @@ class CNMarketProvider(MarketProvider):
         rating = stock.get("rating_summary")
         if rating and rating.get("total_reports", 0) > 0:
             total = rating["total_reports"]
-            buy = rating.get("buy", 0) + rating.get("outperform", 0)
-            neutral = rating.get("neutral", 0)
-            sell = rating.get("underperform", 0) + rating.get("sell", 0)
-            buy_pct = buy / total * 100
-            neutral_pct = neutral / total * 100
-            sell_pct = sell / total * 100
+            categories = [
+                ("买入", "buy", "#e74c3c", "#fde8e8"),
+                ("增持", "outperform", "#e67e22", "#fef5e7"),
+                ("中性", "neutral", "#f39c12", "#fef9e7"),
+                ("减持", "underperform", "#3498db", "#ebf5fb"),
+                ("卖出", "sell", "#27ae60", "#e8f8f0"),
+            ]
+            rating_bars = ""
+            for label, key, bar_color, bg_color in categories:
+                count = rating.get(key, 0)
+                pct = count / total * 100
+                rating_bars += f'''
+      <tr>
+        <td width="36" style="color:#666; padding:3px 0;">{label}</td>
+        <td width="24" style="font-weight:600; color:{bar_color}; padding:3px 4px 3px 0;">{count}</td>
+        <td style="padding:3px 0;"><div style="background:{bg_color}; height:6px; border-radius:3px;"><div style="background:{bar_color}; height:6px; border-radius:3px; width:{pct:.1f}%;"></div></div></td>
+        <td width="36" style="text-align:right; color:#999; padding:3px 0 3px 4px;">{pct:.0f}%</td>
+      </tr>'''
 
             html += f'''
   <div class="analyst-section">
     <div style="font-weight:600; margin-bottom:6px; color:#2c3e50;">📊 研报评级分布 ({total}份)</div>
     <table width="100%" cellpadding="0" cellspacing="0" style="font-size:12px; margin:6px 0;">
-      <tr>
-        <td width="36" style="color:#666; padding:3px 0;">买入</td>
-        <td width="24" style="font-weight:600; color:#e74c3c; padding:3px 4px 3px 0;">{buy}</td>
-        <td style="padding:3px 0;"><div style="background:#fde8e8; height:6px; border-radius:3px;"><div style="background:#e74c3c; height:6px; border-radius:3px; width:{buy_pct:.1f}%;"></div></div></td>
-        <td width="36" style="text-align:right; color:#999; padding:3px 0 3px 4px;">{buy_pct:.0f}%</td>
-      </tr>
-      <tr>
-        <td style="color:#666; padding:3px 0;">中性</td>
-        <td style="font-weight:600; color:#f39c12; padding:3px 4px 3px 0;">{neutral}</td>
-        <td style="padding:3px 0;"><div style="background:#fef9e7; height:6px; border-radius:3px;"><div style="background:#f39c12; height:6px; border-radius:3px; width:{neutral_pct:.1f}%;"></div></div></td>
-        <td style="text-align:right; color:#999; padding:3px 0 3px 4px;">{neutral_pct:.0f}%</td>
-      </tr>
-      <tr>
-        <td style="color:#666; padding:3px 0;">卖出</td>
-        <td style="font-weight:600; color:#27ae60; padding:3px 4px 3px 0;">{sell}</td>
-        <td style="padding:3px 0;"><div style="background:#e8f8f0; height:6px; border-radius:3px;"><div style="background:#27ae60; height:6px; border-radius:3px; width:{sell_pct:.1f}%;"></div></div></td>
-        <td style="text-align:right; color:#999; padding:3px 0 3px 4px;">{sell_pct:.0f}%</td>
-      </tr>
+{rating_bars}
     </table>
   </div>'''
 

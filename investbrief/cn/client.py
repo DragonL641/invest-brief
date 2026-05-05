@@ -194,9 +194,9 @@ class AKShareClient:
     }
 
     def get_analyst_rating_summary(self, symbol: str) -> dict[str, Any] | None:
-        """汇总研报评级分布。"""
+        """汇总研报评级分布（取全量研报以反映真实分布）。"""
         try:
-            reports = self.get_research_reports(symbol, limit=50)
+            reports = self.get_research_reports(symbol, limit=500)
             if not reports:
                 return None
             counts: dict[str, int] = {
