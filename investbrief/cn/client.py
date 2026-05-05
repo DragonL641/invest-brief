@@ -214,6 +214,7 @@ class AKShareClient:
             eps_forecasts: dict[str, list[float]] = {}
             pe_forecasts: dict[str, list[float]] = {}
             institutions: set[str] = set()
+            import re as _re
             for _, r in df.iterrows():
                 inst = str(r.get("机构", ""))
                 if inst:
@@ -223,10 +224,12 @@ class AKShareClient:
                     if pd.isna(val):
                         continue
                     if "盈利预测-收益" in col:
-                        year = col.split("-")[0]
+                        m = _re.match(r"(\d{4})", col)
+                        year = m.group(1) if m else col.split("-")[0][:4]
                         eps_forecasts.setdefault(year, []).append(float(val))
                     elif "盈利预测-市盈率" in col:
-                        year = col.split("-")[0]
+                        m = _re.match(r"(\d{4})", col)
+                        year = m.group(1) if m else col.split("-")[0][:4]
                         pe_forecasts.setdefault(year, []).append(float(val))
 
             consensus: list[dict] = []
@@ -394,6 +397,39 @@ class AKShareClient:
 
     # ---- 机构调研 ----
 
+    def get_institutional_research_batch(
+        self, symbols: list[str], days: int = 30
+    ) -> dict[str, list[dict[str, Any]]]:
+        """批量获取多只股票的机构调研统计，只遍历一次日期。"""
+        symbol_set = set(symbols)
+        all_results: dict[str, list[dict[str, Any]]] = {s: [] for s in symbols}
+        seen: set[str] = set()
+        end = datetime.now()
+        for i in range(days):
+            d = end - timedelta(days=i)
+            date_str = d.strftime("%Y%m%d")
+            try:
+                df = ak.stock_jgdy_tj_em(date=date_str)
+                if df is None or df.empty:
+                    continue
+                df = df[df["代码"].isin(symbol_set)]
+                for _, r in df.iterrows():
+                    sym = str(r.get("代码", ""))
+                    date_val = str(r.get("接待日期", ""))
+                    key = f"{sym}_{date_val}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    all_results.setdefault(sym, []).append({
+                        "institution": str(r.get("接待机构数量", "")),
+                        "date": date_val,
+                        "type": str(r.get("接待方式", "")),
+                        "researchers": str(r.get("接待人员", "")),
+                    })
+            except Exception:
+                continue
+        return all_results
+
     def get_institutional_research(
         self, symbol: str, days: int = 30
     ) -> list[dict[str, Any]]:
@@ -510,6 +546,53 @@ class AKShareClient:
         except Exception as e:
             logger.warning(f"AKShare get_sector_performance failed: {e}")
             return []
+
+    def get_industry_stocks(self, board_name: str) -> list[dict[str, Any]]:
+        """获取行业板块成分股列表。"""
+        try:
+            df = ak.stock_board_industry_cons_em(symbol=board_name)
+            if df is None or df.empty:
+                return []
+            results = []
+            for _, r in df.iterrows():
+                results.append({
+                    "symbol": str(r.get("代码", "")),
+                    "name": str(r.get("名称", "")),
+                    "price": self._safe_float(r.get("最新价")),
+                    "change_pct": self._safe_float(r.get("涨跌幅")),
+                    "change_amt": self._safe_float(r.get("涨跌额")),
+                    "turnover_rate": self._safe_float(r.get("换手率")),
+                    "pe": self._safe_float(r.get("市盈率-动态")),
+                    "pb": self._safe_float(r.get("市净率")),
+                    "volume": self._safe_float(r.get("成交量")),
+                    "amount": self._safe_float(r.get("成交额")),
+                })
+            return results
+        except Exception as e:
+            logger.warning(f"AKShare get_industry_stocks failed for {board_name}: {e}")
+            return []
+
+    def get_all_fund_flow(self) -> dict[str, dict[str, Any]]:
+        """获取全 A 股资金流向排名（今日）。"""
+        try:
+            df = ak.stock_individual_fund_flow_rank(indicator="今日")
+            if df is None or df.empty:
+                return {}
+            results: dict[str, dict[str, Any]] = {}
+            for _, r in df.iterrows():
+                symbol = str(r.get("代码", ""))
+                results[symbol] = {
+                    "main_net": self._safe_float(r.get("今日主力净流入-净额")),
+                    "main_pct": self._safe_float(r.get("今日主力净流入-净占比")),
+                    "huge_net": self._safe_float(r.get("今日超大单净流入-净额")),
+                    "huge_pct": self._safe_float(r.get("今日超大单净流入-净占比")),
+                    "big_net": self._safe_float(r.get("今日大单净流入-净额")),
+                    "big_pct": self._safe_float(r.get("今日大单净流入-净占比")),
+                }
+            return results
+        except Exception as e:
+            logger.warning(f"AKShare get_all_fund_flow failed: {e}")
+            return {}
 
     # ---- 工具方法 ----
 
