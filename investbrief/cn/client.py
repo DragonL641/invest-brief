@@ -156,6 +156,7 @@ class AKShareClient:
                 "涨跌额": "change", "换手率": "turnover",
             })
             df["date"] = pd.to_datetime(df["date"])
+            df = df.set_index("date")
             return df
         except Exception as e:
             logger.warning(f"AKShare get_stock_history failed for {symbol}: {e}")

@@ -17,6 +17,14 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import base64
 
+# CJK font support
+import platform
+if platform.system() == 'Darwin':
+    plt.rcParams['font.sans-serif'] = ['PingFang SC', 'Heiti SC', 'STHeiti', 'Arial Unicode MS']
+elif platform.system() == 'Linux':
+    plt.rcParams['font.sans-serif'] = ['Noto Sans CJK SC', 'WenQuanYi Micro Hei', 'Droid Sans Fallback']
+plt.rcParams['axes.unicode_minus'] = False
+
 
 def generate_stock_chart(symbol: str, history_df, period: str = "6mo") -> Optional[str]:
     """
