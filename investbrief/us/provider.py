@@ -199,9 +199,10 @@ class USMarketProvider(MarketProvider):
         results.sort(key=lambda x: x.get("buy_pct", 0), reverse=True)
         return results[:5]
 
-    def get_recommendations(self) -> List[Dict[str, Any]]:
-        """Get stock recommendations. Use get_recommendations_from_industries() instead."""
-        return []
+    def get_recommendations(self, industries: List[str], exclude: List[str] | None = None,
+                           max_recommendations: int = 3) -> List[Dict[str, Any]]:
+        """Get stock recommendations by industry."""
+        return self.get_recommendations_from_industries(industries, exclude)
 
     def get_premarket_movers(self, holdings_symbols: List[str], threshold: float = 2.0) -> List[Dict[str, Any]]:
         """Get holdings with pre-market moves exceeding threshold."""
@@ -250,7 +251,8 @@ class USMarketProvider(MarketProvider):
         calendar.sort(key=lambda x: x["days_away"])
         return calendar
 
-    def fetch_all(self, holdings: list[dict], industries: list[str]) -> dict[str, Any]:
+    def fetch_all(self, holdings: list[dict], industries: list[str],
+                 max_recommendations: int = 3) -> dict[str, Any]:
         """获取美股全部数据。"""
         from .calendar import get_upcoming_events
         from .congress import get_recent_congressional_trades
@@ -284,10 +286,20 @@ class USMarketProvider(MarketProvider):
 
     # ==================== Rendering ====================
 
-    def render_section(self, data: Dict[str, Any], config: Dict[str, Any]) -> str:
+    def render_section(self, data: Dict[str, Any], config: Dict[str, Any], *,
+                       guidance: Dict[str, str] | None = None) -> str:
         """Render US market section."""
+        guidance = guidance or {}
+
+        # Build earnings days mapping for stock annotations
+        earnings_symbols = {}
+        for e in data.get("earnings_calendar", []):
+            earnings_symbols[e["symbol"]] = e["days_away"]
+
         indices_html = self._render_indices_table(data.get("indices", []), config)
-        holdings_html = self._render_holdings(data.get("holdings", []), config)
+        holdings_html = self._render_holdings(
+            data.get("holdings", []), config, earnings_symbols=earnings_symbols
+        )
         recommendations_html = self._render_recommendations(
             data.get("recommendations", []), config
         )
@@ -308,6 +320,11 @@ class USMarketProvider(MarketProvider):
         congress = data.get("congressional_trades", [])
         congress_html = self._render_congressional_trades(congress) if congress else ""
 
+        # Section guidance snippets
+        overview_tip = self._guidance_html(guidance.get("market_overview"))
+        holdings_tip = self._guidance_html(guidance.get("holdings"))
+        recs_tip = self._guidance_html(guidance.get("recommendations"))
+
         return f'''
     <div class="section">
       <div class="country-header" style="background-color:#2c3e50; color:#ffffff; padding:15px 20px; margin-bottom:15px;">
@@ -320,6 +337,7 @@ class USMarketProvider(MarketProvider):
           {indices_html}
         </div>
       </div>
+      {overview_tip}
       {premarket_html}
       <div class="card">
         <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">💼 持仓股票</div>
@@ -327,6 +345,7 @@ class USMarketProvider(MarketProvider):
           {holdings_html}
         </div>
       </div>
+      {holdings_tip}
       {earnings_cal_html}
       {econ_cal_html}
       {congress_html}
@@ -336,6 +355,7 @@ class USMarketProvider(MarketProvider):
           {recommendations_html}
         </div>
       </div>
+      {recs_tip}
     </div>'''
 
     # ==================== Render Helpers ====================
@@ -496,16 +516,18 @@ class USMarketProvider(MarketProvider):
 
         return html
 
-    def _render_holdings(self, holdings: List[Dict], config: Dict) -> str:
+    def _render_holdings(self, holdings: List[Dict], config: Dict, *,
+                         earnings_symbols: Dict[str, int] | None = None) -> str:
         if not holdings:
             return '<div class="no-data">📌 当前无持仓</div>'
 
         html = ""
         for h in holdings:
-            html += self._render_stock_card(h, config)
+            html += self._render_stock_card(h, config, earnings_symbols=earnings_symbols)
         return html
 
-    def _render_stock_card(self, stock: Dict, config: Dict) -> str:
+    def _render_stock_card(self, stock: Dict, config: Dict, *,
+                           earnings_symbols: Dict[str, int] | None = None) -> str:
         change = stock.get("change", 0)
         change_str = f"+{change:.2f}%" if change > 0 else f"{change:.2f}%"
         color = config["color_up"] if change > 0 else (config["color_down"] if change < 0 else "#7f8c8d")
@@ -513,15 +535,26 @@ class USMarketProvider(MarketProvider):
         price = stock.get("price", 0)
         info = stock.get("info", {})
         short_name = info.get("short_name", stock.get("name", stock["symbol"]))
+        symbol = stock["symbol"]
 
         html = f'''
 <div class="stock-detail" style="background:#f8f9fa; padding:12px; margin:8px 0;">
   <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-bottom:8px;">
     <tr>
-      <td style="font-weight:600; font-size:15px;">{short_name} ({stock['symbol']})</td>
+      <td style="font-weight:600; font-size:15px;">{short_name} ({symbol})</td>
       <td style="text-align:right; font-size:18px; font-weight:bold; color:{color};">{currency}{price:,.2f} <small>{change_str}</small></td>
     </tr>
   </table>'''
+
+        # Rule-based stock annotations
+        annotations = self._get_stock_annotations(stock, earnings_symbols)
+        if annotations:
+            tags_html = " ".join(
+                f'<span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:3px; margin:2px 2px 2px 0; {a["style"]}">{a["text"]}</span>'
+                for a in annotations
+            )
+            html += f'''
+  <div style="margin:4px 0 6px 0;">{tags_html}</div>'''
 
         # Key metrics
         metrics_items = []
@@ -637,7 +670,7 @@ class USMarketProvider(MarketProvider):
       <tr>
         <td style="padding:4px 5px; border-bottom:1px solid #eee; font-weight:500; color:#2c3e50; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{u['firm']}</td>
         <td style="padding:4px 5px; border-bottom:1px solid #eee; color:#555; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{u['to_grade']} {u.get('action', '')}</td>
-        <td style="padding:4px 5px; border-bottom:1px solid #eee; text-align:right;">{currency}{u['price_target']:,.0f}</td>
+        <td style="padding:4px 5px; border-bottom:1px solid #eee; text-align:right;">{currency}{f"{u['price_target']:,.0f}" if u.get('price_target') is not None else '-'}</td>
         <td style="padding:4px 5px; border-bottom:1px solid #eee; text-align:right; color:#999; font-size:11px;">{u['date']}</td>
       </tr>'''
             html += '</table></div>'
@@ -765,6 +798,73 @@ class USMarketProvider(MarketProvider):
                     card_html = card_html[:-6] + badge + '</div>'
             html += card_html
         return html
+
+    @staticmethod
+    def _guidance_html(text: str | None) -> str:
+        """Render a guidance tip block. Returns empty string if no text."""
+        if not text:
+            return ""
+        return f'''
+      <div style="font-size:12px; color:#6c757d; background:#f8f9fa; padding:8px 12px; border-radius:4px; margin:4px 0 8px 0; border-left:3px solid #adb5bd; line-height:1.5;">
+        💡 {text}
+      </div>'''
+
+    # ==================== Stock Annotations ====================
+
+    @staticmethod
+    def _get_stock_annotations(stock: Dict, earnings_symbols: Dict[str, int] | None = None) -> list[dict]:
+        """Rule-based annotations for stock cards. Returns list of {text, style}."""
+        annotations = []
+        techs = stock.get("technicals", {})
+        info = stock.get("info", {})
+        symbol = stock["symbol"]
+
+        # RSI signals
+        rsi = techs.get("rsi_14")
+        if rsi:
+            if rsi > 70:
+                annotations.append({"text": "⚠️ RSI超买，注意回调", "style": "background:#fde8e8; color:#c62828;"})
+            elif rsi < 30:
+                annotations.append({"text": "💡 RSI超卖，关注反弹机会", "style": "background:#e8f5e9; color:#2e7d32;"})
+
+        # MACD signals
+        macd_hist = techs.get("macd_hist")
+        if macd_hist is not None:
+            if macd_hist > 0:
+                annotations.append({"text": "📊 MACD金叉", "style": "background:#e8f5e9; color:#2e7d32;"})
+            elif macd_hist < 0 and (rsi and rsi < 50):
+                annotations.append({"text": "📊 MACD死叉，短期承压", "style": "background:#fde8e8; color:#c62828;"})
+
+        # Target upside
+        upside = stock.get("upside_pct")
+        if upside and upside > 30:
+            annotations.append({"text": f"🎯 分析师看好，上涨空间{upside:.0f}%", "style": "background:#e3f2fd; color:#1565c0;"})
+
+        # Earnings surprise
+        earnings = stock.get("earnings_history")
+        if earnings:
+            last = earnings[0]
+            surprise = last.get("surprise_pct", 0) * 100
+            if abs(surprise) > 10:
+                label = "超预期" if surprise > 0 else "不及预期"
+                color = "#2e7d32" if surprise > 0 else "#c62828"
+                bg = "#e8f5e9" if surprise > 0 else "#fde8e8"
+                annotations.append({"text": f"💰 上季财报{label}{surprise:+.0f}%", "style": f"background:{bg}; color:{color};"})
+
+        # Insider large buys
+        insiders = stock.get("insider_trades")
+        if insiders:
+            buy_count = sum(1 for i in insiders if "Buy" in i.get("transaction", ""))
+            if buy_count >= 2:
+                annotations.append({"text": "👔 多位内部人买入", "style": "background:#e8f5e9; color:#2e7d32;"})
+
+        # Earnings approaching
+        if earnings_symbols and symbol in earnings_symbols:
+            days = earnings_symbols[symbol]
+            if days <= 3:
+                annotations.append({"text": "📅 财报临近，波动可能加大", "style": "background:#fff3cd; color:#856404;"})
+
+        return annotations[:4]  # Max 4 annotations per card
 
     # ==================== Utilities ====================
 

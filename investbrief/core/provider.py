@@ -23,13 +23,15 @@ class MarketProvider(ABC):
         """获取持仓个股详情。"""
 
     @abstractmethod
-    def get_recommendations(self, industries: list[str], exclude: list[str] | None = None) -> list[dict[str, Any]]:
+    def get_recommendations(self, industries: list[str], exclude: list[str] | None = None,
+                           max_recommendations: int = 3) -> list[dict[str, Any]]:
         """按行业获取推荐关注个股。"""
 
     @abstractmethod
-    def fetch_all(self, holdings: list[dict], industries: list[str]) -> dict[str, Any]:
+    def fetch_all(self, holdings: list[dict], industries: list[str],
+                 max_recommendations: int = 3) -> dict[str, Any]:
         """获取该市场全部数据，返回供 report 使用的 dict。"""
 
     @abstractmethod
-    def render_section(self, data: dict[str, Any], config: dict[str, Any]) -> str:
+    def render_section(self, data: dict[str, Any], config: dict[str, Any], **kwargs) -> str:
         """渲染该市场的 HTML 区块。"""

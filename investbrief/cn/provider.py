@@ -278,13 +278,16 @@ class CNMarketProvider(MarketProvider):
 
         return results
 
-    def fetch_all(self, holdings: list[dict], industries: list[str]) -> dict[str, Any]:
+    def fetch_all(self, holdings: list[dict], industries: list[str],
+                 max_recommendations: int = 3) -> dict[str, Any]:
         """获取 A 股全部数据。"""
         holdings_symbols = [h["symbol"] for h in holdings]
 
         indices = self.get_indices()
         holdings_data = self.get_holdings_data(holdings)
-        recommendations = self.get_recommendations(industries, holdings_symbols)
+        recommendations = self.get_recommendations(
+            industries, holdings_symbols, max_recommendations=max_recommendations
+        )
         dragon_tiger = self.client.get_dragon_tiger_list(days=3)
         economic_calendar = get_upcoming_events()
 

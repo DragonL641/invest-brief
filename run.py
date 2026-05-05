@@ -126,7 +126,21 @@ def _handle_signal(signum, frame):
 
 def load_config() -> dict:
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        config = json.load(f)
+    _validate_config(config)
+    return config
+
+
+def _validate_config(config: dict):
+    """Validate required config fields with clear error messages."""
+    if "email_service" not in config:
+        raise ValueError("config.json missing 'email_service' section")
+    email_cfg = config["email_service"]
+    for key in ("smtp_server", "smtp_port", "sender_email"):
+        if key not in email_cfg:
+            raise ValueError(f"config.json email_service missing '{key}'")
+    if "recipients" not in config or not config["recipients"]:
+        raise ValueError("config.json missing or empty 'recipients' list")
 
 
 # ============================================================================
@@ -304,7 +318,7 @@ def build_global_metrics(indices):
     for idx in indices:
         metrics.append({
             "label": idx["name"],
-            "value": f"{idx['change']:+.2f}%",
+            "value": f"{idx['change'] or 0:+.2f}%",
             "change": idx["change"],
         })
     return metrics
@@ -323,7 +337,7 @@ def _serialize_market_context(market_data, news, holdings, market="us"):
     # Indices
     lines.append("## 市场指数")
     for idx in market_data.get("indices", []):
-        lines.append(f"- {idx['name']}: {idx['point']:.2f} ({idx['change']:+.2f}%)")
+        lines.append(f"- {idx['name']}: {idx['point'] or 0:.2f} ({idx['change'] or 0:+.2f}%)")
 
     # Holdings
     lines.append("\n## 持仓股票")
@@ -332,7 +346,7 @@ def _serialize_market_context(market_data, news, holdings, market="us"):
         name = h.get("name", symbol)
         price = h.get("price", 0)
         change = h.get("change", 0)
-        lines.append(f"- {symbol} ({name}): {cur}{price:.2f} ({change:+.2f}%)")
+        lines.append(f"- {symbol} ({name}): {cur}{price or 0:.2f} ({change or 0:+.2f}%)")
 
         if market == "us":
             info = h.get("info", {})
@@ -371,7 +385,7 @@ def _serialize_market_context(market_data, news, holdings, market="us"):
                 lines.append(f"  研报: {total}份, 买入评级 {buy/total*100:.0f}%")
             # Insider trades (高管增减持)
             for t in h.get("insider_trades", [])[:3]:
-                lines.append(f"  高管变动: {t.get('name', '')} {t.get('action', '')} {t.get('shares', 0):,.0f}股 ({t.get('date', '')})")
+                lines.append(f"  高管变动: {t.get('name', '')} {t.get('action', '')} {t.get('shares') or 0:,.0f}股 ({t.get('date', '')})")
             # Institutional research
             for r in h.get("institutional_research", [])[:3]:
                 lines.append(f"  机构调研: {r.get('institution', '')}家机构 ({r.get('date', '')})")
@@ -492,21 +506,81 @@ def generate_daily_summary(market_data, news, holdings, market="us"):
 
 
 # ============================================================================
+# Section-level guidance via Claude API
+# ============================================================================
+
+SECTION_GUIDANCE_PROMPT = """你是面向投资小白的理财顾问。根据提供的市场数据，为以下三个区域各生成1-2句投资指导（用中文）。
+
+要求：
+1. 语气亲切通俗，用大白话解释数据含义和操作建议
+2. 每个区域的建议要结合该区域的数据，不要泛泛而谈
+3. 包含具体的数字参考（如"涨了X%"、"目标价Y"）
+4. 对新手友好：解释专业术语（如"RSI超买意味着短期可能回调"）
+5. 严格按 JSON 格式返回，key 为 market_overview / holdings / recommendations
+6. 不要加 markdown 代码块标记
+
+区域说明：
+- market_overview: 市场总览区域，分析大盘走势和宏观环境对持仓的影响
+- holdings: 持仓股票区域，逐只分析涨跌原因和短期操作建议（持有/加仓/减仓/观望）
+- recommendations: 推荐关注区域，说明推荐逻辑和追入的风险提示"""
+
+
+def generate_section_guidance(market_data, news, holdings, market="us"):
+    """Generate per-section investment guidance via Claude API. Returns dict of section_key -> guidance_text."""
+    try:
+        import anthropic
+
+        client = anthropic.Anthropic(
+            api_key=os.environ.get("ANTHROPIC_API_KEY"),
+            base_url=os.environ.get("ANTHROPIC_BASE_URL"),
+        )
+
+        context = _serialize_market_context(market_data, news, holdings, market=market)
+        holdings_symbols = ", ".join(h["symbol"] for h in holdings)
+
+        user_message = f"当前持仓: {holdings_symbols}\n\n{context}"
+
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            temperature=0.3,
+            system=SECTION_GUIDANCE_PROMPT,
+            messages=[{"role": "user", "content": user_message}],
+        )
+
+        import re
+        text = response.content[0].text.strip()
+        text = re.sub(r"^\s*```(?:json)?\s*\n?", "", text)
+        text = re.sub(r"\n?\s*```\s*$", "", text)
+
+        guidance = json.loads(text)
+        if isinstance(guidance, dict):
+            logger.info(f"Generated section guidance for {list(guidance.keys())}")
+            return guidance
+
+        logger.warning("Section guidance response is not a dict")
+        return {}
+
+    except Exception as e:
+        logger.warning(f"Section guidance generation failed: {e}")
+        return {}
+
+
+# ============================================================================
 # Report data
 # ============================================================================
 
 def build_report_data(market: str, market_html: str, market_data: dict,
-                      news: list, news_summary: list, daily_summary: str) -> dict:
+                      news: list) -> dict:
     market_names = {"us": "美股日报", "cn": "A股日报"}
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
     return {
-        "subject": f"【{market_names.get(market, '投资日报')}】{now.strftime('%Y年%-m月%-d日')}",
+        "subject": f"【{market_names.get(market, '投资日报')}】{now.year}年{now.month}月{now.day}日",
         "data_time": now.strftime("%Y-%m-%d %H:%M"),
         "date": now.strftime("%Y-%m-%d"),
         "global_metrics": build_global_metrics(market_data.get("indices", [])),
         "market_section_html": market_html,
-        "news": news_summary if news_summary else news,
-        "daily_summary": daily_summary,
+        "news": news,
         "market": market,
     }
 
@@ -529,6 +603,8 @@ def send_report(report_data: dict, config: dict, recipients: list):
         "color_down": "#27ae60",
     }
 
+    sender = EmailSender(str(CONFIG_FILE))
+
     for r in recipients:
         email = r["email"]
         name = r.get("name", email)
@@ -544,7 +620,6 @@ def send_report(report_data: dict, config: dict, recipients: list):
         subject = report_data.get("subject", f"【投资日报】{datetime.now().strftime('%Y年%m月%d日')}")
 
         try:
-            sender = EmailSender(str(CONFIG_FILE))
             sender.send(email, subject, html)
             logger.info(f"Sent successfully to {email}")
         except Exception as e:
@@ -582,7 +657,9 @@ def _run_single_market(market: str, args):
     logger.info("Step 3: Fetching market data")
     try:
         provider = _create_provider(market)
-        market_data = provider.fetch_all(holdings, industries)
+        cn_config = config.get("markets", {}).get(market, {})
+        max_recs = cn_config.get("max_recommendations", 3)
+        market_data = provider.fetch_all(holdings, industries, max_recommendations=max_recs)
         logger.info(f"Got {len(market_data.get('holdings', []))} holdings, {len(market_data.get('indices', []))} indices")
     except Exception as e:
         logger.warning(f"Market data fetch failed: {e}")
@@ -604,28 +681,14 @@ def _run_single_market(market: str, args):
     else:
         logger.info("Step 5: No news to summarize")
 
-    # Step 6: Generate daily summary
+    # Step 6: Generate per-section guidance
     skip_summary = getattr(args, 'skip_summary', False)
-    if skip_summary:
-        logger.info("Step 6: Skipping summary (--skip-summary)")
-        daily_summary = "<p>今日市场数据已更新，请查看上方详情。</p>"
-    else:
-        logger.info("Step 6: Generating daily summary via Claude API")
-        daily_summary = generate_daily_summary(market_data, news, holdings, market=market)
-        logger.info(f"Summary generated: {len(daily_summary)} chars")
-
-    # Step 6.5: Apply AI guards
+    section_guidance = {}
     if not skip_summary:
-        try:
-            from investbrief.core.guards import EarningsGuard, PostAIGuard
-            earnings_cal = market_data.get("earnings_calendar", [])
-            if earnings_cal:
-                eg = EarningsGuard(earnings_cal)
-                daily_summary = eg.check(daily_summary)
-            pg = PostAIGuard(market_data)
-            daily_summary = pg.check(daily_summary)
-        except Exception as e:
-            logger.warning(f"Guard check failed: {e}")
+        logger.info("Step 6: Generating section guidance via Claude API")
+        section_guidance = generate_section_guidance(market_data, news, holdings, market=market)
+    else:
+        logger.info("Step 6: Skipping section guidance (--skip-summary)")
 
     # Step 7: Render market HTML and build report data
     logger.info("Step 7: Building report data")
@@ -634,12 +697,12 @@ def _run_single_market(market: str, args):
             "color_up": "#e74c3c",
             "color_down": "#27ae60",
         }
-        market_html = provider.render_section(market_data, render_config)
+        market_html = provider.render_section(market_data, render_config, guidance=section_guidance)
     except Exception as e:
         logger.warning(f"Market HTML render failed: {e}")
         market_html = "<p>市场数据渲染失败。</p>"
 
-    report_data = build_report_data(market, market_html, market_data, news, news, daily_summary)
+    report_data = build_report_data(market, market_html, market_data, news)
 
     if getattr(args, 'dry_run', False):
         logger.info("Dry run - outputting report data to stdout")
@@ -710,7 +773,8 @@ def _run_scheduled_market(market: str, cron_expr: str, config: dict):
         logger.error(f"Invalid cron expression: {cron_expr}")
         return
 
-    now = datetime.now()
+    tz = ZoneInfo("Asia/Shanghai")
+    now = datetime.now(tz)
     cron = croniter(cron_expr, now)
     next_run = cron.get_next(datetime)
 
@@ -718,7 +782,7 @@ def _run_scheduled_market(market: str, cron_expr: str, config: dict):
     logger.info(f"Next run scheduled at: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
 
     while not _shutdown:
-        now = datetime.now()
+        now = datetime.now(tz)
 
         if now >= next_run:
             logger.info(f"{'=' * 60}")
