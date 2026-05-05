@@ -262,7 +262,9 @@ def render_template(template, data, language, recipient_settings):
     html = html.replace('{{color_down}}', config['color_down'])
 
     # Basic info
-    html = html.replace('{{title}}', '📅 美股日报')
+    market_titles = {"us": "美股日报", "cn": "A股日报"}
+    market_label = market_titles.get(data.get("market", "us"), "投资日报")
+    html = html.replace('{{title}}', f'\U0001F4C5 {market_label}')
     html = html.replace('{{date}}', datetime.now().strftime('%Y年%m月%d日'))
     html = html.replace('{{data_time_label}}', '数据截止')
     html = html.replace('{{data_time}}', data.get('data_time', datetime.now().strftime('%H:%M:%S')))
