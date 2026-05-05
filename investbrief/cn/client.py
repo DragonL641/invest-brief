@@ -1,8 +1,11 @@
 """A股数据客户端，基于 AKShare。"""
 
 import logging
+import os
 from typing import Any
 from datetime import datetime, timedelta
+
+os.environ["TQDM_DISABLE"] = "1"
 
 import akshare as ak
 import pandas as pd
