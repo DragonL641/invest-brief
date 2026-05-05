@@ -11,11 +11,11 @@ WORKDIR /app
 RUN pip install --no-cache-dir uv
 
 # Copy dependency declaration first (layer caching)
-COPY pyproject.toml .
+COPY pyproject.toml uv.lock .
 
 # Copy application code
 COPY run.py .
-COPY lib/ lib/
+COPY investbrief/ investbrief/
 COPY templates/ templates/
 
 # Install dependencies

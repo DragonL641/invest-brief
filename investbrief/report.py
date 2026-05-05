@@ -26,6 +26,7 @@ Usage:
 """
 import sys
 import json
+import logging
 import argparse
 from datetime import datetime
 from pathlib import Path
@@ -38,6 +39,8 @@ try:
     HAS_ANTHROPIC = True
 except ImportError:
     HAS_ANTHROPIC = False
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -109,7 +112,7 @@ def translate_html(html_content, target_language, max_retries=2):
         Translated HTML string
     """
     if not HAS_ANTHROPIC:
-        print('WARNING: anthropic package not installed, skipping translation')
+        logger.warning('anthropic package not installed, skipping translation')
         return html_content
 
     import os
@@ -176,9 +179,9 @@ Return only the translated HTML, no explanations or markdown code blocks."""
             return translated
         except Exception as e:
             last_error = e
-            print(f'WARNING: Translation attempt {attempt + 1} failed: {e}')
+            logger.warning(f'Translation attempt {attempt + 1} failed: {e}')
 
-    print(f'WARNING: All translation attempts failed, sending original HTML')
+    logger.warning('All translation attempts failed, sending original HTML')
     return html_content
 
 
@@ -284,10 +287,6 @@ def render_template(template, data, language, recipient_settings):
     news = data.get('news', data.get('global_news', []))
     news_count = 5  # Hard limit: always show 5 news items
     html = html.replace('{{global_news}}', build_news_html(news[:news_count]))
-
-    # Summary section
-    html = html.replace('{{summary_title}}', '📋 今日总结与建议')
-    html = html.replace('{{daily_summary}}', data.get('daily_summary', ''))
 
     # Footer
     html = html.replace('{{disclaimer}}', '⚠️ 免责声明：本报告仅供参考，不构成投资建议。投资有风险，入市需谨慎。')

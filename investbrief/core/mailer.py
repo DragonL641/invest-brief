@@ -7,11 +7,14 @@ import os
 import smtplib
 import ssl
 import json
+import logging
 import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 
 
@@ -140,25 +143,25 @@ class EmailSender:
                     server.login(self.sender_email, self.app_password)
                     server.sendmail(self.sender_email, to_email, msg.as_string())
 
-                    print(f"[OK] Email sent to {to_email}")
+                    logger.info(f"Email sent to {to_email}")
                     return True
 
                 finally:
                     server.quit()
 
             except smtplib.SMTPAuthenticationError as e:
-                print(f"[ERROR] Authentication failed: {e}")
+                logger.error(f"Authentication failed: {e}")
                 raise Exception("SMTP authentication failed. Check your email and app password.")
 
             except smtplib.SMTPException as e:
                 last_error = e
-                print(f"[WARN] Attempt {attempt + 1} failed: {e}")
+                logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 if attempt < self.max_retries - 1:
                     time.sleep(self.retry_delay * (2 ** attempt))  # Exponential backoff
 
             except Exception as e:
                 last_error = e
-                print(f"[WARN] Unexpected error on attempt {attempt + 1}: {e}")
+                logger.warning(f"Unexpected error on attempt {attempt + 1}: {e}")
                 if attempt < self.max_retries - 1:
                     time.sleep(self.retry_delay * (2 ** attempt))
 
@@ -191,7 +194,7 @@ class EmailSender:
                 results['success'].append({'email': email, 'name': name})
 
             except Exception as e:
-                print(f"[ERROR] Failed to send to {email}: {e}")
+                logger.error(f"Failed to send to {email}: {e}")
                 results['failed'].append({
                     'email': email,
                     'name': name,
@@ -240,11 +243,11 @@ def test_connection(config_path=None):
                 server.ehlo()
                 server.login(email_config['sender_email'], os.environ.get('SMTP_PASSWORD') or email_config.get('app_password', ''))
 
-        print(f"[OK] SMTP connection test successful ({provider})")
+        logger.info(f"SMTP connection test successful ({provider})")
         return True
 
     except Exception as e:
-        print(f"[ERROR] SMTP connection test failed: {e}")
+        logger.error(f"SMTP connection test failed: {e}")
         return False
 
 

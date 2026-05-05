@@ -6,3 +6,6 @@ report_data.json
 reports/
 logs/
 *.pyc
+.venv/
+.idea/
+/docs/superpowers/

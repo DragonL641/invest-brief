@@ -118,7 +118,6 @@ def _find_xml_in_filing(base_dir: str) -> Optional[str]:
     try:
         # The index page URL has the accession with dashes
         parts = base_dir.rsplit('/', 1)
-        accession_with_dashes = parts[1].replace('', '')  # already has dashes
         index_url = f"{base_dir}/{parts[-1]}-index.htm"
         resp = requests.get(index_url, headers=_HEADERS, timeout=_TIMEOUT)
         resp.raise_for_status()

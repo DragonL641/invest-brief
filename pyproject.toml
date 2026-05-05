@@ -12,6 +12,7 @@ dependencies = [
     "croniter",
     "pydantic",
     "akshare",
+    "finvizfinance>=1.3.0",
 ]
 
 [project.scripts]

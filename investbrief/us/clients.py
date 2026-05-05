@@ -643,9 +643,12 @@ class YFinanceClient:
         except ImportError:
             self._yf = None
             self.enabled = False
+        self._ticker_cache: dict = {}
 
     def _ticker(self, symbol: str):
-        return self._yf.Ticker(symbol)
+        if symbol not in self._ticker_cache:
+            self._ticker_cache[symbol] = self._yf.Ticker(symbol)
+        return self._ticker_cache[symbol]
 
     # ==================== Price ====================
 
