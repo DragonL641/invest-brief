@@ -25,5 +25,6 @@ RUN uv sync
 VOLUME /app/config.json
 VOLUME /app/.env
 VOLUME /app/logs
+VOLUME /app/reports
 
 ENTRYPOINT ["uv", "run", "run.py"]

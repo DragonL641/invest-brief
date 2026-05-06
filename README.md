@@ -36,20 +36,41 @@ uv run run.py --market all --now   # 全部市场
 
 ### Docker 部署（推荐用于 NAS）
 
+镜像已发布到 GitHub Container Registry，支持 amd64 和 arm64 架构，无需在 NAS 上构建源码。
+
 ```bash
-# 1. 准备配置文件
-cp config.example.json config.json
-cp .env.example .env
-# 编辑配置
+# 1. 创建部署目录
+mkdir invest-brief && cd invest-brief
 
-# 2. 构建并启动
-docker compose up -d
+# 2. 下载 docker-compose 文件
+curl -O https://raw.githubusercontent.com/DragonL641/invest-brief/main/docker-compose.deploy.yml
 
-# 3. 查看日志
-docker compose logs -f
+# 3. 创建配置文件（参考上方配置说明）
+cat > config.json << 'EOF'
+{ ... 你的配置 ... }
+EOF
+cat > .env << 'EOF'
+ANTHROPIC_API_KEY=your-key
+SMTP_PASSWORD=your-password
+EOF
 
-# 4. 停止
-docker compose down
+# 4. 启动
+docker compose -f docker-compose.deploy.yml up -d
+
+# 5. 查看日志
+docker compose -f docker-compose.deploy.yml logs -f
+```
+
+**更新到最新版本：**
+
+```bash
+docker compose -f docker-compose.deploy.yml pull && docker compose -f docker-compose.deploy.yml up -d
+```
+
+**手动触发一次（不进入调度模式）：**
+
+```bash
+docker compose -f docker-compose.deploy.yml run --rm invest-brief --market us --now
 ```
 
 ## 命令行参数
@@ -184,7 +205,11 @@ templates/
 
 ## Docker 部署详情
 
-Docker 镜像基于 `python:3.12-slim`，使用 `uv` 管理依赖。
+Docker 镜像基于 `python:3.12-slim`，使用 `uv` 管理依赖。通过 GitHub Actions 自动构建并推送到 GHCR，支持 `linux/amd64` 和 `linux/arm64` 两种架构。
+
+**本地开发：** 使用 `docker compose up -d`（基于源码构建）
+
+**NAS 部署：** 使用 `docker compose -f docker-compose.deploy.yml up -d`（拉取 GHCR 预构建镜像）
 
 **挂载卷：**
 
@@ -194,31 +219,6 @@ Docker 镜像基于 `python:3.12-slim`，使用 `uv` 管理依赖。
 | `/app/.env` | 环境变量（只读）|
 | `/app/logs` | 日志输出 |
 | `/app/reports` | HTML 预览文件 |
-
-**NAS 部署步骤：**
-
-```bash
-# 1. 将项目文件上传到 NAS
-# 2. 进入项目目录
-cd /path/to/invest-brief
-
-# 3. 编辑配置
-cp config.example.json config.json
-cp .env.example .env
-vi config.json .env
-
-# 4. 启动服务
-docker compose up -d
-
-# 5. 验证运行
-docker compose logs -f
-```
-
-**手动触发（不进入调度模式）：**
-
-```bash
-docker compose run --rm invest-brief python -m uv run run.py --market us --now
-```
 
 ## 技术栈
 
