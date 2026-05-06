@@ -834,9 +834,9 @@ def main():
     parser = argparse.ArgumentParser(description="invest-brief - Personalized Investment Briefing")
     parser.add_argument(
         "--market",
-        required=True,
+        required=False,
         choices=["us", "cn", "all"],
-        help="Market to run: us, cn, or all",
+        help="Market to run: us, cn, or all (required with --now/--dry-run; scheduler mode uses config.json)",
     )
     parser.add_argument("--now", action="store_true", help="Run once immediately (default: scheduler mode)")
     parser.add_argument("--dry-run", action="store_true", help="Build report, output to stdout, do not send email")
@@ -858,6 +858,8 @@ def main():
     )
 
     if args.now or args.dry_run:
+        if not args.market:
+            parser.error("--market is required when using --now or --dry-run")
         run_once(args)
     else:
         # Scheduler mode
