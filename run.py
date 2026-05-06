@@ -30,6 +30,7 @@ import signal
 import argparse
 import logging
 import time
+import threading
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -753,12 +754,28 @@ def run_scheduler(config):
     # Try new-style per-market config first
     markets_cfg = config.get("markets", {})
     if markets_cfg:
+        threads = []
         for market, cfg in markets_cfg.items():
             if not cfg.get("enabled", False):
                 continue
             schedule = cfg.get("schedule", {})
             cron_expr = schedule.get("cron", "0 23 * * 1-5")
-            _run_scheduled_market(market, cron_expr, config)
+            t = threading.Thread(
+                target=_run_scheduled_market,
+                args=(market, cron_expr, config),
+                name=f"scheduler-{market}",
+                daemon=True,
+            )
+            t.start()
+            threads.append(t)
+
+        if not threads:
+            logger.error("No enabled markets found in config")
+            return
+
+        # Block main thread until shutdown
+        while not _shutdown:
+            time.sleep(1)
         return
 
     # Fallback to old-style single schedule

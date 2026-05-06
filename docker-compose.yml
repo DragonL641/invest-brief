@@ -6,6 +6,7 @@ services:
       - ./config.json:/app/config.json:ro
       - ./.env:/app/.env:ro
       - ./logs:/app/logs
+      - ./reports:/app/reports
     environment:
       - TZ=Asia/Shanghai
     restart: unless-stopped
