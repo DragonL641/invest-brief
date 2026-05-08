@@ -44,8 +44,17 @@ def get_market_data(redis_client, market: str, user: dict) -> dict:
     return result
 
 
+def _create_provider(market: str):
+    if market == "us":
+        from investbrief.us.provider import USMarketProvider
+        return USMarketProvider()
+    elif market == "cn":
+        from investbrief.cn.provider import CNMarketProvider
+        return CNMarketProvider()
+    raise ValueError(f"Unknown market: {market}")
+
+
 def _fetch_and_cache_public(redis_client, market: str) -> dict:
-    from investbrief.run import _create_provider
     provider = _create_provider(market)
     all_data = provider.fetch_all([], [], 3)
     public = {k: all_data.get(k, []) for k in _public_keys(market)}
@@ -54,7 +63,6 @@ def _fetch_and_cache_public(redis_client, market: str) -> dict:
 
 
 def _fetch_and_cache_user(redis_client, market: str, user: dict) -> dict:
-    from investbrief.run import _create_provider
     market_cfg = user.get("markets", {}).get(market, {})
     holdings = market_cfg.get("holdings", [])
     industries = market_cfg.get("industries", [])
