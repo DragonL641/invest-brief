@@ -1,0 +1,57 @@
+import { useTranslation } from "react-i18next";
+import { PlusOutlined } from "@ant-design/icons";
+import StockCard from "./StockCard";
+
+interface WatchlistSectionProps {
+  holdings: any[];
+  market: string;
+}
+
+export default function WatchlistSection({ holdings, market }: WatchlistSectionProps) {
+  const { t } = useTranslation();
+
+  return (
+    <section>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 16,
+        }}
+      >
+        <h2 style={{ color: "#fff", fontSize: 20, fontWeight: 600, margin: 0 }}>
+          {t("watchlist.title")}
+        </h2>
+        <button
+          style={{
+            height: 32,
+            background: "#16181a",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 9999,
+            color: "#fff",
+            fontSize: 13,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "0 16px",
+          }}
+        >
+          <PlusOutlined style={{ fontSize: 12 }} />
+          {t("watchlist.add")}
+        </button>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {holdings.map((h, i) => (
+          <StockCard key={h.symbol || i} stock={h} market={market} />
+        ))}
+        {holdings.length === 0 && (
+          <div style={{ color: "#8d969e", fontSize: 14, padding: "40px 0", textAlign: "center" }}>
+            --
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
