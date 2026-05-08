@@ -10,6 +10,8 @@ interface ChartToolbarProps {
   onRangeChange: (r: TimeRange) => void;
   visibleMA: Set<number>;
   onToggleMA: (period: number) => void;
+  showVOL: boolean;
+  onToggleVOL: () => void;
   showRSI: boolean;
   onToggleRSI: () => void;
   showMACD: boolean;
@@ -74,6 +76,8 @@ export default function ChartToolbar({
   onRangeChange,
   visibleMA,
   onToggleMA,
+  showVOL,
+  onToggleVOL,
   showRSI,
   onToggleRSI,
   showMACD,
@@ -135,6 +139,7 @@ export default function ChartToolbar({
 
       <span style={{ width: 8 }} />
 
+      <Pill label="VOL" active={showVOL} onClick={onToggleVOL} />
       <Pill label="RSI" active={showRSI} onClick={onToggleRSI} />
       <Pill label="MACD" active={showMACD} onClick={onToggleMACD} />
 

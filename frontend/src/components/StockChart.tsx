@@ -28,6 +28,7 @@ export default function StockChart({ history, symbol }: StockChartProps) {
   const [period, setPeriod] = useState<Period>("daily");
   const [range, setRange] = useState<TimeRange>("6m");
   const [visibleMA, setVisibleMA] = useState(() => new Set([5, 10, 20]));
+  const [showVOL, setShowVOL] = useState(false);
   const [showRSI, setShowRSI] = useState(false);
   const [showMACD, setShowMACD] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -87,14 +88,14 @@ export default function StockChart({ history, symbol }: StockChartProps) {
 
     const rsiData = showRSI ? calcRSI(closes) : [];
     const macdData = showMACD ? calcMACD(closes) : null;
-    const subCount = [showRSI, showMACD].filter(Boolean).length;
+    const subCount = [showVOL, showRSI, showMACD].filter(Boolean).length;
 
     // Dynamic grid layout with adequate spacing
-    const GAP = 5; // % gap between grids
-    const BOTTOM_PAD = 8; // reserved for dataZoom slider
-    const VOL_H = 12;
-    const SUB_H = subCount > 0 ? 10 : 0;
-    const kHeight = 100 - BOTTOM_PAD - VOL_H - subCount * SUB_H - (1 + subCount) * GAP - 3;
+    const GAP = 8; // % gap between grids
+    const BOTTOM_PAD = 10; // reserved for dataZoom slider
+    const VOL_H = 14;
+    const SUB_H = 14;
+    const kHeight = 100 - BOTTOM_PAD - (showVOL ? VOL_H : 0) * 1 - (showRSI ? SUB_H : 0) * 1 - (showMACD ? SUB_H : 0) * 1 - (1 + subCount) * GAP - 3;
 
     const gridBase = { left: 48, right: 16 };
     let cursor = 3; // top padding for title
@@ -103,13 +104,11 @@ export default function StockChart({ history, symbol }: StockChartProps) {
     const kTop = cursor;
     cursor += kHeight + GAP;
 
-    // Grid 1: Volume
-    const volTop = cursor;
-    cursor += VOL_H + GAP;
+    // Grid 1: Volume (conditional)
+    let volTop = 0;
 
     const grids: any[] = [
       { ...gridBase, top: `${kTop}%`, height: `${kHeight}%` },
-      { ...gridBase, top: `${volTop}%`, height: `${VOL_H}%` },
     ];
 
     const subLabelStyle = { color: "rgba(255,255,255,0.5)", fontSize: 10, ...mono };
@@ -122,13 +121,19 @@ export default function StockChart({ history, symbol }: StockChartProps) {
         top: 0,
         textStyle: { color: "#fff", fontSize: 12, fontWeight: 600, ...mono },
       },
-      {
+    ];
+
+    if (showVOL) {
+      volTop = cursor;
+      cursor += VOL_H + GAP;
+      grids.push({ ...gridBase, top: `${volTop}%`, height: `${VOL_H}%` });
+      titles.push({
         text: "VOL",
         left: 52,
         top: `${volTop}%`,
         textStyle: subLabelStyle,
-      },
-    ];
+      });
+    }
 
     const xAxes: any[] = [
       {
@@ -137,16 +142,6 @@ export default function StockChart({ history, symbol }: StockChartProps) {
         boundaryGap: true,
         axisLine: { lineStyle: { color: "rgba(255,255,255,0.12)" } },
         axisLabel: { color: "#8d969e", fontSize: 10, ...mono },
-        splitLine: { show: false },
-        axisTick: { show: false },
-      },
-      {
-        type: "category",
-        gridIndex: 1,
-        data: dates,
-        boundaryGap: true,
-        axisLine: { lineStyle: { color: "rgba(255,255,255,0.12)" } },
-        axisLabel: { show: false },
         splitLine: { show: false },
         axisTick: { show: false },
       },
@@ -159,25 +154,6 @@ export default function StockChart({ history, symbol }: StockChartProps) {
         axisTick: { show: false },
         splitLine: { lineStyle: { color: "rgba(255,255,255,0.06)" } },
         axisLabel: { color: "#8d969e", fontSize: 10, ...mono },
-      },
-      {
-        scale: true,
-        gridIndex: 1,
-        splitNumber: 1,
-        axisLine: { show: false },
-        axisTick: { show: false },
-        splitLine: { show: false },
-        axisLabel: {
-          show: true,
-          color: "#8d969e",
-          fontSize: 9,
-          ...mono,
-          formatter: (v: number) => {
-            if (v >= 1e8) return (v / 1e8).toFixed(1) + "亿";
-            if (v >= 1e4) return (v / 1e4).toFixed(0) + "万";
-            return String(v);
-          },
-        },
       },
     ];
     const series: any[] = [
@@ -195,18 +171,52 @@ export default function StockChart({ history, symbol }: StockChartProps) {
         },
       },
       ...maSeries.map((s) => ({ ...s, xAxisIndex: 0, yAxisIndex: 0 })),
-      {
+    ];
+    const dataZoomXAxisIdxs = [0];
+
+    if (showVOL) {
+      const idx = grids.length;
+      xAxes.push({
+        type: "category",
+        gridIndex: idx,
+        data: dates,
+        boundaryGap: true,
+        axisLine: { lineStyle: { color: "rgba(255,255,255,0.12)" } },
+        axisLabel: { show: false },
+        splitLine: { show: false },
+        axisTick: { show: false },
+      });
+      yAxes.push({
+        scale: true,
+        gridIndex: idx,
+        splitNumber: 1,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { show: false },
+        axisLabel: {
+          show: true,
+          color: "#8d969e",
+          fontSize: 9,
+          ...mono,
+          formatter: (v: number) => {
+            if (v >= 1e8) return (v / 1e8).toFixed(1) + "亿";
+            if (v >= 1e4) return (v / 1e4).toFixed(0) + "万";
+            return String(v);
+          },
+        },
+      });
+      series.push({
         name: "Volume",
         type: "bar",
-        xAxisIndex: 1,
-        yAxisIndex: 1,
+        xAxisIndex: idx,
+        yAxisIndex: idx,
         data: volumes,
         itemStyle: {
           color: (params: any) => volumeColors[params.dataIndex],
         },
-      },
-    ];
-    const dataZoomXAxisIdxs = [0, 1];
+      });
+      dataZoomXAxisIdxs.push(idx);
+    }
 
     if (showRSI) {
       const idx = grids.length;
@@ -358,7 +368,7 @@ export default function StockChart({ history, symbol }: StockChartProps) {
         },
       },
       axisPointer: {
-        link: [{ xAxisIndex: "all" }],
+        link: [{ xAxisIndex: dataZoomXAxisIdxs }],
         label: { backgroundColor: "#494fdf", ...mono },
       },
       grid: grids,
@@ -388,9 +398,9 @@ export default function StockChart({ history, symbol }: StockChartProps) {
       ],
       series,
     };
-  }, [displayed, visibleMA, showRSI, showMACD, isFullscreen]);
+  }, [displayed, visibleMA, showVOL, showRSI, showMACD, isFullscreen]);
 
-  const subChartCount = [showRSI, showMACD].filter(Boolean).length;
+  const subChartCount = [showVOL, showRSI, showMACD].filter(Boolean).length;
   const chartHeight = (isFullscreen ? 100 : 320) + subChartCount * 60;
 
   const toolbar = (
@@ -401,6 +411,8 @@ export default function StockChart({ history, symbol }: StockChartProps) {
       onRangeChange={setRange}
       visibleMA={visibleMA}
       onToggleMA={toggleMA}
+      showVOL={showVOL}
+      onToggleVOL={() => setShowVOL((v) => !v)}
       showRSI={showRSI}
       onToggleRSI={() => setShowRSI((v) => !v)}
       showMACD={showMACD}
@@ -410,11 +422,15 @@ export default function StockChart({ history, symbol }: StockChartProps) {
     />
   );
 
+  const chartKey = `${showVOL ? 1 : 0}${showRSI ? 1 : 0}${showMACD ? 1 : 0}`;
+
   const chart = (
     <ReactECharts
+      key={chartKey}
       option={option}
       style={{ height: chartHeight, width: "100%" }}
-      notMerge
+      notMerge={true}
+      lazyUpdate={true}
     />
   );
 
