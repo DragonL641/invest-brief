@@ -1,19 +1,24 @@
 {
+  "web": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "secret_key": "CHANGE_ME_TO_A_RANDOM_SECRET"
+  },
   "markets": {
     "us": {
       "enabled": true,
-      "schedule": {
-        "cron": "0 23 * * 1-5",
-        "timezone": "Asia/Shanghai"
-      }
+      "schedule": [
+        { "cron": "30 22 * * 1-5", "timezone": "Asia/Shanghai" },
+        { "cron": "0 5 * * 2-6", "timezone": "Asia/Shanghai" }
+      ]
     },
     "cn": {
       "enabled": true,
       "max_recommendations": 3,
-      "schedule": {
-        "cron": "0 17 * * 1-5",
-        "timezone": "Asia/Shanghai"
-      }
+      "schedule": [
+        { "cron": "30 10 * * 1-5", "timezone": "Asia/Shanghai" },
+        { "cron": "0 18 * * 1-5", "timezone": "Asia/Shanghai" }
+      ]
     }
   },
   "email_service": {
@@ -27,6 +32,7 @@
     {
       "id": 1,
       "email": "recipient@example.com",
+      "password": "hashed_password_here",
       "name": "Recipient1",
       "active": true,
       "language": "zh-CN",
