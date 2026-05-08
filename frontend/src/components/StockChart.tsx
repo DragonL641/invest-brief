@@ -87,11 +87,49 @@ export default function StockChart({ history, symbol }: StockChartProps) {
 
     const rsiData = showRSI ? calcRSI(closes) : [];
     const macdData = showMACD ? calcMACD(closes) : null;
+    const subCount = [showRSI, showMACD].filter(Boolean).length;
+
+    // Dynamic grid layout with adequate spacing
+    const GAP = 5; // % gap between grids
+    const BOTTOM_PAD = 8; // reserved for dataZoom slider
+    const VOL_H = 12;
+    const SUB_H = subCount > 0 ? 10 : 0;
+    const kHeight = 100 - BOTTOM_PAD - VOL_H - subCount * SUB_H - (1 + subCount) * GAP - 3;
+
+    const gridBase = { left: 48, right: 16 };
+    let cursor = 3; // top padding for title
+
+    // Grid 0: K-line
+    const kTop = cursor;
+    cursor += kHeight + GAP;
+
+    // Grid 1: Volume
+    const volTop = cursor;
+    cursor += VOL_H + GAP;
 
     const grids: any[] = [
-      { left: 48, right: 16, top: 8, height: "48%" },
-      { left: 48, right: 16, top: "56%", height: "12%" },
+      { ...gridBase, top: `${kTop}%`, height: `${kHeight}%` },
+      { ...gridBase, top: `${volTop}%`, height: `${VOL_H}%` },
     ];
+
+    const subLabelStyle = { color: "rgba(255,255,255,0.5)", fontSize: 10, ...mono };
+
+    // Titles for each grid
+    const titles: any[] = [
+      {
+        text: symbol || "",
+        left: 52,
+        top: 0,
+        textStyle: { color: "#fff", fontSize: 12, fontWeight: 600, ...mono },
+      },
+      {
+        text: "VOL",
+        left: 52,
+        top: `${volTop}%`,
+        textStyle: subLabelStyle,
+      },
+    ];
+
     const xAxes: any[] = [
       {
         type: "category",
@@ -125,7 +163,7 @@ export default function StockChart({ history, symbol }: StockChartProps) {
       {
         scale: true,
         gridIndex: 1,
-        splitNumber: 2,
+        splitNumber: 1,
         axisLine: { show: false },
         axisTick: { show: false },
         splitLine: { show: false },
@@ -172,8 +210,15 @@ export default function StockChart({ history, symbol }: StockChartProps) {
 
     if (showRSI) {
       const idx = grids.length;
-      const topPct = 72 + (idx - 2) * 14;
-      grids.push({ left: 48, right: 16, top: `${topPct}%`, height: "10%" });
+      const rsiTop = cursor;
+      cursor += SUB_H + GAP;
+      grids.push({ ...gridBase, top: `${rsiTop}%`, height: `${SUB_H}%` });
+      titles.push({
+        text: "RSI(14)",
+        left: 52,
+        top: `${rsiTop}%`,
+        textStyle: subLabelStyle,
+      });
       xAxes.push({
         type: "category",
         gridIndex: idx,
@@ -187,7 +232,7 @@ export default function StockChart({ history, symbol }: StockChartProps) {
       yAxes.push({
         min: 0,
         max: 100,
-        splitNumber: 2,
+        splitNumber: 1,
         gridIndex: idx,
         axisLine: { show: false },
         axisTick: { show: false },
@@ -218,8 +263,15 @@ export default function StockChart({ history, symbol }: StockChartProps) {
 
     if (showMACD && macdData) {
       const idx = grids.length;
-      const topPct = 72 + (idx - 2) * 14;
-      grids.push({ left: 48, right: 16, top: `${topPct}%`, height: "10%" });
+      const macdTop = cursor;
+      cursor += SUB_H + GAP;
+      grids.push({ ...gridBase, top: `${macdTop}%`, height: `${SUB_H}%` });
+      titles.push({
+        text: "MACD(12,26,9)",
+        left: 52,
+        top: `${macdTop}%`,
+        textStyle: subLabelStyle,
+      });
       xAxes.push({
         type: "category",
         gridIndex: idx,
@@ -232,7 +284,7 @@ export default function StockChart({ history, symbol }: StockChartProps) {
       });
       yAxes.push({
         scale: true,
-        splitNumber: 2,
+        splitNumber: 1,
         gridIndex: idx,
         axisLine: { show: false },
         axisTick: { show: false },
@@ -280,6 +332,7 @@ export default function StockChart({ history, symbol }: StockChartProps) {
     return {
       animation: false,
       backgroundColor: "transparent",
+      title: titles,
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "cross" },
