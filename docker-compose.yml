@@ -1,12 +1,47 @@
 services:
-  invest-brief:
-    build: .
-    container_name: invest-brief
+  nginx:
+    build: ./frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./.env:/app/.env:ro
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.scheduler
+    environment:
+      - REDIS_URL=redis://redis:6379
     volumes:
       - ./config.json:/app/config.json:ro
       - ./.env:/app/.env:ro
       - ./logs:/app/logs
-      - ./reports:/app/reports
-    environment:
-      - TZ=Asia/Shanghai
+    depends_on:
+      - redis
     restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:
