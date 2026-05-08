@@ -662,6 +662,21 @@ def _run_single_market(market: str, args):
         max_recs = cn_config.get("max_recommendations", 3)
         market_data = provider.fetch_all(holdings, industries, max_recommendations=max_recs)
         logger.info(f"Got {len(market_data.get('holdings', []))} holdings, {len(market_data.get('indices', []))} indices")
+
+        # Write public data to Redis for web dashboard
+        try:
+            import redis as _redis
+            _r = _redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
+            import json as _json
+            _public_keys = (["indices", "economic_calendar", "premarket_movers", "earnings_calendar", "congressional_trades"]
+                            if market == "us" else
+                            ["indices", "economic_calendar", "dragon_tiger", "sector_performance"])
+            _public = {k: market_data.get(k, []) for k in _public_keys}
+            _r.setex(f"market:{market}:public", 14400, _json.dumps(_public, ensure_ascii=False, default=str))
+            _r.set(f"market:{market}:updated_at", __import__("time").strftime("%Y-%m-%dT%H:%M:%S%z"))
+            logger.info(f"Wrote public data to Redis for {market}")
+        except Exception as e:
+            logger.warning(f"Failed to write to Redis (web mode optional): {e}")
     except Exception as e:
         logger.warning(f"Market data fetch failed: {e}")
         market_data = {"indices": [], "holdings": [], "recommendations": []}
@@ -751,29 +766,36 @@ def run_once(args):
 
 def run_scheduler(config):
     """Run as a long-lived process, executing at cron-scheduled times."""
-    # Try new-style per-market config first
     markets_cfg = config.get("markets", {})
     if markets_cfg:
         threads = []
         for market, cfg in markets_cfg.items():
             if not cfg.get("enabled", False):
                 continue
-            schedule = cfg.get("schedule", {})
-            cron_expr = schedule.get("cron", "0 23 * * 1-5")
-            t = threading.Thread(
-                target=_run_scheduled_market,
-                args=(market, cron_expr, config),
-                name=f"scheduler-{market}",
-                daemon=True,
-            )
-            t.start()
-            threads.append(t)
+
+            # Support both single schedule and array of schedules
+            raw = cfg.get("schedule", {})
+            if isinstance(raw, list):
+                cron_exprs = [s.get("cron", "0 23 * * 1-5") for s in raw]
+            else:
+                cron_expr = raw.get("cron", "0 23 * * 1-5")
+                cron_exprs = [cron_expr]
+
+            for i, cron_expr in enumerate(cron_exprs):
+                name = f"scheduler-{market}-{i}" if len(cron_exprs) > 1 else f"scheduler-{market}"
+                t = threading.Thread(
+                    target=_run_scheduled_market,
+                    args=(market, cron_expr, config),
+                    name=name,
+                    daemon=True,
+                )
+                t.start()
+                threads.append(t)
 
         if not threads:
             logger.error("No enabled markets found in config")
             return
 
-        # Block main thread until shutdown
         while not _shutdown:
             time.sleep(1)
         return
