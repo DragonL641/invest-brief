@@ -178,7 +178,7 @@ export default function StockChart({ history, symbol }: StockChartProps) {
     const dataZoomXAxisIdxs = [0];
 
     if (showVOL) {
-      const idx = grids.length;
+      const idx = xAxes.length;
       xAxes.push({
         type: "category",
         gridIndex: idx,
@@ -222,7 +222,7 @@ export default function StockChart({ history, symbol }: StockChartProps) {
     }
 
     if (showRSI) {
-      const idx = grids.length;
+      const idx = xAxes.length;
       const rsiTop = cursor;
       cursor += SUB_H + GAP;
       grids.push({ ...gridBase, top: `${rsiTop}%`, height: `${SUB_H}%` });
@@ -275,7 +275,7 @@ export default function StockChart({ history, symbol }: StockChartProps) {
     }
 
     if (showMACD && macdData) {
-      const idx = grids.length;
+      const idx = xAxes.length;
       const macdTop = cursor;
       cursor += SUB_H + GAP;
       grids.push({ ...gridBase, top: `${macdTop}%`, height: `${SUB_H}%` });
@@ -401,7 +401,7 @@ export default function StockChart({ history, symbol }: StockChartProps) {
       ],
       series,
     };
-  }, [displayed, visibleMA, showVOL, showRSI, showMACD, isFullscreen]);
+  }, [displayed, visibleMA, showVOL, showRSI, showMACD, isFullscreen, symbol]);
 
   const subChartCount = [showVOL, showRSI, showMACD].filter(Boolean).length;
   const chartHeight = (isFullscreen ? 100 : 320) + subChartCount * 60;
