@@ -10,6 +10,10 @@
   "recommendations.title": "추천 종목",
   "refresh": "새로고침",
   "refresh.lastUpdate": "마지막 업데이트 {{time}}",
+  "refreshing": "새로고침 중...",
+  "refresh.success": "데이터가 새로고침되었습니다",
+  "refresh.failed": "새로고침 실패, 잠시 후 다시 시도하세요",
+  "refresh.rateLimited": "너무 자주 요청했습니다, 잠시 후 다시 시도하세요",
   "login.title": "로그인",
   "login.email": "이메일",
   "login.password": "비밀번호",
@@ -47,16 +51,5 @@
   "calendar.event": "이벤트",
   "calendar.importance": "중요도",
   "calendar.forecast": "예상",
-  "calendar.previous": "이전",
-  "chart.daily": "일K",
-  "chart.weekly": "주K",
-  "chart.monthly": "월K",
-  "chart.1m": "1개월",
-  "chart.3m": "3개월",
-  "chart.6m": "6개월",
-  "chart.all": "전체",
-  "chart.rsi": "RSI",
-  "chart.macd": "MACD",
-  "chart.fullscreen": "전체화면",
-  "chart.exitFullscreen": "전체화면 종료"
+  "calendar.previous": "이전"
 }

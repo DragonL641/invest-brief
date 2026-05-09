@@ -10,6 +10,10 @@
   "recommendations.title": "推荐关注",
   "refresh": "刷新",
   "refresh.lastUpdate": "最后更新 {{time}}",
+  "refreshing": "刷新中...",
+  "refresh.success": "数据已刷新",
+  "refresh.failed": "刷新失败，请稍后重试",
+  "refresh.rateLimited": "刷新过于频繁，请稍后再试",
   "login.title": "登录",
   "login.email": "邮箱",
   "login.password": "密码",
@@ -47,16 +51,5 @@
   "calendar.event": "事件",
   "calendar.importance": "重要性",
   "calendar.forecast": "预期",
-  "calendar.previous": "前值",
-  "chart.daily": "日K",
-  "chart.weekly": "周K",
-  "chart.monthly": "月K",
-  "chart.1m": "1月",
-  "chart.3m": "3月",
-  "chart.6m": "6月",
-  "chart.all": "全部",
-  "chart.rsi": "RSI",
-  "chart.macd": "MACD",
-  "chart.fullscreen": "全屏",
-  "chart.exitFullscreen": "退出全屏"
+  "calendar.previous": "前值"
 }
