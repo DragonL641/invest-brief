@@ -11,8 +11,8 @@ import ChatFab from "../components/ChatFab";
 import { getMarketData, refreshMarket } from "../api/data";
 import { useAuth } from "../hooks/useAuth";
 
-function ProgressBar({ active }: { active: boolean }) {
-  if (!active) return null;
+function ProgressBar({ active, error }: { active: boolean; error?: boolean }) {
+  if (!active && !error) return null;
   return (
     <div
       style={{
@@ -28,10 +28,12 @@ function ProgressBar({ active }: { active: boolean }) {
     >
       <div
         style={{
-          width: "20%",
+          width: active ? "20%" : "100%",
           height: "100%",
-          background: "#494fdf",
-          animation: "indeterminate 1.2s ease-in-out infinite",
+          background: error ? "#ff4d4f" : "#494fdf",
+          animation: active ? "indeterminate 1.2s ease-in-out infinite" : "none",
+          transition: active ? "none" : "opacity 0.4s ease-out",
+          opacity: active ? 1 : 0,
         }}
       />
       <style>{`
@@ -50,6 +52,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
   useAuth();
   const { t } = useTranslation();
   const { message } = App.useApp();
@@ -68,6 +71,7 @@ export default function DashboardPage() {
 
   const refreshData = (m: string) => {
     setRefreshing(true);
+    setRefreshError(false);
     refreshMarket(m)
       .then((r) => {
         const d = r.data;
@@ -76,10 +80,13 @@ export default function DashboardPage() {
           return;
         }
         setData(d);
+        setError(false);
         message.success(t("refresh.success"));
       })
       .catch(() => {
+        setRefreshError(true);
         message.error(t("refresh.failed"));
+        setTimeout(() => setRefreshError(false), 400);
       })
       .finally(() => setRefreshing(false));
   };
@@ -95,7 +102,7 @@ export default function DashboardPage() {
   if (error || !data) {
     return (
       <div style={{ minHeight: "100vh", background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
-        <Header market={market} onMarketChange={setMarket} onRefresh={() => fetchData(market)} refreshing={refreshing} />
+        <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} />
         <p style={{ color: "#8d969e", fontSize: 16, marginTop: 200 }}>数据加载失败，请稍后重试</p>
         <button onClick={() => fetchData(market)} style={{ background: "#494fdf", color: "#fff", border: "none", borderRadius: 8, padding: "8px 24px", cursor: "pointer", fontSize: 14 }}>
           重试
@@ -107,7 +114,7 @@ export default function DashboardPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#000" }}>
       <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} updatedAt={data.updated_at} />
-      <ProgressBar active={refreshing} />
+      <ProgressBar active={refreshing} error={refreshError} />
       <div
         style={{
           maxWidth: 1200,
