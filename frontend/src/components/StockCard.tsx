@@ -219,80 +219,78 @@ export default function StockCard({ stock }: StockCardProps) {
         />
       )}
 
-      {/* Two-column bottom */}
-      <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)", paddingTop: 12, display: "flex", gap: 24 }}>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)", marginBottom: 8 }}>{t("stock.technicals")}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {[
-                { label: "RSI", value: (tech.rsi ?? tech.rsi_14) != null ? fmt(tech.rsi ?? tech.rsi_14, 1) : "--" },
-                { label: "SMA 50", value: (tech.sma50 ?? tech.sma_50) != null ? `$${fmt(tech.sma50 ?? tech.sma_50)}` : "--" },
-                { label: "SMA 200", value: (tech.sma200 ?? tech.sma_200) != null ? `$${fmt(tech.sma200 ?? tech.sma_200)}` : "--" },
-                { label: "MACD", value: (tech.macd ?? tech.macd_line) != null ? fmt(tech.macd ?? tech.macd_line, 4) : "--" },
-              ].map((row) => (
-                <div key={row.label} style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 12, color: "#8d969e" }}>{row.label}</span>
-                  <span style={{ ...mono, fontSize: 12, color: "#fff" }}>{row.value}</span>
-                </div>
-              ))}
-            </div>
+      {/* Stacked bottom sections */}
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Technicals — 2x2 grid */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)", marginBottom: 8 }}>
+            {t("stock.technicals")}
           </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)", marginBottom: 8 }}>{t("stock.eps")}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {[
-                { label: t("stock.currentQ"), value: (eps.current_q ?? eps["0q"]?.avg) != null ? `$${fmt(eps.current_q ?? eps["0q"]?.avg)}` : "--" },
-                { label: t("stock.nextQ"), value: (eps.next_q ?? eps["+1q"]?.avg) != null ? `$${fmt(eps.next_q ?? eps["+1q"]?.avg)}` : "--" },
-                { label: t("stock.surprise"), value: (eps.surprise_pct ?? (earningsHistory.length > 0 ? earningsHistory[earningsHistory.length - 1]?.surprise_pct : null)) != null ? pct(eps.surprise_pct ?? (earningsHistory.length > 0 ? earningsHistory[earningsHistory.length - 1]?.surprise_pct : null)) : "--" },
-              ].map((row) => (
-                <div key={row.label} style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 12, color: "#8d969e" }}>{row.label}</span>
-                  <span style={{ ...mono, fontSize: 12, color: "#fff" }}>{row.value}</span>
-                </div>
-              ))}
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 24px" }}>
+            {[
+              { label: "RSI", value: (tech.rsi ?? tech.rsi_14) != null ? fmt(tech.rsi ?? tech.rsi_14, 1) : "--", tooltip: t("tooltip.rsi") },
+              { label: "SMA 50", value: (tech.sma50 ?? tech.sma_50) != null ? `$${fmt(tech.sma50 ?? tech.sma_50)}` : "--", tooltip: t("tooltip.sma50") },
+              { label: "SMA 200", value: (tech.sma200 ?? tech.sma_200) != null ? `$${fmt(tech.sma200 ?? tech.sma_200)}` : "--", tooltip: t("tooltip.sma200") },
+              { label: "MACD", value: (tech.macd ?? tech.macd_line) != null ? fmt(tech.macd ?? tech.macd_line, 4) : "--", tooltip: t("tooltip.macd") },
+            ].map((row) => (
+              <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "#8d969e", display: "flex", alignItems: "center" }}>
+                  {row.label}
+                  <InfoTooltip text={row.tooltip} />
+                </span>
+                <span style={{ ...mono, fontSize: 12, color: "#fff" }}>{row.value}</span>
+              </div>
+            ))}
           </div>
         </div>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)", marginBottom: 8 }}>{t("stock.insider")}</div>
+
+        {/* EPS — horizontal row */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)", marginBottom: 8 }}>
+            {t("stock.eps")}
+          </div>
+          <div style={{ display: "flex", gap: 24 }}>
+            {[
+              { label: t("stock.currentQ"), value: (eps.current_q ?? eps["0q"]?.avg) != null ? `$${fmt(eps.current_q ?? eps["0q"]?.avg)}` : "--", tooltip: t("tooltip.currentEps") },
+              { label: t("stock.nextQ"), value: (eps.next_q ?? eps["+1q"]?.avg) != null ? `$${fmt(eps.next_q ?? eps["+1q"]?.avg)}` : "--", tooltip: t("tooltip.nextEps") },
+              { label: t("stock.surprise"), value: (eps.surprise_pct ?? (earningsHistory.length > 0 ? earningsHistory[earningsHistory.length - 1]?.surprise_pct : null)) != null ? pct(eps.surprise_pct ?? (earningsHistory.length > 0 ? earningsHistory[earningsHistory.length - 1]?.surprise_pct : null)) : "--", tooltip: t("tooltip.surprise") },
+            ].map((row) => (
+              <div key={row.label} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 11, color: "#8d969e", display: "flex", alignItems: "center" }}>
+                  {row.label}
+                  <InfoTooltip text={row.tooltip} />
+                </span>
+                <span style={{ ...mono, fontSize: 13, color: "#fff" }}>{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Insider — full width, up to 5 rows */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)", marginBottom: 8 }}>
+            {t("stock.insider")}
+          </div>
+          {insiderTrades.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {insiderTrades.length > 0 ? (
-                insiderTrades.slice(0, 3).map((it: any, i: number) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 12, color: "#8d969e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>
-                      {it.name || it.insider}
-                    </span>
+              {insiderTrades.slice(0, 5).map((it: any, i: number) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "#8d969e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
+                    {it.name || it.insider}{it.position ? ` (${it.position})` : ""}
+                  </span>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    {it.value != null && <span style={{ ...mono, fontSize: 11, color: "#8d969e" }}>${fmt(it.value, 0)}</span>}
+                    {it.date && <span style={{ ...mono, fontSize: 11, color: "#8d969e" }}>{it.date}</span>}
                     <span style={{ ...mono, fontSize: 12, color: (it.action || it.type || it.transaction || "").toLowerCase().includes("buy") ? "#ef4444" : "#22c55e" }}>
                       {it.action || it.type || it.transaction}
                     </span>
                   </div>
-                ))
-              ) : (
-                <span style={{ fontSize: 12, color: "#8d969e" }}>--</span>
-              )}
+                </div>
+              ))}
             </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)", marginBottom: 8 }}>{t("stock.upgrades")}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {upgrades.length > 0 ? (
-                upgrades.slice(0, 3).map((u: any, i: number) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 12, color: "#8d969e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>
-                      {u.institution || u.firm}
-                    </span>
-                    <span style={{ ...mono, fontSize: 12, color: "#fff" }}>
-                      {u.from_grade && u.to_grade ? `${u.from_grade}->${u.to_grade}` : u.change || u.grade}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <span style={{ fontSize: 12, color: "#8d969e" }}>--</span>
-              )}
-            </div>
-          </div>
+          ) : (
+            <span style={{ fontSize: 12, color: "#8d969e" }}>--</span>
+          )}
         </div>
       </div>
 
