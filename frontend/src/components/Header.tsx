@@ -1,9 +1,11 @@
 import { useTranslation } from "react-i18next";
-import { StockOutlined, ReloadOutlined, UserOutlined } from "@ant-design/icons";
+import { StockOutlined, ReloadOutlined, LoadingOutlined, UserOutlined } from "@ant-design/icons";
 
 interface HeaderProps {
   market: "us" | "cn";
   onMarketChange: (m: "us" | "cn") => void;
+  onRefresh: () => void;
+  refreshing?: boolean;
   updatedAt?: string;
 }
 
@@ -33,7 +35,7 @@ const langPillStyle = (active: boolean): React.CSSProperties => ({
   transition: "background 0.2s",
 });
 
-export default function Header({ market, onMarketChange, updatedAt }: HeaderProps) {
+export default function Header({ market, onMarketChange, onRefresh, refreshing, updatedAt }: HeaderProps) {
   const { t, i18n } = useTranslation();
 
   return (
@@ -97,12 +99,19 @@ export default function Header({ market, onMarketChange, updatedAt }: HeaderProp
             padding: "6px 16px",
             color: "#fff",
             fontSize: 13,
-            cursor: "pointer",
+            cursor: refreshing ? "not-allowed" : "pointer",
+            opacity: refreshing ? 0.7 : 1,
+            pointerEvents: refreshing ? "none" : "auto",
+            transition: "opacity 0.2s",
           }}
-          onClick={() => onMarketChange(market)}
+          onClick={onRefresh}
         >
-          <ReloadOutlined style={{ fontSize: 13 }} />
-          {t("refresh")}
+          {refreshing ? (
+            <LoadingOutlined style={{ fontSize: 13 }} />
+          ) : (
+            <ReloadOutlined style={{ fontSize: 13 }} />
+          )}
+          {refreshing ? t("refreshing") : t("refresh")}
         </button>
 
         {/* Last update */}
