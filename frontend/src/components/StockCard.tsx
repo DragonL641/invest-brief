@@ -1,5 +1,9 @@
-import { useTranslation, type TFunction } from "react-i18next";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import StockChart from "./StockChart";
+import InfoTooltip from "./InfoTooltip";
+import AnalystDetailModal from "./AnalystDetailModal";
 
 interface StockCardProps {
   stock: any;
@@ -64,6 +68,7 @@ function getBadges(stock: any, t: TFunction): { label: string; color: string }[]
 
 export default function StockCard({ stock }: StockCardProps) {
   const { t } = useTranslation();
+  const [showAnalystModal, setShowAnalystModal] = useState(false);
 
   const badges = getBadges(stock, t);
   const info = stock.info || {};
@@ -154,8 +159,15 @@ export default function StockCard({ stock }: StockCardProps) {
       {/* Analyst target */}
       {targetMean != null && (
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)", paddingTop: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)", marginBottom: 8 }}>
-            {t("stock.analystTarget")}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)" }}>
+              {t("stock.analystTarget")}
+            </span>
+            {totalRating > 0 && (
+              <span style={{ fontSize: 11, color: "#8d969e" }}>
+                {t("stock.analystCount", { count: totalRating })}
+              </span>
+            )}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
             <div>
@@ -177,13 +189,34 @@ export default function StockCard({ stock }: StockCardProps) {
                 <div style={{ flex: sellPct, background: "#22c55e", borderRadius: 4 }} />
               </div>
               <div style={{ display: "flex", gap: 16, marginTop: 6 }}>
-                <span style={{ fontSize: 11, color: "#8d969e" }}>{t("stock.buy")} {buyPct}%</span>
-                <span style={{ fontSize: 11, color: "#8d969e" }}>{t("stock.hold")} {holdPct}%</span>
-                <span style={{ fontSize: 11, color: "#8d969e" }}>{t("stock.sell")} {sellPct}%</span>
+                <span style={{ fontSize: 11, color: "#8d969e" }}>{t("stock.buy")} {totalBuy}({buyPct}%)</span>
+                <span style={{ fontSize: 11, color: "#8d969e" }}>{t("stock.hold")} {totalHold}({holdPct}%)</span>
+                <span style={{ fontSize: 11, color: "#8d969e" }}>{t("stock.sell")} {totalSell}({sellPct}%)</span>
               </div>
             </>
           )}
+          <button
+            onClick={() => setShowAnalystModal(true)}
+            style={{
+              marginTop: 8, width: "100%", padding: "6px 0",
+              background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 8, color: "#8d969e", fontSize: 12, cursor: "pointer",
+            }}
+          >
+            {t("stock.viewDetails")} →
+          </button>
         </div>
+      )}
+
+      {/* Analyst detail modal */}
+      {showAnalystModal && (
+        <AnalystDetailModal
+          targets={targets}
+          upsidePct={upsidePct}
+          recommendations={rec ?? null}
+          upgrades={upgrades}
+          onClose={() => setShowAnalystModal(false)}
+        />
       )}
 
       {/* Two-column bottom */}
@@ -264,8 +297,8 @@ export default function StockCard({ stock }: StockCardProps) {
       </div>
 
       {/* Chart */}
-      {stock.history?.length > 0 ? (
-        <StockChart history={stock.history} symbol={stock.symbol} />
+      {stock.symbol ? (
+        <StockChart symbol={stock.symbol} />
       ) : stock.chart_b64 ? (
         <div style={{ background: "#0a0a0a", borderRadius: 8, padding: 8 }}>
           <img
