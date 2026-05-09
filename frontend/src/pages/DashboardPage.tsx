@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Spin, App } from "antd";
+import { Skeleton, App } from "antd";
 import Header from "../components/Header";
 import MarketOverview from "../components/MarketOverview";
 import WatchlistSection from "../components/WatchlistSection";
@@ -46,6 +46,14 @@ function ProgressBar({ active, error }: { active: boolean; error?: boolean }) {
   );
 }
 
+function SectionSkeleton() {
+  return (
+    <div style={{ background: "#16181a", borderRadius: 20, padding: 24 }}>
+      <Skeleton active paragraph={{ rows: 2 }} title={{ width: "40%" }} />
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [market, setMarket] = useState<"us" | "cn">("us");
   const [data, setData] = useState<any>(null);
@@ -61,9 +69,11 @@ export default function DashboardPage() {
     setLoading(true);
     setError(false);
     getMarketData(m)
-      .then((r) => setData(r.data))
+      .then((r) => {
+        setData(r.data);
+        setError(false);
+      })
       .catch(() => {
-        message.error("数据加载失败，请稍后重试");
         setError(true);
       })
       .finally(() => setLoading(false));
@@ -77,6 +87,10 @@ export default function DashboardPage() {
         const d = r.data;
         if (d.status === "rate_limited") {
           message.warning(t("refresh.rateLimited"));
+          return;
+        }
+        if (d.error) {
+          message.error(t("refresh.failed"));
           return;
         }
         setData(d);
@@ -95,25 +109,15 @@ export default function DashboardPage() {
     fetchData(market);
   }, [market]);
 
-  if (loading) {
-    return <Spin size="large" style={{ display: "block", margin: "200px auto" }} />;
-  }
-
-  if (error || !data) {
-    return (
-      <div style={{ minHeight: "100vh", background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
-        <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} />
-        <p style={{ color: "#8d969e", fontSize: 16, marginTop: 200 }}>数据加载失败，请稍后重试</p>
-        <button onClick={() => fetchData(market)} style={{ background: "#494fdf", color: "#fff", border: "none", borderRadius: 8, padding: "8px 24px", cursor: "pointer", fontSize: 14 }}>
-          重试
-        </button>
-      </div>
-    );
-  }
+  const indices = data?.indices || [];
+  const holdings = data?.holdings || [];
+  const news = data?.news || [];
+  const recommendations = data?.recommendations || [];
+  const calendar = data?.economic_calendar || [];
 
   return (
     <div style={{ minHeight: "100vh", background: "#000" }}>
-      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} updatedAt={data.updated_at} />
+      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} updatedAt={data?.updated_at} />
       <ProgressBar active={refreshing} error={refreshError} />
       <div
         style={{
@@ -125,13 +129,35 @@ export default function DashboardPage() {
           gap: 32,
         }}
       >
-        <MarketOverview indices={data.indices || []} />
-        <WatchlistSection holdings={data.holdings || []} market={market} />
-        <NewsList news={data.news || []} />
-        <RecommendationsSection recommendations={data.recommendations || []} market={market} />
-        <EconomicCalendar calendar={data.economic_calendar || []} />
+        {loading ? (
+          <>
+            <SectionSkeleton />
+            <SectionSkeleton />
+            <SectionSkeleton />
+            <SectionSkeleton />
+            <SectionSkeleton />
+          </>
+        ) : error && !data ? (
+          <div style={{ textAlign: "center", padding: "80px 0" }}>
+            <p style={{ color: "#8d969e", fontSize: 16, marginBottom: 16 }}>数据加载失败，请稍后重试</p>
+            <button
+              onClick={() => fetchData(market)}
+              style={{ background: "#494fdf", color: "#fff", border: "none", borderRadius: 8, padding: "8px 24px", cursor: "pointer", fontSize: 14 }}
+            >
+              重试
+            </button>
+          </div>
+        ) : (
+          <>
+            <MarketOverview indices={indices} />
+            <WatchlistSection holdings={holdings} market={market} />
+            <NewsList news={news} />
+            <RecommendationsSection recommendations={recommendations} market={market} />
+            <EconomicCalendar calendar={calendar} />
+          </>
+        )}
       </div>
-      <ChatFab market={market} data={data} />
+      {!loading && data && <ChatFab market={market} data={data} />}
     </div>
   );
 }
