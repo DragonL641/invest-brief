@@ -46,7 +46,7 @@ function ProgressBar({ active, error }: { active: boolean; error?: boolean }) {
   );
 }
 
-function formatUpdatedAt(iso: string | undefined, locale: string): string {
+function formatUpdatedAt(iso: string | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
@@ -55,9 +55,7 @@ function formatUpdatedAt(iso: string | undefined, locale: string): string {
   const day = d.getDate();
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  return locale === "ko-KR"
-    ? `${y}.${m}.${day} ${hh}:${mm}`
-    : `${y}年${m}月${day}日 ${hh}:${mm}`;
+  return `${y}.${m}.${day} ${hh}:${mm}`;
 }
 
 function SectionSkeleton() {
@@ -76,7 +74,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState(false);
   useAuth();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { message } = App.useApp();
 
   const fetchData = (m: string) => {
@@ -131,7 +129,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#000" }}>
-      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} updatedAt={formatUpdatedAt(data?.updated_at, i18n.language)} />
+      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} updatedAt={formatUpdatedAt(data?.updated_at)} />
       <ProgressBar active={refreshing} error={refreshError} />
       <div
         style={{
