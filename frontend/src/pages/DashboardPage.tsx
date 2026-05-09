@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Spin } from "antd";
+import { useTranslation } from "react-i18next";
+import { Spin, App } from "antd";
 import Header from "../components/Header";
 import MarketOverview from "../components/MarketOverview";
 import WatchlistSection from "../components/WatchlistSection";
@@ -7,33 +8,106 @@ import RecommendationsSection from "../components/RecommendationsSection";
 import NewsList from "../components/NewsList";
 import EconomicCalendar from "../components/EconomicCalendar";
 import ChatFab from "../components/ChatFab";
-import { getMarketData } from "../api/data";
+import { getMarketData, refreshMarket } from "../api/data";
 import { useAuth } from "../hooks/useAuth";
+
+function ProgressBar({ active }: { active: boolean }) {
+  if (!active) return null;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 64,
+        left: 0,
+        width: "100%",
+        height: 2,
+        zIndex: 1000,
+        overflow: "hidden",
+        background: "transparent",
+      }}
+    >
+      <div
+        style={{
+          width: "20%",
+          height: "100%",
+          background: "#494fdf",
+          animation: "indeterminate 1.2s ease-in-out infinite",
+        }}
+      />
+      <style>{`
+        @keyframes indeterminate {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(500%); }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [market, setMarket] = useState<"us" | "cn">("us");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   useAuth();
+  const { t } = useTranslation();
+  const { message } = App.useApp();
 
   const fetchData = (m: string) => {
     setLoading(true);
+    setError(false);
     getMarketData(m)
       .then((r) => setData(r.data))
+      .catch(() => {
+        message.error("数据加载失败，请稍后重试");
+        setError(true);
+      })
       .finally(() => setLoading(false));
+  };
+
+  const refreshData = (m: string) => {
+    setRefreshing(true);
+    refreshMarket(m)
+      .then((r) => {
+        const d = r.data;
+        if (d.status === "rate_limited") {
+          message.warning(t("refresh.rateLimited"));
+          return;
+        }
+        setData(d);
+        message.success(t("refresh.success"));
+      })
+      .catch(() => {
+        message.error(t("refresh.failed"));
+      })
+      .finally(() => setRefreshing(false));
   };
 
   useEffect(() => {
     fetchData(market);
   }, [market]);
 
-  if (loading || !data) {
+  if (loading) {
     return <Spin size="large" style={{ display: "block", margin: "200px auto" }} />;
+  }
+
+  if (error || !data) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+        <Header market={market} onMarketChange={setMarket} onRefresh={() => fetchData(market)} refreshing={refreshing} />
+        <p style={{ color: "#8d969e", fontSize: 16, marginTop: 200 }}>数据加载失败，请稍后重试</p>
+        <button onClick={() => fetchData(market)} style={{ background: "#494fdf", color: "#fff", border: "none", borderRadius: 8, padding: "8px 24px", cursor: "pointer", fontSize: 14 }}>
+          重试
+        </button>
+      </div>
+    );
   }
 
   return (
     <div style={{ minHeight: "100vh", background: "#000" }}>
-      <Header market={market} onMarketChange={setMarket} updatedAt={data.updated_at} />
+      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} updatedAt={data.updated_at} />
+      <ProgressBar active={refreshing} />
       <div
         style={{
           maxWidth: 1200,
