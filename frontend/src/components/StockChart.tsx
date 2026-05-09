@@ -90,15 +90,18 @@ export default function StockChart({ history, symbol }: StockChartProps) {
     const macdData = showMACD ? calcMACD(closes) : null;
     const subCount = [showVOL, showRSI, showMACD].filter(Boolean).length;
 
-    // Dynamic grid layout with adequate spacing
-    const GAP = 8; // % gap between grids
-    const BOTTOM_PAD = 10; // reserved for dataZoom slider
-    const VOL_H = 14;
-    const SUB_H = 14;
-    const kHeight = 100 - BOTTOM_PAD - (showVOL ? VOL_H : 0) * 1 - (showRSI ? SUB_H : 0) * 1 - (showMACD ? SUB_H : 0) * 1 - (1 + subCount) * GAP - 3;
+    // Dynamic grid layout — minimize overhead, maximize chart area
+    const GAP = 3;
+    const BOTTOM_PAD = 7;
+    const VOL_H = 12;
+    const SUB_H = 12;
+    const overhead = BOTTOM_PAD + subCount * (showVOL ? VOL_H : SUB_H === VOL_H ? SUB_H : SUB_H) + (1 + subCount) * GAP + 2;
+    // Simplify: total fixed overhead = bottom + gaps + top padding
+    const subTotal = (showVOL ? VOL_H : 0) + (showRSI ? SUB_H : 0) + (showMACD ? SUB_H : 0);
+    const kHeight = 100 - BOTTOM_PAD - subTotal - (1 + subCount) * GAP - 2;
 
     const gridBase = { left: 48, right: 16 };
-    let cursor = 3; // top padding for title
+    let cursor = 2;
 
     // Grid 0: K-line
     const kTop = cursor;
