@@ -52,3 +52,39 @@ class RefreshResponse(BaseModel):
 class StatusResponse(BaseModel):
     us: Optional[dict] = None
     cn: Optional[dict] = None
+
+
+class HoldingItem(BaseModel):
+    symbol: str
+    name: str
+
+
+class MarketPreferences(BaseModel):
+    holdings: list[HoldingItem] = []
+    industries: list[str] = []
+
+
+class DeliveryEntry(BaseModel):
+    email: str
+    language: str = "zh-CN"
+    schedule: dict[str, list[str]] = {}
+
+
+class PreferencesUpdate(BaseModel):
+    markets: dict[str, MarketPreferences] = {}
+    delivery: list[DeliveryEntry] = []
+
+
+class PreferencesResponse(BaseModel):
+    markets: dict = {}
+    delivery: list = []
+    language: str = "zh-CN"
+
+
+class EmailSendRequest(BaseModel):
+    market: Optional[str] = None
+
+
+class EmailSendResponse(BaseModel):
+    status: str
+    message: str = ""
