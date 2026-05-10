@@ -5,6 +5,8 @@ import time as _time
 from investbrief.web.services.cache import (
     get_cached, set_cached, invalidate, get_last_updated,
     set_last_updated, can_refresh, set_refresh_lock,
+    get_section_cached, set_section_cached, invalidate_section,
+    can_section_refresh, set_section_refresh_lock,
 )
 
 logger = logging.getLogger(__name__)
@@ -154,52 +156,6 @@ def _translate_news(items: list[dict], language: str, market: str) -> list[dict]
         return items
 
 
-def get_market_data(redis_client, market: str, user: dict) -> dict:
-    result = {}
-    errors = []
-
-    # Public data (shared across users)
-    public_cache = get_cached(redis_client, f"market:{market}:public")
-    if public_cache is None:
-        public_cache, pub_errors = _fetch_and_cache_public(redis_client, market)
-        errors.extend(pub_errors)
-    for k in _public_keys(market):
-        result[k] = public_cache.get(k, [])
-
-    # User private data
-    uid = user["id"]
-    user_cache = get_cached(redis_client, f"market:{market}:user:{uid}:private")
-    if user_cache is None:
-        user_cache, usr_errors = _fetch_and_cache_user(redis_client, market, user)
-        errors.extend(usr_errors)
-    for k in _private_keys(market):
-        result[k] = user_cache.get(k, [])
-
-    # News (cached per market+language)
-    language = user.get("language", "zh-CN")
-    news_cache_key = f"market:{market}:news:{language}"
-    news_cache = get_cached(redis_client, news_cache_key)
-    if news_cache is None:
-        market_cfg = user.get("markets", {}).get(market, {})
-        symbols = [h.get("symbol", h) if isinstance(h, dict) else h
-                   for h in market_cfg.get("holdings", [])]
-        industries = market_cfg.get("industries", [])
-        news_items, news_errors = _fetch_news(market, symbols, industries)
-        errors.extend(news_errors)
-        if news_items:
-            translated = _translate_news(news_items[:5], language, market)
-            set_cached(redis_client, news_cache_key, translated)
-            news_cache = translated
-        else:
-            news_cache = news_items
-    result["news"] = news_cache or []
-    result["updated_at"] = get_last_updated(redis_client, market) or ""
-    if errors:
-        result["errors"] = errors
-
-    return _sanitize_floats(result)
-
-
 def _create_provider(market: str):
     if market == "us":
         from investbrief.us.provider import USMarketProvider
@@ -210,51 +166,145 @@ def _create_provider(market: str):
     raise ValueError(f"Unknown market: {market}")
 
 
-def _fetch_and_cache_public(redis_client, market: str) -> tuple[dict, list]:
-    provider = _create_provider(market)
+def _fetch_section(redis_client, market: str, section_name: str,
+                   provider, uid: str | None = None, **kwargs) -> dict:
+    """Fetch one section: check cache -> fetch -> cache result."""
+    config = SECTION_CONFIG[market]
+    is_private = section_name in config.get("private", {})
+    section_cfg = config["private" if is_private else "public"][section_name]
+    ttl = section_cfg["ttl"]
+
+    cached = get_section_cached(redis_client, market, section_name, uid)
+    if cached is not None:
+        return {"data": cached["data"], "status": "cached",
+                "updated_at": cached["updated_at"]}
+
     try:
-        all_data = provider.fetch_all([], [], 3)
-        public = {k: all_data.get(k, []) for k in _public_keys(market)}
-        set_cached(redis_client, f"market:{market}:public", public)
-        return public, []
+        data = provider.get_section_data(section_name, **kwargs)
+        data = _sanitize_floats(data)
+        now = _time.strftime("%Y-%m-%dT%H:%M:%S%z")
+        result = {"data": data, "updated_at": now}
+        set_section_cached(redis_client, market, section_name, result, ttl, uid)
+        return {"data": data, "status": "ok", "updated_at": now}
     except Exception as e:
-        logger.warning(f"Public data fetch failed for {market}: {e}", exc_info=True)
+        logger.warning(f"Section {section_name} failed for {market}: {e}", exc_info=True)
         err = _classify_error(e)
-        errors = [{"section": k, **err} for k in _public_keys(market)]
-        return {k: [] for k in _public_keys(market)}, errors
+        err["section"] = section_name
+        err["retryable"] = err["reason"] not in ("auth",)
+        err["suggestion_key"] = f"error.suggestion.{err['reason']}"
+        return {"data": None, "status": "error", "error": err, "updated_at": None}
 
 
-def _fetch_and_cache_user(redis_client, market: str, user: dict) -> tuple[dict, list]:
+def _fetch_news_section(redis_client, market: str, language: str,
+                        symbols: list[str], industries: list[str]) -> dict:
+    """Fetch, translate, and cache news for a section."""
+    try:
+        news_items, news_errors = _fetch_news(market, symbols, industries)
+        if news_items:
+            translated = _translate_news(news_items[:5], language, market)
+            now = _time.strftime("%Y-%m-%dT%H:%M:%S%z")
+            cache_data = {"data": _sanitize_floats(translated), "updated_at": now}
+            news_cache_key = f"market:{market}:section:news:{language}"
+            set_cached(redis_client, news_cache_key, cache_data, ttl_seconds=3600)
+            return {"data": _sanitize_floats(translated), "status": "ok",
+                    "updated_at": now}
+        now = _time.strftime("%Y-%m-%dT%H:%M:%S%z")
+        return {"data": [], "status": "ok", "updated_at": now}
+    except Exception as e:
+        logger.warning(f"News section failed for {market}: {e}", exc_info=True)
+        err = _classify_error(e)
+        err["section"] = "news"
+        err["retryable"] = True
+        err["suggestion_key"] = f"error.suggestion.{err['reason']}"
+        return {"data": None, "status": "error", "error": err, "updated_at": None}
+
+
+def get_market_data(redis_client, market: str, user: dict) -> dict:
+    provider = _create_provider(market)
+    config = SECTION_CONFIG[market]
+    uid = str(user["id"])
     market_cfg = user.get("markets", {}).get(market, {})
     holdings = market_cfg.get("holdings", [])
     industries = market_cfg.get("industries", [])
-    max_recs = market_cfg.get("max_recommendations", 3)
+    holdings_symbols = [h["symbol"] if isinstance(h, dict) else h for h in holdings]
 
-    provider = _create_provider(market)
-    try:
-        all_data = provider.fetch_all(holdings, industries, max_recs)
-        private = {k: all_data.get(k, []) for k in _private_keys(market)}
-        set_cached(redis_client, f"market:{market}:user:{user['id']}:private", private)
-        return private, []
-    except Exception as e:
-        logger.warning(f"User data fetch failed for {market}: {e}", exc_info=True)
-        err = _classify_error(e)
-        errors = [{"section": k, **err} for k in _private_keys(market)]
-        return {k: [] for k in _private_keys(market)}, errors
+    section_kwargs = {
+        "holdings": holdings,
+        "holdings_symbols": holdings_symbols,
+        "industries": industries,
+        "recommendations": [],
+    }
+
+    sections = {}
+
+    for name in config["public"]:
+        sections[name] = _fetch_section(redis_client, market, name, provider, uid=None, **section_kwargs)
+
+    for name in config["private"]:
+        sections[name] = _fetch_section(redis_client, market, name, provider, uid=uid, **section_kwargs)
+
+    # News (per-language cache)
+    language = user.get("language", "zh-CN")
+    news_cache_key = f"market:{market}:section:news:{language}"
+    news_cached = get_cached(redis_client, news_cache_key)
+    if news_cached is not None:
+        sections["news"] = {"data": news_cached["data"], "status": "cached",
+                            "updated_at": news_cached["updated_at"]}
+    else:
+        sections["news"] = _fetch_news_section(redis_client, market, language,
+                                                holdings_symbols, industries)
+
+    return {"sections": sections}
 
 
 def refresh_market(redis_client, market: str, user: dict) -> dict:
     if not can_refresh(redis_client, market):
-        return {"status": "rate_limited", "message": "请60秒后再试"}
+        return {"status": "rate_limited"}
 
     set_refresh_lock(redis_client, market)
 
-    invalidate(redis_client, f"market:{market}:public")
-    for key in redis_client.scan_iter(f"market:{market}:news:*"):
-        invalidate(redis_client, key)
-    for key in redis_client.scan_iter(f"market:{market}:user:*:private"):
-        invalidate(redis_client, key)
+    uid = str(user["id"])
+    config = SECTION_CONFIG[market]
 
-    set_last_updated(redis_client, market)
+    for name in config["public"]:
+        invalidate_section(redis_client, market, name)
+    for name in config["private"]:
+        invalidate_section(redis_client, market, name, uid=uid)
+    for key in redis_client.scan_iter(f"market:{market}:section:news:*"):
+        invalidate(redis_client, key)
 
     return get_market_data(redis_client, market, user)
+
+
+def refresh_section(redis_client, market: str, section_name: str, user: dict) -> dict:
+    """Refresh a single section and return its result."""
+    config = SECTION_CONFIG[market]
+    is_private = section_name in config.get("private", {})
+    is_public = section_name in config.get("public", {})
+    is_news = section_name == "news"
+
+    if not is_private and not is_public and not is_news:
+        return {"status": "error", "error": {"reason": "invalid_section",
+                "detail": f"Unknown section: {section_name}"}}
+
+    uid = str(user["id"]) if is_private else None
+
+    if not can_section_refresh(redis_client, market, section_name, uid):
+        return {"status": "rate_limited"}
+
+    set_section_refresh_lock(redis_client, market, section_name, uid)
+
+    if is_news:
+        language = user.get("language", "zh-CN")
+        news_cache_key = f"market:{market}:section:news:{language}"
+        invalidate(redis_client, news_cache_key)
+    else:
+        invalidate_section(redis_client, market, section_name, uid)
+
+    full = get_market_data(redis_client, market, user)
+    section_result = full.get("sections", {}).get(section_name, {
+        "data": None, "status": "error",
+        "error": {"reason": "unknown", "detail": "Section not found in response"},
+        "updated_at": None,
+    })
+    return {"section": section_name, **section_result}
