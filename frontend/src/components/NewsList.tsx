@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import ReactMarkdown from "react-markdown";
 
 interface NewsItem {
   title: string;
@@ -34,16 +35,6 @@ function sentimentLabel(s: string, t: TFunction): string {
   return s;
 }
 
-function splitSummary(text: string): string[] {
-  // LLM output: each point on its own line
-  const byLine = text.split(/\n/).map((s) => s.replace(/^[-•*\d.、)\s]+/, "").trim()).filter(Boolean);
-  if (byLine.length > 1) return byLine;
-  // Fallback: split on Chinese semicolons
-  const bySemicolon = text.split(/[；;]/).map((s) => s.trim()).filter(Boolean);
-  if (bySemicolon.length > 1) return bySemicolon;
-  return [text];
-}
-
 export default function NewsList({ news }: NewsListProps) {
   const { t } = useTranslation();
 
@@ -75,12 +66,17 @@ export default function NewsList({ news }: NewsListProps) {
               </div>
 
               {item.summary && (
-                <div style={{ marginBottom: 8 }}>
-                  <ul style={{ margin: 0, paddingLeft: 16, color: "#8d969e", fontSize: 13, lineHeight: 1.6 }}>
-                    {splitSummary(item.summary).map((line, j) => (
-                      <li key={j} style={{ marginBottom: 2 }}>{line}</li>
-                    ))}
-                  </ul>
+                <div style={{ marginBottom: 8, color: "#8d969e", fontSize: 13, lineHeight: 1.6 }}>
+                  <ReactMarkdown
+                    components={{
+                      p: ({ children }) => <p style={{ margin: 0 }}>{children}</p>,
+                      ul: ({ children }) => <ul style={{ margin: "2px 0", paddingLeft: 16 }}>{children}</ul>,
+                      ol: ({ children }) => <ol style={{ margin: "2px 0", paddingLeft: 16 }}>{children}</ol>,
+                      li: ({ children }) => <li style={{ margin: "1px 0" }}>{children}</li>,
+                    }}
+                  >
+                    {item.summary}
+                  </ReactMarkdown>
                 </div>
               )}
 
