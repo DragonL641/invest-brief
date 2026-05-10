@@ -1,14 +1,36 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlusOutlined } from "@ant-design/icons";
+import { Modal, App } from "antd";
 import StockCard from "./StockCard";
+import StockSearch from "./StockSearch";
+import { addHolding } from "../api/stocks";
 
 interface WatchlistSectionProps {
   holdings: any[];
   market: string;
+  onRefresh?: () => void;
 }
 
-export default function WatchlistSection({ holdings, market }: WatchlistSectionProps) {
+export default function WatchlistSection({ holdings, market, onRefresh }: WatchlistSectionProps) {
   const { t } = useTranslation();
+  const { message } = App.useApp();
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const handleAdd = async (symbol: string, name: string) => {
+    try {
+      await addHolding(market, symbol, name);
+      message.success(t("watchlist.addSuccess"));
+      setModalOpen(false);
+      onRefresh?.();
+    } catch (err: any) {
+      if (err.response?.status === 409) {
+        message.warning(t("watchlist.duplicate"));
+      } else {
+        message.error(t("watchlist.addFailed"));
+      }
+    }
+  };
 
   return (
     <section>
@@ -24,6 +46,7 @@ export default function WatchlistSection({ holdings, market }: WatchlistSectionP
           {t("watchlist.title")}
         </h2>
         <button
+          onClick={() => setModalOpen(true)}
           style={{
             height: 32,
             background: "#16181a",
@@ -52,6 +75,19 @@ export default function WatchlistSection({ holdings, market }: WatchlistSectionP
           </div>
         )}
       </div>
+      <Modal
+        title={t("watchlist.addTitle")}
+        open={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        footer={null}
+        width={480}
+      >
+        <StockSearch
+          market={market as "us" | "cn"}
+          existingSymbols={holdings.map((h) => h.symbol)}
+          onAdd={handleAdd}
+        />
+      </Modal>
     </section>
   );
 }

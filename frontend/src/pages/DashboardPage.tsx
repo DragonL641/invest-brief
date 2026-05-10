@@ -259,7 +259,7 @@ export default function DashboardPage() {
                 </section>
               )}
               <section id="watchlist" ref={sectionRef("watchlist")}>
-                <WatchlistSection holdings={holdings} market={market} />
+                <WatchlistSection holdings={holdings} market={market} onRefresh={() => fetchData(market)} />
               </section>
               <section id="recommendations" ref={sectionRef("recommendations")}>
                 <RecommendationsSection recommendations={recommendations} market={market} />
