@@ -7,7 +7,7 @@ import WatchlistSection from "../components/WatchlistSection";
 import RecommendationsSection from "../components/RecommendationsSection";
 import NewsList from "../components/NewsList";
 import EconomicCalendar from "../components/EconomicCalendar";
-import ChatFab from "../components/ChatFab";
+import ChatWidget from "../components/ChatWidget";
 import SectionNav from "../components/SectionNav";
 import PreferencesModal from "../components/PreferencesModal";
 import type { SectionDef } from "../components/SectionNav";
@@ -73,7 +73,7 @@ function formatUpdatedAt(iso: string | undefined): string {
 
 function SectionSkeleton() {
   return (
-    <div style={{ background: "#16181a", borderRadius: 20, padding: 24 }}>
+    <div style={{ background: "#111214", borderRadius: 16, padding: 24 }}>
       <Skeleton active paragraph={{ rows: 2 }} title={{ width: "40%" }} />
     </div>
   );
@@ -147,12 +147,11 @@ export default function DashboardPage() {
     fetchData(market);
   }, [market]);
 
-  // Scroll spy via scroll event
   useEffect(() => {
     if (loading) return;
     const handleScroll = () => {
       if (spyDisabledRef.current) return;
-      const anchor = 100;
+      const anchor = 120;
       for (const s of SECTIONS) {
         const el = sectionRefs.current.get(s.id);
         if (!el) continue;
@@ -188,7 +187,6 @@ export default function DashboardPage() {
   const recommendations = data?.recommendations || [];
   const calendar = data?.economic_calendar || [];
 
-  // Only show nav items for sections that have data
   const visibleSections = SECTIONS.filter((s) => {
     if (s.id === "news") return news.length > 0;
     if (s.id === "calendar") return calendar.length > 0;
@@ -199,77 +197,66 @@ export default function DashboardPage() {
     <div style={{ minHeight: "100vh", background: "#000" }}>
       <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} updatedAt={formatUpdatedAt(data?.updated_at)} onOpenPreferences={() => setPrefsOpen(true)} />
       <ProgressBar active={refreshing} error={refreshError} />
-      <style>{`
-        @media (max-width: 768px) {
-          .dashboard-sidebar { display: none !important; }
-          .dashboard-main { margin-left: 0 !important; }
-        }
-      `}</style>
-      <div style={{ display: "flex", maxWidth: 1400, margin: "0 auto", padding: "0 40px" }}>
-        <div className="dashboard-sidebar" style={{ background: "#0a0a0a" }}>
-          {!loading && data && (
-            <SectionNav sections={visibleSections} activeId={activeId} onNavigate={handleNavigate} />
-          )}
-        </div>
-        <div
-          className="dashboard-main"
-          style={{
-            flex: 1,
-            maxWidth: 1200,
-            padding: "32px 0 32px 40px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 32,
-          }}
-        >
-          {!loading && fetchErrors.length > 0 && !bannerDismissed && (
-            <DataErrorBanner errors={fetchErrors} onClose={() => setBannerDismissed(true)} />
-          )}
-          {loading ? (
-            <>
-              <SectionSkeleton />
-              <SectionSkeleton />
-              <SectionSkeleton />
-              <SectionSkeleton />
-              <SectionSkeleton />
-            </>
-          ) : error && !data ? (
-            <div style={{ textAlign: "center", padding: "80px 0" }}>
-              <p style={{ color: "#8d969e", fontSize: 16, marginBottom: 16 }}>{t("error.loadFailed")}</p>
-              <button
-                onClick={() => fetchData(market)}
-                style={{ background: "#494fdf", color: "#fff", border: "none", borderRadius: 8, padding: "8px 24px", cursor: "pointer", fontSize: 14 }}
-              >
-                {t("error.retry")}
-              </button>
-            </div>
-          ) : (
-            <>
-              <section id="overview" ref={sectionRef("overview")}>
-                <MarketOverview indices={indices} />
+      {!loading && data && (
+        <SectionNav sections={visibleSections} activeId={activeId} onNavigate={handleNavigate} />
+      )}
+      <main
+        style={{
+          maxWidth: 1280,
+          margin: "0 auto",
+          padding: "40px 40px 80px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 48,
+        }}
+      >
+        {!loading && fetchErrors.length > 0 && !bannerDismissed && (
+          <DataErrorBanner errors={fetchErrors} onClose={() => setBannerDismissed(true)} />
+        )}
+        {loading ? (
+          <>
+            <SectionSkeleton />
+            <SectionSkeleton />
+            <SectionSkeleton />
+            <SectionSkeleton />
+            <SectionSkeleton />
+          </>
+        ) : error && !data ? (
+          <div style={{ textAlign: "center", padding: "80px 0" }}>
+            <p style={{ color: "#8d969e", fontSize: 16, marginBottom: 16 }}>{t("error.loadFailed")}</p>
+            <button
+              onClick={() => fetchData(market)}
+              style={{ background: "#494fdf", color: "#fff", border: "none", borderRadius: 8, padding: "8px 24px", cursor: "pointer", fontSize: 14 }}
+            >
+              {t("error.retry")}
+            </button>
+          </div>
+        ) : (
+          <>
+            <section id="overview" ref={sectionRef("overview")}>
+              <MarketOverview indices={indices} />
+            </section>
+            {news.length > 0 && (
+              <section id="news" ref={sectionRef("news")}>
+                <NewsList news={news} />
               </section>
-              {news.length > 0 && (
-                <section id="news" ref={sectionRef("news")}>
-                  <NewsList news={news} />
-                </section>
-              )}
-              {calendar.length > 0 && (
-                <section id="calendar" ref={sectionRef("calendar")}>
-                  <EconomicCalendar calendar={calendar} />
-                </section>
-              )}
-              <section id="watchlist" ref={sectionRef("watchlist")}>
-                <WatchlistSection holdings={holdings} market={market} onRefresh={() => fetchData(market)} />
+            )}
+            {calendar.length > 0 && (
+              <section id="calendar" ref={sectionRef("calendar")}>
+                <EconomicCalendar calendar={calendar} />
               </section>
-              <section id="recommendations" ref={sectionRef("recommendations")}>
-                <RecommendationsSection recommendations={recommendations} market={market} />
-              </section>
-            </>
-          )}
-        </div>
-      </div>
+            )}
+            <section id="watchlist" ref={sectionRef("watchlist")}>
+              <WatchlistSection holdings={holdings} market={market} onRefresh={() => fetchData(market)} />
+            </section>
+            <section id="recommendations" ref={sectionRef("recommendations")}>
+              <RecommendationsSection recommendations={recommendations} market={market} />
+            </section>
+          </>
+        )}
+      </main>
       <PreferencesModal open={prefsOpen} onClose={() => setPrefsOpen(false)} />
-      {!loading && data && <ChatFab market={market} data={data} />}
+      {!loading && data && <ChatWidget market={market} data={data} />}
     </div>
   );
 }
