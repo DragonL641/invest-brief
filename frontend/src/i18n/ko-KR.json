@@ -28,6 +28,7 @@
   "stock.technicals": "기술 지표",
   "stock.eps": "EPS 예상",
   "stock.insider": "내부자 거래",
+  "stock.insiderNone": "최근 30일 내부자 거래 없음",
   "stock.upgrades": "평가 변경",
   "stock.chart": "가격 추이",
   "stock.52wRange": "52주 범위",
@@ -125,5 +126,15 @@
   "prefs.saved": "설정이 저장되었습니다",
   "prefs.saveFailed": "저장 실패",
   "prefs.industries.us": "미국 주식 산업",
-  "prefs.industries.cn": "A주 산업"
+  "prefs.industries.cn": "A주 산업",
+  "prefs.holdings.searchUs": "미국 주식 코드 또는 이름 검색",
+  "prefs.holdings.searchCn": "중국 주식 코드 또는 이름 검색",
+  "prefs.holdings.searchFailed": "검색 실패",
+  "prefs.holdings.duplicate": "이미 보유한 주식입니다",
+  "watchlist.addTitle": "관심종목 추가",
+  "watchlist.searchUs": "미국 주식 코드 또는 이름 검색",
+  "watchlist.searchCn": "중국 주식 코드 또는 이름 검색",
+  "watchlist.addSuccess": "추가됨",
+  "watchlist.addFailed": "추가 실패",
+  "watchlist.duplicate": "이미 관심종목에 있습니다"
 }

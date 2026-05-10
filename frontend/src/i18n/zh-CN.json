@@ -28,6 +28,7 @@
   "stock.technicals": "技术指标",
   "stock.eps": "EPS 预估",
   "stock.insider": "内部人交易",
+  "stock.insiderNone": "近30天无内部人交易记录",
   "stock.upgrades": "评级变动",
   "stock.chart": "价格走势",
   "stock.52wRange": "52周范围",
@@ -125,5 +126,15 @@
   "prefs.saved": "设置已保存",
   "prefs.saveFailed": "保存失败",
   "prefs.industries.us": "美股行业",
-  "prefs.industries.cn": "A股行业"
+  "prefs.industries.cn": "A股行业",
+  "prefs.holdings.searchUs": "搜索美股代码或名称",
+  "prefs.holdings.searchCn": "搜索A股代码或名称",
+  "prefs.holdings.searchFailed": "搜索失败",
+  "prefs.holdings.duplicate": "该股票已在持仓中",
+  "watchlist.addTitle": "添加自选",
+  "watchlist.searchUs": "搜索美股代码或名称",
+  "watchlist.searchCn": "搜索A股代码或名称",
+  "watchlist.addSuccess": "已添加",
+  "watchlist.addFailed": "添加失败",
+  "watchlist.duplicate": "该股票已在自选中"
 }

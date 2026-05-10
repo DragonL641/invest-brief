@@ -2,12 +2,11 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import { Modal, Tabs, Table, Button, Input, Select, TimePicker, Card, App } from "antd";
-import { PlusOutlined, DeleteOutlined, MailOutlined } from "@ant-design/icons";
+import { DeleteOutlined, MailOutlined } from "@ant-design/icons";
 import type { DeliveryEntry, HoldingItem, PreferencesUpdate } from "../api/preferences";
 import { getPreferences, updatePreferences } from "../api/preferences";
-
-const US_INDUSTRIES = ["semiconductor_ai", "aerospace_defense", "e_commerce", "software_cloud", "ev_automotive"];
-const CN_INDUSTRIES = ["semiconductor", "new_energy", "consumer_electronics", "pharmaceuticals", "ai_concept"];
+import { getIndustries, type IndustryItem } from "../api/stocks";
+import StockSearch from "./StockSearch";
 
 interface Props {
   open: boolean;
@@ -23,9 +22,7 @@ export default function PreferencesModal({ open, onClose }: Props) {
   const [holdings, setHoldings] = useState<Record<string, HoldingItem[]>>({});
   const [industries, setIndustries] = useState<Record<string, string[]>>({});
   const [delivery, setDelivery] = useState<DeliveryEntry[]>([]);
-  const [newSymbol, setNewSymbol] = useState("");
-  const [newName, setNewName] = useState("");
-  const [newMarket, setNewMarket] = useState<"us" | "cn">("us");
+  const [industryOptions, setIndustryOptions] = useState<Record<string, IndustryItem[]>>({});
 
   useEffect(() => {
     if (!open) return;
@@ -44,6 +41,10 @@ export default function PreferencesModal({ open, onClose }: Props) {
       })
       .catch(() => message.error(t("prefs.saveFailed")))
       .finally(() => setLoading(false));
+
+    Promise.all([getIndustries("us"), getIndustries("cn")]).then(([usRes, cnRes]) => {
+      setIndustryOptions({ us: usRes.data.industries, cn: cnRes.data.industries });
+    });
   }, [open]);
 
   const handleSave = () => {
@@ -63,13 +64,15 @@ export default function PreferencesModal({ open, onClose }: Props) {
       .finally(() => setSaving(false));
   };
 
-  const addHolding = () => {
-    if (!newSymbol.trim() || !newName.trim()) return;
+  const addHolding = (market: string, symbol: string, name: string) => {
     const list = { ...holdings };
-    list[newMarket] = [...(list[newMarket] || []), { symbol: newSymbol.trim().toUpperCase(), name: newName.trim() }];
+    const existing = list[market] || [];
+    if (existing.some((h) => h.symbol === symbol)) {
+      message.warning(t("prefs.holdings.duplicate"));
+      return;
+    }
+    list[market] = [...existing, { symbol: symbol.toUpperCase(), name }];
     setHoldings(list);
-    setNewSymbol("");
-    setNewName("");
   };
 
   const removeHolding = (market: string, idx: number) => {
@@ -78,10 +81,10 @@ export default function PreferencesModal({ open, onClose }: Props) {
     setHoldings(list);
   };
 
-  const toggleIndustry = (market: string, ind: string) => {
+  const toggleIndustry = (market: string, key: string) => {
     const list = { ...industries };
     const current = list[market] || [];
-    list[market] = current.includes(ind) ? current.filter((i) => i !== ind) : [...current, ind];
+    list[market] = current.includes(key) ? current.filter((i) => i !== key) : [...current, key];
     setIndustries(list);
   };
 
@@ -129,30 +132,32 @@ export default function PreferencesModal({ open, onClose }: Props) {
       {(["us", "cn"] as const).map((mkt) => (
         <div key={mkt}>
           <h4 style={{ color: "#fff", marginBottom: 8 }}>{mkt === "us" ? t("tab.us") : t("tab.cn")}</h4>
-          <Table
-            dataSource={(holdings[mkt] || []).map((h, i) => ({ ...h, key: `${mkt}-${i}` }))}
-            pagination={false}
-            size="small"
-            columns={[
-              { title: t("prefs.holdings.symbol"), dataIndex: "symbol" },
-              { title: t("prefs.holdings.name"), dataIndex: "name" },
-              {
-                title: "",
-                width: 60,
-                render: (_: any, __: any, idx: number) => (
-                  <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => removeHolding(mkt, idx)} />
-                ),
-              },
-            ]}
+          <StockSearch
+            market={mkt}
+            existingSymbols={(holdings[mkt] || []).map((h) => h.symbol)}
+            onAdd={(symbol, name) => addHolding(mkt, symbol, name)}
           />
+          {(holdings[mkt] || []).length > 0 && (
+            <Table
+              style={{ marginTop: 12 }}
+              dataSource={(holdings[mkt] || []).map((h, i) => ({ ...h, key: `${mkt}-${i}` }))}
+              pagination={false}
+              size="small"
+              columns={[
+                { title: t("prefs.holdings.symbol"), dataIndex: "symbol" },
+                { title: t("prefs.holdings.name"), dataIndex: "name" },
+                {
+                  title: "",
+                  width: 60,
+                  render: (_: any, __: any, idx: number) => (
+                    <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => removeHolding(mkt, idx)} />
+                  ),
+                },
+              ]}
+            />
+          )}
         </div>
       ))}
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <Select value={newMarket} onChange={setNewMarket} style={{ width: 100 }} options={[{ value: "us", label: "US" }, { value: "cn", label: "CN" }]} />
-        <Input placeholder={t("prefs.holdings.symbol")} value={newSymbol} onChange={(e) => setNewSymbol(e.target.value)} style={{ width: 120 }} />
-        <Input placeholder={t("prefs.holdings.name")} value={newName} onChange={(e) => setNewName(e.target.value)} style={{ width: 140 }} />
-        <Button icon={<PlusOutlined />} onClick={addHolding}>{t("prefs.holdings.add")}</Button>
-      </div>
       <div style={{ color: "#8d969e", fontSize: 12 }}>{t("prefs.hint")}</div>
     </div>
   );
@@ -160,23 +165,36 @@ export default function PreferencesModal({ open, onClose }: Props) {
   const industriesTab = (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {(["us", "cn"] as const).map((mkt) => {
-        const list = mkt === "us" ? US_INDUSTRIES : CN_INDUSTRIES;
+        const options = industryOptions[mkt] || [];
         const selected = industries[mkt] || [];
         return (
           <div key={mkt}>
             <h4 style={{ color: "#fff", marginBottom: 8 }}>{mkt === "us" ? t("prefs.industries.us") : t("prefs.industries.cn")}</h4>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {list.map((ind) => (
-                <Button
-                  key={ind}
-                  size="small"
-                  type={selected.includes(ind) ? "primary" : "default"}
-                  onClick={() => toggleIndustry(mkt, ind)}
-                >
-                  {ind}
-                </Button>
-              ))}
-            </div>
+            {mkt === "us" ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {options.map((ind) => (
+                  <Button
+                    key={ind.key}
+                    size="small"
+                    type={selected.includes(ind.key) ? "primary" : "default"}
+                    onClick={() => toggleIndustry(mkt, ind.key)}
+                  >
+                    {ind.label}
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              <Select
+                mode="multiple"
+                showSearch
+                optionFilterProp="label"
+                value={selected}
+                onChange={(values) => setIndustries((prev) => ({ ...prev, [mkt]: values }))}
+                options={options.map((i) => ({ value: i.key, label: i.label }))}
+                placeholder="选择偏好的行业"
+                style={{ width: "100%" }}
+              />
+            )}
           </div>
         );
       })}
@@ -224,7 +242,7 @@ export default function PreferencesModal({ open, onClose }: Props) {
           </div>
         </Card>
       ))}
-      <Button icon={<PlusOutlined />} onClick={addDeliveryEntry}>{t("prefs.delivery.addEmail")}</Button>
+      <Button icon={<DeleteOutlined />} onClick={addDeliveryEntry}>{t("prefs.delivery.addEmail")}</Button>
     </div>
   );
 
