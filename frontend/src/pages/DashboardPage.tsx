@@ -11,10 +11,10 @@ import MarketAnalysisPanel from "../components/MarketAnalysisPanel";
 import ChatWidget from "../components/ChatWidget";
 import SectionNav from "../components/SectionNav";
 import PreferencesModal from "../components/PreferencesModal";
+import SectionErrorCard from "../components/SectionErrorCard";
 import type { SectionDef } from "../components/SectionNav";
-import DataErrorBanner from "../components/DataErrorBanner";
-import type { FetchError } from "../components/DataErrorBanner";
-import { getMarketData, refreshMarket } from "../api/data";
+import type { SectionState } from "../types/section";
+import { getMarketData, refreshMarket, refreshSection } from "../api/data";
 import { useAuth } from "../hooks/useAuth";
 
 const SECTIONS: SectionDef[] = [
@@ -24,8 +24,8 @@ const SECTIONS: SectionDef[] = [
   { id: "recommendations", titleKey: "recommendations.title" },
 ];
 
-function ProgressBar({ active, error }: { active: boolean; error?: boolean }) {
-  if (!active && !error) return null;
+function ProgressBar({ active }: { active: boolean }) {
+  if (!active) return null;
   return (
     <div
       style={{
@@ -41,12 +41,10 @@ function ProgressBar({ active, error }: { active: boolean; error?: boolean }) {
     >
       <div
         style={{
-          width: active ? "20%" : "100%",
+          width: "20%",
           height: "100%",
-          background: error ? "#ff4d4f" : "#494fdf",
-          animation: active ? "indeterminate 1.2s ease-in-out infinite" : "none",
-          transition: active ? "none" : "opacity 0.4s ease-out",
-          opacity: active ? 1 : 0,
+          background: "#494fdf",
+          animation: "indeterminate 1.2s ease-in-out infinite",
         }}
       />
       <style>{`
@@ -81,13 +79,11 @@ function SectionSkeleton() {
 
 export default function DashboardPage() {
   const [market, setMarket] = useState<"us" | "cn">("us");
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshError, setRefreshError] = useState(false);
-  const [fetchErrors, setFetchErrors] = useState<FetchError[]>([]);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [sections, setSections] = useState<Record<string, SectionState>>({});
+  const [globalRefreshing, setGlobalRefreshing] = useState(false);
+  const [refreshingSection, setRefreshingSection] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [initialError, setInitialError] = useState(false);
   const [activeId, setActiveId] = useState(SECTIONS[0].id);
   const spyDisabledRef = useRef(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
@@ -96,51 +92,99 @@ export default function DashboardPage() {
   const { t } = useTranslation();
   const { message } = App.useApp();
 
+  const mapSectionsResponse = (data: any): Record<string, SectionState> => {
+    const result: Record<string, SectionState> = {};
+    const raw = data.sections || {};
+    for (const [key, val] of Object.entries(raw)) {
+      const s = val as any;
+      result[key] = {
+        status: s.status === "cached" ? "ok" : s.status,
+        data: s.data,
+        error: s.error,
+        updatedAt: s.updated_at,
+      };
+    }
+    return result;
+  };
+
   const fetchData = (m: string) => {
-    setLoading(true);
-    setError(false);
-    setBannerDismissed(false);
+    setInitialLoading(true);
+    setInitialError(false);
     getMarketData(m)
       .then((r) => {
-        setData(r.data);
-        setError(false);
-        setFetchErrors(r.data?.errors || []);
+        setSections(mapSectionsResponse(r.data));
+        setInitialError(false);
       })
       .catch(() => {
-        setError(true);
-        setFetchErrors([]);
+        setInitialError(true);
+        setSections({});
       })
-      .finally(() => setLoading(false));
+      .finally(() => setInitialLoading(false));
   };
 
   const refreshData = (m: string) => {
-    setRefreshing(true);
-    setRefreshError(false);
-    setBannerDismissed(false);
+    setGlobalRefreshing(true);
+    setSections((prev) => {
+      const next: Record<string, SectionState> = {};
+      for (const [key, val] of Object.entries(prev)) {
+        next[key] = { ...val, status: "loading" };
+      }
+      return next;
+    });
     refreshMarket(m)
       .then((r) => {
         const d = r.data;
         if (d.status === "rate_limited") {
           message.warning(t("refresh.rateLimited"));
+          fetchData(m);
           return;
         }
-        if (d.error) {
-          message.error(t("refresh.failed"));
-          setFetchErrors(d.errors || []);
-          return;
-        }
-        setData(d);
-        setError(false);
-        setFetchErrors(d.errors || []);
+        setSections(mapSectionsResponse(d));
         message.success(t("refresh.success"));
       })
       .catch(() => {
-        setRefreshError(true);
-        setFetchErrors([]);
         message.error(t("refresh.failed"));
-        setTimeout(() => setRefreshError(false), 400);
+        fetchData(m);
       })
-      .finally(() => setRefreshing(false));
+      .finally(() => setGlobalRefreshing(false));
+  };
+
+  const retrySection = (m: string, sectionName: string) => {
+    setRefreshingSection(sectionName);
+    setSections((prev) => ({
+      ...prev,
+      [sectionName]: { ...prev[sectionName], status: "loading" },
+    }));
+    refreshSection(m, sectionName)
+      .then((r) => {
+        const d = r.data;
+        if (d.status === "rate_limited") {
+          message.warning(t("refresh.rateLimited"));
+          setSections((prev) => ({
+            ...prev,
+            [sectionName]: { ...prev[sectionName], status: "error" },
+          }));
+          return;
+        }
+        const sectionResult: SectionState = {
+          status: d.status === "cached" ? "ok" : d.status,
+          data: d.data,
+          error: d.error,
+          updatedAt: d.updated_at,
+        };
+        setSections((prev) => ({ ...prev, [sectionName]: sectionResult }));
+        if (d.status === "error") {
+          message.error(t("refresh.failed"));
+        }
+      })
+      .catch(() => {
+        setSections((prev) => ({
+          ...prev,
+          [sectionName]: { ...prev[sectionName], status: "error" },
+        }));
+        message.error(t("refresh.failed"));
+      })
+      .finally(() => setRefreshingSection(null));
   };
 
   useEffect(() => {
@@ -148,7 +192,7 @@ export default function DashboardPage() {
   }, [market]);
 
   useEffect(() => {
-    if (loading) return;
+    if (initialLoading) return;
     const handleScroll = () => {
       if (spyDisabledRef.current) return;
       const anchor = 120;
@@ -165,7 +209,7 @@ export default function DashboardPage() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [loading, data]);
+  }, [initialLoading, sections]);
 
   const sectionRef = useCallback((id: string) => (el: HTMLElement | null) => {
     if (el) sectionRefs.current.set(id, el);
@@ -177,26 +221,58 @@ export default function DashboardPage() {
     if (!el) return;
     spyDisabledRef.current = true;
     setActiveId(id);
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    const offset = 120;
+    const top = el.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ behavior: "smooth", top });
     setTimeout(() => { spyDisabledRef.current = false; }, 500);
   };
 
-  const indices = data?.indices || [];
-  const holdings = data?.holdings || [];
-  const news = data?.news || [];
-  const recommendations = data?.recommendations || [];
-  const calendar = data?.economic_calendar || [];
+  const indices = sections.indices?.data || [];
+  const holdings = sections.holdings?.data || [];
+  const news = sections.news?.data || [];
+  const recommendations = sections.recommendations?.data || [];
+  const calendar = sections.economic_calendar?.data || [];
+  const earningsCalendar = sections.earnings_calendar?.data || [];
+  const earningsSymbols = new Set<string>(
+    earningsCalendar.filter((e: any) => e.days_away <= 7).map((e: any) => e.symbol)
+  );
+
+  const latestUpdatedAt = Object.values(sections)
+    .map((s) => s.updatedAt)
+    .filter(Boolean)
+    .sort()
+    .pop();
 
   const visibleSections = SECTIONS.filter((s) => {
     if (s.id === "news") return news.length > 0;
     return true;
   });
 
+  const renderSectionContent = (
+    sectionName: string,
+    content: React.ReactNode,
+  ) => {
+    const state = sections[sectionName];
+    if (!state || state.status === "idle" || state.status === "loading") {
+      return <SectionSkeleton />;
+    }
+    if (state.status === "error") {
+      return (
+        <SectionErrorCard
+          error={state.error!}
+          onRetry={() => retrySection(market, sectionName)}
+          loading={refreshingSection === sectionName}
+        />
+      );
+    }
+    return content;
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "#000" }}>
-      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} updatedAt={formatUpdatedAt(data?.updated_at)} onOpenPreferences={() => setPrefsOpen(true)} />
-      <ProgressBar active={refreshing} error={refreshError} />
-      {!loading && data && (
+      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={globalRefreshing} updatedAt={formatUpdatedAt(latestUpdatedAt)} onOpenPreferences={() => setPrefsOpen(true)} />
+      <ProgressBar active={globalRefreshing} />
+      {!initialLoading && (
         <SectionNav sections={visibleSections} activeId={activeId} onNavigate={handleNavigate} />
       )}
       <main
@@ -209,10 +285,7 @@ export default function DashboardPage() {
           gap: 48,
         }}
       >
-        {!loading && fetchErrors.length > 0 && !bannerDismissed && (
-          <DataErrorBanner errors={fetchErrors} onClose={() => setBannerDismissed(true)} />
-        )}
-        {loading ? (
+        {initialLoading ? (
           <>
             <SectionSkeleton />
             <SectionSkeleton />
@@ -220,7 +293,7 @@ export default function DashboardPage() {
             <SectionSkeleton />
             <SectionSkeleton />
           </>
-        ) : error && !data ? (
+        ) : initialError ? (
           <div style={{ textAlign: "center", padding: "80px 0" }}>
             <p style={{ color: "#8d969e", fontSize: 16, marginBottom: 16 }}>{t("error.loadFailed")}</p>
             <button
@@ -233,32 +306,42 @@ export default function DashboardPage() {
         ) : (
           <>
             <section id="overview" ref={sectionRef("overview")}>
-              <MarketOverview indices={indices} />
-              {calendar.length > 0 && (
-                <div style={{ marginTop: 32 }}>
-                  <EconomicCalendar calendar={calendar} />
-                </div>
-              )}
-              <div style={{ marginTop: 24 }}>
-                <MarketAnalysisPanel indices={indices} calendar={calendar} market={market} />
-              </div>
+              {renderSectionContent("indices", (
+                <>
+                  <MarketOverview indices={indices} />
+                  {calendar.length > 0 && (
+                    <div style={{ marginTop: 32 }}>
+                      {renderSectionContent("economic_calendar",
+                        <EconomicCalendar calendar={calendar} />,
+                      )}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 24 }}>
+                    <MarketAnalysisPanel indices={indices} calendar={calendar} market={market} />
+                  </div>
+                </>
+              ))}
             </section>
             {news.length > 0 && (
               <section id="news" ref={sectionRef("news")}>
-                <NewsList news={news} />
+                {renderSectionContent("news", <NewsList news={news} />)}
               </section>
             )}
             <section id="watchlist" ref={sectionRef("watchlist")}>
-              <WatchlistSection holdings={holdings} market={market} onRefresh={() => fetchData(market)} />
+              {renderSectionContent("holdings",
+                <WatchlistSection holdings={holdings.map((h: any) => ({ ...h, earnings_approaching: earningsSymbols.has(h.symbol) }))} market={market} onRefresh={() => fetchData(market)} />,
+              )}
             </section>
             <section id="recommendations" ref={sectionRef("recommendations")}>
-              <RecommendationsSection recommendations={recommendations} market={market} />
+              {renderSectionContent("recommendations",
+                <RecommendationsSection recommendations={recommendations.map((r: any) => ({ ...r, earnings_approaching: earningsSymbols.has(r.symbol) }))} market={market} />,
+              )}
             </section>
           </>
         )}
       </main>
       <PreferencesModal open={prefsOpen} onClose={() => setPrefsOpen(false)} />
-      {!loading && data && <ChatWidget market={market} data={data} />}
+      {!initialLoading && !initialError && <ChatWidget market={market} data={{ indices, holdings, recommendations, news, economic_calendar: calendar, earnings_calendar: earningsCalendar }} />}
     </div>
   );
 }
