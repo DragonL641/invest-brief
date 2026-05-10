@@ -1,5 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { StockOutlined, ReloadOutlined, LoadingOutlined, UserOutlined } from "@ant-design/icons";
+import { Dropdown, App } from "antd";
+import { StockOutlined, ReloadOutlined, LoadingOutlined, SendOutlined, SettingOutlined, LogoutOutlined } from "@ant-design/icons";
+import { useAuth } from "../hooks/useAuth";
+import { logout } from "../api/auth";
+import { sendEmail } from "../api/email";
 
 interface HeaderProps {
   market: "us" | "cn";
@@ -7,6 +11,7 @@ interface HeaderProps {
   onRefresh: () => void;
   refreshing?: boolean;
   updatedAt?: string;
+  onOpenPreferences?: () => void;
 }
 
 const pillStyle = (active: boolean): React.CSSProperties => ({
@@ -35,8 +40,49 @@ const langPillStyle = (active: boolean): React.CSSProperties => ({
   transition: "background 0.2s",
 });
 
-export default function Header({ market, onMarketChange, onRefresh, refreshing, updatedAt }: HeaderProps) {
+export default function Header({ market, onMarketChange, onRefresh, refreshing, updatedAt, onOpenPreferences }: HeaderProps) {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
+  const { message } = App.useApp();
+
+  const handleSendEmail = () => {
+    sendEmail()
+      .then((r) => {
+        const d = r.data;
+        if (d.status === "started") message.success(t("avatar.sendEmail.started"));
+        else if (d.status === "rate_limited") message.warning(t("avatar.sendEmail.rateLimited"));
+        else if (d.status === "error") message.error(d.message || t("avatar.sendEmail.error"));
+        else if (d.status === "skipped") message.info(t("avatar.sendEmail.skipped"));
+      })
+      .catch(() => message.error(t("avatar.sendEmail.error")));
+  };
+
+  const handleLogout = () => {
+    logout().finally(() => {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+    });
+  };
+
+  const avatarInitial = user?.name?.charAt(0) || "?";
+
+  const menuItems = [
+    {
+      key: "info",
+      label: (
+        <div style={{ padding: "4px 0" }}>
+          <div style={{ fontWeight: 600, color: "#fff" }}>{user?.name || ""}</div>
+          <div style={{ fontSize: 12, color: "#8d969e" }}>{user?.email || ""}</div>
+        </div>
+      ),
+      disabled: true,
+    },
+    { type: "divider" as const },
+    { key: "email", icon: <SendOutlined />, label: t("avatar.sendEmail"), onClick: handleSendEmail },
+    { key: "preferences", icon: <SettingOutlined />, label: t("avatar.preferences"), onClick: onOpenPreferences },
+    { type: "divider" as const },
+    { key: "logout", icon: <LogoutOutlined />, label: t("avatar.logout"), onClick: handleLogout },
+  ];
 
   return (
     <header
@@ -121,23 +167,26 @@ export default function Header({ market, onMarketChange, onRefresh, refreshing, 
           </span>
         )}
 
-        {/* Avatar */}
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            background: "#494fdf",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 600,
-          }}
-        >
-          <UserOutlined />
-        </div>
+        {/* Avatar Dropdown */}
+        <Dropdown menu={{ items: menuItems }} trigger={["click"]} placement="bottomRight">
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              background: "#494fdf",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {avatarInitial}
+          </div>
+        </Dropdown>
       </div>
     </header>
   );
