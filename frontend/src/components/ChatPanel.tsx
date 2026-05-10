@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { Input, Button, Dropdown } from "antd";
 import { SendOutlined, HistoryOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { MenuProps } from "antd";
+import ReactMarkdown from "react-markdown";
 
 export interface Message {
   role: "user" | "assistant";
@@ -27,14 +29,14 @@ interface ChatPanelProps {
   onClearHistory: () => void;
 }
 
-function relativeTime(ts: number): string {
+function relativeTime(ts: number, t: TFunction): string {
   const diff = Date.now() - ts;
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "刚刚";
-  if (minutes < 60) return `${minutes} 分钟前`;
+  if (minutes < 1) return t("chat.justNow");
+  if (minutes < 60) return t("chat.minutesAgo", { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} 小时前`;
-  return `${Math.floor(hours / 24)} 天前`;
+  if (hours < 24) return t("chat.hoursAgo", { count: hours });
+  return t("chat.daysAgo", { count: Math.floor(hours / 24) });
 }
 
 export default function ChatPanel({
@@ -79,7 +81,7 @@ export default function ChatPanel({
         label: (
           <div style={{ maxWidth: 200 }}>
             <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
-            <div style={{ fontSize: 12, color: "#8d969e" }}>{relativeTime(s.updatedAt)}</div>
+            <div style={{ fontSize: 12, color: "#8d969e" }}>{relativeTime(s.updatedAt, t)}</div>
           </div>
         ),
         onClick: () => onSwitchSession(s.id),
@@ -136,7 +138,7 @@ export default function ChatPanel({
           borderBottom: "1px solid rgba(255,255,255,0.08)",
         }}
       >
-        <span style={{ fontWeight: 600, fontSize: 14 }}>AI 助手</span>
+        <span style={{ fontWeight: 600, fontSize: 14 }}>{t("chat.title")}</span>
         <div style={{ display: "flex", gap: 8 }}>
           <Dropdown menu={{ items: historyItems }} trigger={["click"]} placement="bottomRight">
             <button
@@ -207,7 +209,21 @@ export default function ChatPanel({
                 color: "#fff",
               }}
             >
-              {msg.content || "..."}
+              {msg.role === "assistant" ? (
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => <p style={{ margin: 0 }}>{children}</p>,
+                    ul: ({ children }) => <ul style={{ margin: "4px 0", paddingLeft: 16 }}>{children}</ul>,
+                    ol: ({ children }) => <ol style={{ margin: "4px 0", paddingLeft: 16 }}>{children}</ol>,
+                    li: ({ children }) => <li style={{ margin: "2px 0" }}>{children}</li>,
+                    strong: ({ children }) => <strong style={{ color: "#fff" }}>{children}</strong>,
+                  }}
+                >
+                  {msg.content || "..."}
+                </ReactMarkdown>
+              ) : (
+                msg.content || "..."
+              )}
             </div>
           </div>
         ))}
