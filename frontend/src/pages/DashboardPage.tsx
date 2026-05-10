@@ -9,6 +9,7 @@ import NewsList from "../components/NewsList";
 import EconomicCalendar from "../components/EconomicCalendar";
 import ChatFab from "../components/ChatFab";
 import SectionNav from "../components/SectionNav";
+import PreferencesModal from "../components/PreferencesModal";
 import type { SectionDef } from "../components/SectionNav";
 import DataErrorBanner from "../components/DataErrorBanner";
 import type { FetchError } from "../components/DataErrorBanner";
@@ -89,6 +90,7 @@ export default function DashboardPage() {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [activeId, setActiveId] = useState(SECTIONS[0].id);
   const spyDisabledRef = useRef(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   useAuth();
   const { t } = useTranslation();
@@ -195,7 +197,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#000" }}>
-      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} updatedAt={formatUpdatedAt(data?.updated_at)} />
+      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={refreshing} updatedAt={formatUpdatedAt(data?.updated_at)} onOpenPreferences={() => setPrefsOpen(true)} />
       <ProgressBar active={refreshing} error={refreshError} />
       <style>{`
         @media (max-width: 768px) {
@@ -266,6 +268,7 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+      <PreferencesModal open={prefsOpen} onClose={() => setPrefsOpen(false)} />
       {!loading && data && <ChatFab market={market} data={data} />}
     </div>
   );
