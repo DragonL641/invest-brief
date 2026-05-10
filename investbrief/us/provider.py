@@ -49,14 +49,14 @@ class USMarketProvider(MarketProvider):
                 })
         return results
 
-    def get_holdings_data(self, holdings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Get comprehensive data for US holdings."""
-        results = []
-        for h in holdings:
-            symbol = h["symbol"]
-            data = {"symbol": symbol, "name": h.get("name", symbol)}
+    def _enrich_stock_detail(self, symbol: str, data: Dict[str, Any]) -> None:
+        """Enrich a stock data dict with comprehensive detail fields.
 
-            # Basic quote
+        Mutates data in-place. Skips fields that already exist.
+        Used by both holdings and recommendations to share the same enrichment logic.
+        """
+        # Basic quote
+        if "price" not in data:
             quote = self.yf.get_quote(symbol)
             if quote:
                 data["price"] = quote["price"]
@@ -65,57 +65,66 @@ class USMarketProvider(MarketProvider):
                 data["volume"] = quote.get("volume")
                 data["market_cap"] = quote.get("market_cap")
 
-            # Comprehensive info
-            info = self.yf.get_info(symbol) or {}
-            data["info"] = {
-                "pe": info.get("trailingPE"),
-                "forward_pe": info.get("forwardPE"),
-                "beta": info.get("beta"),
-                "52wk_high": info.get("fiftyTwoWeekHigh"),
-                "52wk_low": info.get("fiftyTwoWeekLow"),
-                "50d_avg": info.get("fiftyDayAverage"),
-                "200d_avg": info.get("twoHundredDayAverage"),
-                "sector": info.get("sector", ""),
-                "industry": info.get("industry", ""),
-                "short_name": info.get("shortName", symbol),
-                "num_analysts": info.get("numberOfAnalystOpinions", 0),
-            }
+        # Comprehensive info — merge into existing info dict or create new
+        info = self.yf.get_info(symbol) or {}
+        full_info = {
+            "pe": info.get("trailingPE"),
+            "forward_pe": info.get("forwardPE"),
+            "beta": info.get("beta"),
+            "52wk_high": info.get("fiftyTwoWeekHigh"),
+            "52wk_low": info.get("fiftyTwoWeekLow"),
+            "50d_avg": info.get("fiftyDayAverage"),
+            "200d_avg": info.get("twoHundredDayAverage"),
+            "sector": info.get("sector", ""),
+            "industry": info.get("industry", ""),
+            "short_name": info.get("shortName", symbol),
+            "num_analysts": info.get("numberOfAnalystOpinions", 0),
+        }
+        if "info" in data:
+            full_info.update(data["info"])
+        data["info"] = full_info
 
-            # Analyst price targets
+        # Analyst price targets
+        if "targets" not in data:
             targets = self.yf.get_price_targets(symbol)
             if targets:
                 data["targets"] = targets
-                # Calculate upside
-                if data.get("price") and targets.get("mean"):
-                    upside = ((targets["mean"] - data["price"]) / data["price"]) * 100
-                    data["upside_pct"] = round(upside, 1)
+        if "upside_pct" not in data and data.get("price") and data.get("targets", {}).get("mean"):
+            upside = ((data["targets"]["mean"] - data["price"]) / data["price"]) * 100
+            data["upside_pct"] = round(upside, 1)
 
-            # Recommendation distribution
+        # Recommendation distribution
+        if "recommendations" not in data:
             recs = self.yf.get_recommendations(symbol)
             if recs:
                 data["recommendations"] = recs
 
-            # Upgrades/downgrades (real firm data)
+        # Upgrades/downgrades
+        if "upgrades" not in data:
             upgrades = self.yf.get_upgrades_downgrades(symbol, limit=5)
             if upgrades:
                 data["upgrades"] = upgrades
 
-            # EPS estimates
+        # EPS estimates
+        if "eps" not in data:
             eps = self.yf.get_earnings_estimate(symbol)
             if eps:
                 data["eps"] = eps
 
-            # Earnings history (last quarter surprise)
+        # Earnings history
+        if "earnings_history" not in data:
             earnings = self.yf.get_earnings_history(symbol)
             if earnings:
                 data["earnings_history"] = earnings
 
-            # Insider transactions
+        # Insider transactions
+        if "insider_trades" not in data:
             insiders = self.yf.get_insider_transactions(symbol, limit=5)
             if insiders:
                 data["insider_trades"] = insiders
 
-            # 6-month chart
+        # 6-month chart
+        if "chart_b64" not in data:
             history = self.yf.get_history(symbol, period="6mo")
             if history is not None and not history.empty:
                 chart_b64 = generate_stock_chart(symbol, history, period="6mo")
@@ -133,11 +142,19 @@ class USMarketProvider(MarketProvider):
                     for idx, row in history.iterrows()
                 ]
 
-            # Technical indicators
+        # Technical indicators
+        if "technicals" not in data:
             tech = self.yf.get_technical_indicators(symbol)
             if tech:
                 data["technicals"] = tech
 
+    def get_holdings_data(self, holdings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Get comprehensive data for US holdings."""
+        results = []
+        for h in holdings:
+            symbol = h["symbol"]
+            data = {"symbol": symbol, "name": h.get("name", symbol)}
+            self._enrich_stock_detail(symbol, data)
             results.append(data)
         return results
 
@@ -155,14 +172,13 @@ class USMarketProvider(MarketProvider):
         if not watchlist:
             return []
 
-        results = []
+        # Phase 1: lightweight filtering — only fetch recommendation distribution
+        candidates = []
         for stock in watchlist:
             symbol = stock["symbol"]
-            # Skip if already in holdings
             if symbol in holdings_symbols:
                 continue
 
-            # Get recommendation distribution
             recs = self.yf.get_recommendations(symbol)
             if not recs:
                 continue
@@ -172,43 +188,30 @@ class USMarketProvider(MarketProvider):
                 continue
 
             buy_pct = (recs.get("strong_buy", 0) + recs.get("buy", 0)) / total * 100
-            # Only include if buy rating > 50%
             if buy_pct <= 50:
                 continue
 
-            # Get basic data
-            data = {"symbol": symbol, "name": stock["name"], "industry": stock["industry"]}
+            candidates.append({
+                "symbol": symbol,
+                "name": stock["name"],
+                "industry": stock["industry"],
+                "recommendations": recs,
+                "buy_pct": round(buy_pct, 1),
+                "total_analysts": total,
+            })
 
-            quote = self.yf.get_quote(symbol)
-            if quote:
-                data["price"] = quote["price"]
-                data["change"] = quote["change_percent"]
-                data["currency"] = "$"
+        # Sort and take top 5
+        candidates.sort(key=lambda x: x.get("buy_pct", 0), reverse=True)
+        top = candidates[:5]
 
-            info = self.yf.get_info(symbol) or {}
-            data["info"] = {
-                "short_name": info.get("shortName", stock["name"]),
-                "sector": info.get("sector", ""),
-                "num_analysts": info.get("numberOfAnalystOpinions", 0),
-            }
+        # Phase 2: full enrichment for selected stocks only
+        for data in top:
+            label = INDUSTRY_LABELS.get(data["industry"], data["industry"])
+            data["recommendation_reason"] = f"{label} · {data['buy_pct']:.0f}%买入评级 · {data['total_analysts']}位分析师"
+            del data["total_analysts"]
+            self._enrich_stock_detail(data["symbol"], data)
 
-            # Price target
-            targets = self.yf.get_price_targets(symbol)
-            if targets and targets.get("mean"):
-                data["targets"] = targets
-                if data.get("price") and targets.get("mean"):
-                    upside = ((targets["mean"] - data["price"]) / data["price"]) * 100
-                    data["upside_pct"] = round(upside, 1)
-
-            data["recommendations"] = recs
-            data["buy_pct"] = round(buy_pct, 1)
-            data["recommendation_reason"] = f"{INDUSTRY_LABELS.get(stock['industry'], stock['industry'])} · {buy_pct:.0f}%买入评级 · {total}位分析师"
-
-            results.append(data)
-
-        # Sort by buy_pct descending, take top 5
-        results.sort(key=lambda x: x.get("buy_pct", 0), reverse=True)
-        return results[:5]
+        return top
 
     def get_recommendations(self, industries: List[str], exclude: List[str] | None = None,
                            max_recommendations: int = 3) -> List[Dict[str, Any]]:
@@ -265,28 +268,57 @@ class USMarketProvider(MarketProvider):
     def fetch_all(self, holdings: list[dict], industries: list[str],
                  max_recommendations: int = 3) -> dict[str, Any]:
         """获取美股全部数据。"""
-        from .calendar import get_upcoming_events
-        from .congress import get_recent_congressional_trades
-
         holdings_symbols = [h["symbol"] for h in holdings]
 
-        indices = self.get_indices()
-        holdings_data = self.get_holdings_data(holdings)
-        recommendations = self.get_recommendations_from_industries(industries, holdings_symbols)
-        premarket = self.get_premarket_movers(holdings_symbols)
-        earnings = self.get_earnings_calendar(holdings, recommendations)
-        economic = get_upcoming_events()
-        congressional = get_recent_congressional_trades(tickers=holdings_symbols)
-
-        return {
-            "indices": indices,
-            "holdings": holdings_data,
-            "recommendations": recommendations,
-            "premarket_movers": premarket,
-            "earnings_calendar": earnings,
-            "economic_calendar": economic,
-            "congressional_trades": congressional,
+        ctx = {
+            "holdings": holdings,
+            "holdings_symbols": holdings_symbols,
+            "industries": industries,
         }
+
+        # Pre-fetch recommendations for cross-section dependency
+        recommendations = self.get_section_data("recommendations", **ctx)
+        ctx["recommendations"] = recommendations
+
+        results = {}
+        for section_name in ["indices", "economic_calendar", "premarket_movers",
+                             "earnings_calendar", "congressional_trades",
+                             "holdings", "recommendations"]:
+            if section_name == "recommendations":
+                results[section_name] = recommendations
+            else:
+                results[section_name] = self.get_section_data(section_name, **ctx)
+
+        return results
+
+    def get_section_data(self, section_name: str, **kwargs) -> list[dict]:
+        """Fetch a single section's data independently."""
+        from .calendar import get_upcoming_events_with_yfinance
+        from .congress import get_recent_congressional_trades
+
+        dispatch = {
+            "indices": lambda: self.get_indices(),
+            "economic_calendar": lambda: get_upcoming_events_with_yfinance(),
+            "premarket_movers": lambda: self.get_premarket_movers(
+                kwargs.get("holdings_symbols", [])
+            ),
+            "earnings_calendar": lambda: self.get_earnings_calendar(
+                kwargs.get("holdings", []),
+                kwargs.get("recommendations", []),
+            ),
+            "congressional_trades": lambda: get_recent_congressional_trades(
+                tickers=kwargs.get("holdings_symbols", [])
+            ),
+            "holdings": lambda: self.get_holdings_data(kwargs.get("holdings", [])),
+            "recommendations": lambda: self.get_recommendations_from_industries(
+                kwargs.get("industries", []),
+                kwargs.get("holdings_symbols", []),
+            ),
+        }
+        fn = dispatch.get(section_name)
+        if fn is None:
+            raise ValueError(f"Unknown section: {section_name}")
+        return fn()
 
     # ==================== Rendering ====================
 

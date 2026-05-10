@@ -297,26 +297,43 @@ class CNMarketProvider(MarketProvider):
         """获取 A 股全部数据。"""
         holdings_symbols = [h["symbol"] for h in holdings]
 
-        indices = self.get_indices()
-        holdings_data = self.get_holdings_data(holdings)
-        recommendations = self.get_recommendations(
-            industries, holdings_symbols, max_recommendations=max_recommendations
-        )
-        dragon_tiger = self.client.get_dragon_tiger_list(days=3)
-        economic_calendar = get_upcoming_events()
-
-        # Industry sector performance
-        sector_names = [INDUSTRY_SECTOR_NAMES[i] for i in industries if i in INDUSTRY_SECTOR_NAMES]
-        sector_perf = self.client.get_sector_performance(sector_names) if sector_names else []
-
-        return {
-            "indices": indices,
-            "holdings": holdings_data,
-            "recommendations": recommendations,
-            "dragon_tiger": dragon_tiger,
-            "economic_calendar": economic_calendar,
-            "sector_performance": sector_perf,
+        ctx = {
+            "holdings": holdings,
+            "holdings_symbols": holdings_symbols,
+            "industries": industries,
+            "max_recommendations": max_recommendations,
         }
+
+        results = {}
+        for section_name in ["indices", "economic_calendar", "dragon_tiger",
+                             "sector_performance", "holdings", "recommendations"]:
+            results[section_name] = self.get_section_data(section_name, **ctx)
+
+        return results
+
+    def get_section_data(self, section_name: str, **kwargs) -> list[dict]:
+        """Fetch a single section's data independently."""
+        dispatch = {
+            "indices": lambda: self.get_indices(),
+            "economic_calendar": lambda: get_upcoming_events(),
+            "dragon_tiger": lambda: self.client.get_dragon_tiger_list(days=3),
+            "sector_performance": lambda: (
+                self.client.get_sector_performance(
+                    [INDUSTRY_SECTOR_NAMES[i] for i in kwargs.get("industries", [])
+                     if i in INDUSTRY_SECTOR_NAMES]
+                ) if kwargs.get("industries") else []
+            ),
+            "holdings": lambda: self.get_holdings_data(kwargs.get("holdings", [])),
+            "recommendations": lambda: self.get_recommendations(
+                kwargs.get("industries", []),
+                kwargs.get("holdings_symbols", []),
+                max_recommendations=kwargs.get("max_recommendations", 3),
+            ),
+        }
+        fn = dispatch.get(section_name)
+        if fn is None:
+            raise ValueError(f"Unknown section: {section_name}")
+        return fn()
 
     # ==================== Rendering ====================
 
