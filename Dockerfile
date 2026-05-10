@@ -19,10 +19,5 @@ COPY run.py .
 COPY investbrief/ investbrief/
 COPY templates/ templates/
 
-# Config and data mounted at runtime
-VOLUME /app/config.json
-VOLUME /app/.env
-VOLUME /app/logs
-VOLUME /app/reports
-
+# Config and data mounted at runtime via -v flags
 ENTRYPOINT ["uv", "run", "run.py"]
