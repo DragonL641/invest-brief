@@ -7,6 +7,7 @@ import WatchlistSection from "../components/WatchlistSection";
 import RecommendationsSection from "../components/RecommendationsSection";
 import NewsList from "../components/NewsList";
 import EconomicCalendar from "../components/EconomicCalendar";
+import MarketAnalysisPanel from "../components/MarketAnalysisPanel";
 import ChatWidget from "../components/ChatWidget";
 import SectionNav from "../components/SectionNav";
 import PreferencesModal from "../components/PreferencesModal";
@@ -19,7 +20,6 @@ import { useAuth } from "../hooks/useAuth";
 const SECTIONS: SectionDef[] = [
   { id: "overview", titleKey: "market.overview" },
   { id: "news", titleKey: "market.news" },
-  { id: "calendar", titleKey: "market.calendar" },
   { id: "watchlist", titleKey: "watchlist.title" },
   { id: "recommendations", titleKey: "recommendations.title" },
 ];
@@ -189,7 +189,6 @@ export default function DashboardPage() {
 
   const visibleSections = SECTIONS.filter((s) => {
     if (s.id === "news") return news.length > 0;
-    if (s.id === "calendar") return calendar.length > 0;
     return true;
   });
 
@@ -235,15 +234,18 @@ export default function DashboardPage() {
           <>
             <section id="overview" ref={sectionRef("overview")}>
               <MarketOverview indices={indices} />
+              {calendar.length > 0 && (
+                <div style={{ marginTop: 32 }}>
+                  <EconomicCalendar calendar={calendar} />
+                </div>
+              )}
+              <div style={{ marginTop: 24 }}>
+                <MarketAnalysisPanel indices={indices} calendar={calendar} market={market} />
+              </div>
             </section>
             {news.length > 0 && (
               <section id="news" ref={sectionRef("news")}>
                 <NewsList news={news} />
-              </section>
-            )}
-            {calendar.length > 0 && (
-              <section id="calendar" ref={sectionRef("calendar")}>
-                <EconomicCalendar calendar={calendar} />
               </section>
             )}
             <section id="watchlist" ref={sectionRef("watchlist")}>
