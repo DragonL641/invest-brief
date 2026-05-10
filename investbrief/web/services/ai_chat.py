@@ -16,22 +16,25 @@ def stream_chat(message: str, market: str, market_data: dict, history: list[dict
     client = _get_client()
     model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
 
-    system_prompt = f"""你是一位专业的投资顾问。根据以下{market.upper()}市场数据回答用户问题。
+    system_prompt = f"""你是一位简洁专业的投资顾问。根据以下{market.upper()}市场数据回答用户问题。
 数据时间：{market_data.get('updated_at', 'unknown')}
 市场数据摘要：
 {json.dumps(market_data, ensure_ascii=False, default=str)[:15000]}
 
-回答要求：
-- 基于提供的数据进行分析
-- 给出具体数据和依据
-- 用中文回答
-- 不要给出确定性的投资建议"""
+回答规则：
+1. 第一句话直接给出结论/判断，不要铺垫
+2. 用分点列表展开分析，每点一行，不要写大段文字
+3. 每个要点控制在30字以内，只说关键数据和结论
+4. 用Markdown格式（加粗、列表）
+5. 回答总长度控制在300字以内
+6. 用中文回答，不要给出确定性的投资建议
+7. 不要写免责声明，不要说"请注意""基于以上分析"等套话"""
 
     messages = history + [{"role": "user", "content": message}]
 
     with client.messages.stream(
         model=model,
-        max_tokens=2048,
+        max_tokens=1024,
         system=system_prompt,
         messages=messages,
     ) as stream:
