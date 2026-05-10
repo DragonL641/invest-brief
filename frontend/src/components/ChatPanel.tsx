@@ -1,24 +1,53 @@
 import { useState, useRef, useEffect } from "react";
-import { Drawer, Input, Button } from "antd";
-import { SendOutlined } from "@ant-design/icons";
+import { Input, Button, Dropdown } from "antd";
+import { SendOutlined, HistoryOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { streamChat } from "../api/chat";
+import type { MenuProps } from "antd";
 
-interface ChatPanelProps {
-  open: boolean;
-  onClose: () => void;
-  market: string;
-  data: any;
-}
-
-interface Message {
+export interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
-export default function ChatPanel({ open, onClose, market }: ChatPanelProps) {
+export interface Session {
+  id: string;
+  title: string;
+  messages: Message[];
+  updatedAt: number;
+}
+
+interface ChatPanelProps {
+  messages: Message[];
+  onSend: (text: string) => Promise<void>;
+  onClose: () => void;
+  sessions: Session[];
+  currentSessionId: string;
+  onSwitchSession: (id: string) => void;
+  onNewSession: () => void;
+  onClearHistory: () => void;
+}
+
+function relativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  return `${Math.floor(hours / 24)} 天前`;
+}
+
+export default function ChatPanel({
+  messages,
+  onSend,
+  onClose,
+  sessions,
+  currentSessionId,
+  onSwitchSession,
+  onNewSession,
+  onClearHistory,
+}: ChatPanelProps) {
   const { t } = useTranslation();
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -32,40 +61,116 @@ export default function ChatPanel({ open, onClose, market }: ChatPanelProps) {
   const handleSend = async () => {
     const text = input.trim();
     if (!text || sending) return;
-
-    const userMsg: Message = { role: "user", content: text };
-    setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setSending(true);
-
-    const aiMsg: Message = { role: "assistant", content: "" };
-    setMessages((prev) => [...prev, aiMsg]);
-
     try {
-      for await (const chunk of streamChat(text, market)) {
-        aiMsg.content += chunk;
-        setMessages((prev) => [...prev.slice(0, -1), { ...aiMsg }]);
-      }
-    } catch {
-      aiMsg.content += "\n[请求失败，请重试]";
-      setMessages((prev) => [...prev.slice(0, -1), { ...aiMsg }]);
+      await onSend(text);
     } finally {
       setSending(false);
     }
   };
 
+  const historyItems: MenuProps["items"] = [
+    ...sessions
+      .filter((s) => s.id !== currentSessionId)
+      .slice(0, 10)
+      .map((s) => ({
+        key: s.id,
+        label: (
+          <div style={{ maxWidth: 200 }}>
+            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+            <div style={{ fontSize: 12, color: "#8d969e" }}>{relativeTime(s.updatedAt)}</div>
+          </div>
+        ),
+        onClick: () => onSwitchSession(s.id),
+      })),
+    { type: "divider" as const },
+    {
+      key: "new",
+      icon: <PlusOutlined />,
+      label: t("chat.newConversation"),
+      onClick: onNewSession,
+    },
+    {
+      key: "clear",
+      icon: <DeleteOutlined />,
+      label: t("chat.clearHistory"),
+      danger: true,
+      onClick: onClearHistory,
+    },
+  ];
+
   return (
-    <Drawer
-      open={open}
-      onClose={onClose}
-      title="AI 助手"
-      styles={{
-        header: { background: "#000", borderBottom: "1px solid rgba(255,255,255,0.08)" },
-        body: { background: "#000", display: "flex", flexDirection: "column", padding: 0 },
-        wrapper: {},
-        mask: { background: "rgba(0,0,0,0.5)" },
+    <div
+      style={{
+        position: "fixed",
+        right: 40,
+        bottom: 120,
+        width: 380,
+        height: 500,
+        background: "#000",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 12,
+        display: "flex",
+        flexDirection: "column",
+        zIndex: 1000,
+        boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+        overflow: "hidden",
+        animation: "chatSlideUp 0.3s ease-out",
       }}
     >
+      <style>{`
+        @keyframes chatSlideUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* Title bar */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: 14 }}>AI 助手</span>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Dropdown menu={{ items: historyItems }} trigger={["click"]} placement="bottomRight">
+            <button
+              style={{
+                background: "none",
+                border: "none",
+                color: "#8d969e",
+                cursor: "pointer",
+                padding: 4,
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <HistoryOutlined style={{ fontSize: 16 }} />
+            </button>
+          </Dropdown>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#8d969e",
+              cursor: "pointer",
+              padding: 4,
+              display: "flex",
+              alignItems: "center",
+              fontSize: 16,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
       {/* Message list */}
       <div
         ref={listRef}
@@ -78,6 +183,11 @@ export default function ChatPanel({ open, onClose, market }: ChatPanelProps) {
           gap: 12,
         }}
       >
+        {messages.length === 0 && (
+          <div style={{ textAlign: "center", color: "#8d969e", padding: "40px 0", fontSize: 13 }}>
+            {t("chat.placeholder")}
+          </div>
+        )}
         {messages.map((msg, i) => (
           <div
             key={i}
@@ -135,9 +245,16 @@ export default function ChatPanel({ open, onClose, market }: ChatPanelProps) {
           icon={<SendOutlined />}
           onClick={handleSend}
           loading={sending}
-          style={{ borderRadius: 12, height: 40, width: 40, display: "flex", alignItems: "center", justifyContent: "center" }}
+          style={{
+            borderRadius: 12,
+            height: 40,
+            width: 40,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         />
       </div>
-    </Drawer>
+    </div>
   );
 }
