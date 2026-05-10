@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { RobotOutlined, CloseOutlined } from "@ant-design/icons";
 import ChatPanel from "./ChatPanel";
 import type { Message, Session } from "./ChatPanel";
@@ -35,7 +35,7 @@ function saveSessions(sessions: Session[]) {
 
 interface ChatWidgetProps {
   market: string;
-  data: any;
+  data?: unknown;
 }
 
 export default function ChatWidget({ market }: ChatWidgetProps) {
@@ -48,11 +48,9 @@ export default function ChatWidget({ market }: ChatWidgetProps) {
   const streamingRef = useRef<Message | null>(null);
 
   const currentSession = sessions.find((s) => s.id === currentId);
-  const messages = currentSession?.messages || [];
+  const messages = useMemo(() => currentSession?.messages || [], [currentSession]);
 
-  useEffect(() => {
-    setSessions(loadSessions());
-  }, []);
+  // Cleanup expired sessions - initial state already loaded via useState(loadSessions)
 
   const updateSession = useCallback((id: string, patch: Partial<Session>) => {
     setSessions((prev) => {
