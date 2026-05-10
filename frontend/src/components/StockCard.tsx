@@ -24,7 +24,9 @@ function pct(n: number | undefined | null): string {
 }
 
 function changeColor(val: number): string {
-  return val >= 0 ? "#ef4444" : "#22c55e";
+  if (val > 0) return "#ef4444";
+  if (val < 0) return "#22c55e";
+  return "#8d969e";
 }
 
 function getBadges(stock: any, t: TFunction): { label: string; color: string }[] {
@@ -56,7 +58,7 @@ function getBadges(stock: any, t: TFunction): { label: string; color: string }[]
   }
 
   if (stock.insider_trades && stock.insider_trades.length > 0) {
-    badges.push({ label: t("badge.insiderActive"), color: "#494fdf" });
+    badges.push({ label: t("badge.insiderBuy"), color: "#22c55e" });
   }
 
   if (stock.earnings_approaching) {
@@ -66,8 +68,11 @@ function getBadges(stock: any, t: TFunction): { label: string; color: string }[]
   return badges;
 }
 
-export default function StockCard({ stock }: StockCardProps) {
+const CURRENCY: Record<string, string> = { us: "$", cn: "¥" };
+
+export default function StockCard({ stock, market = "us" }: StockCardProps) {
   const { t } = useTranslation();
+  const cur = CURRENCY[market] ?? "$";
   const [showAnalystModal, setShowAnalystModal] = useState(false);
 
   const badges = getBadges(stock, t);
@@ -126,7 +131,7 @@ export default function StockCard({ stock }: StockCardProps) {
       {/* Metrics row */}
       <div style={{ display: "flex", borderTop: "1px solid rgba(255,255,255,0.08)", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "12px 0" }}>
         {[
-          { label: t("stock.marketCap"), value: stock.market_cap ? `$${fmt(stock.market_cap, 0)}` : "--" },
+          { label: t("stock.marketCap"), value: stock.market_cap ? `${cur}${fmt(stock.market_cap, 0)}` : "--" },
           { label: "P/E", value: info.pe != null ? fmt(info.pe, 1) : "--" },
           { label: "Beta", value: info.beta != null ? fmt(info.beta, 2) : "--" },
           { label: t("stock.52wRange"), value: low52 != null && high52 != null ? `${fmt(low52)}-${fmt(high52)}` : "--" },
@@ -160,8 +165,9 @@ export default function StockCard({ stock }: StockCardProps) {
       {targetMean != null && (
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)", paddingTop: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)", display: "flex", alignItems: "center" }}>
               {t("stock.analystTarget")}
+              <InfoTooltip text={t("tooltip.analystTarget")} />
             </span>
             {totalRating > 0 && (
               <span style={{ fontSize: 11, color: "#8d969e" }}>
@@ -172,7 +178,7 @@ export default function StockCard({ stock }: StockCardProps) {
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 11, color: "#8d969e" }}>{t("stock.target")}</div>
-              <div style={{ ...mono, fontSize: 18, fontWeight: 600, color: "#fff" }}>${fmt(targetMean)}</div>
+              <div style={{ ...mono, fontSize: 18, fontWeight: 600, color: "#fff" }}>{cur}{fmt(targetMean)}</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 11, color: "#8d969e" }}>{t("stock.upside")}</div>
@@ -229,8 +235,8 @@ export default function StockCard({ stock }: StockCardProps) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 24px" }}>
             {[
               { label: "RSI", value: (tech.rsi ?? tech.rsi_14) != null ? fmt(tech.rsi ?? tech.rsi_14, 1) : "--", tooltip: t("tooltip.rsi") },
-              { label: "SMA 50", value: (tech.sma50 ?? tech.sma_50) != null ? `$${fmt(tech.sma50 ?? tech.sma_50)}` : "--", tooltip: t("tooltip.sma50") },
-              { label: "SMA 200", value: (tech.sma200 ?? tech.sma_200) != null ? `$${fmt(tech.sma200 ?? tech.sma_200)}` : "--", tooltip: t("tooltip.sma200") },
+              { label: "SMA 50", value: (tech.sma50 ?? tech.sma_50) != null ? `${cur}${fmt(tech.sma50 ?? tech.sma_50)}` : "--", tooltip: t("tooltip.sma50") },
+              { label: "SMA 200", value: (tech.sma200 ?? tech.sma_200) != null ? `${cur}${fmt(tech.sma200 ?? tech.sma_200)}` : "--", tooltip: t("tooltip.sma200") },
               { label: "MACD", value: (tech.macd ?? tech.macd_line) != null ? fmt(tech.macd ?? tech.macd_line, 4) : "--", tooltip: t("tooltip.macd") },
             ].map((row) => (
               <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -251,8 +257,8 @@ export default function StockCard({ stock }: StockCardProps) {
           </div>
           <div style={{ display: "flex", gap: 24 }}>
             {[
-              { label: t("stock.currentQ"), value: (eps.current_q ?? eps["0q"]?.avg) != null ? `$${fmt(eps.current_q ?? eps["0q"]?.avg)}` : "--", tooltip: t("tooltip.currentEps") },
-              { label: t("stock.nextQ"), value: (eps.next_q ?? eps["+1q"]?.avg) != null ? `$${fmt(eps.next_q ?? eps["+1q"]?.avg)}` : "--", tooltip: t("tooltip.nextEps") },
+              { label: t("stock.currentQ"), value: (eps.current_q ?? eps["0q"]?.avg) != null ? `${cur}${fmt(eps.current_q ?? eps["0q"]?.avg)}` : "--", tooltip: t("tooltip.currentEps") },
+              { label: t("stock.nextQ"), value: (eps.next_q ?? eps["+1q"]?.avg) != null ? `${cur}${fmt(eps.next_q ?? eps["+1q"]?.avg)}` : "--", tooltip: t("tooltip.nextEps") },
               { label: t("stock.surprise"), value: (eps.surprise_pct ?? (earningsHistory.length > 0 ? earningsHistory[earningsHistory.length - 1]?.surprise_pct : null)) != null ? pct(eps.surprise_pct ?? (earningsHistory.length > 0 ? earningsHistory[earningsHistory.length - 1]?.surprise_pct : null)) : "--", tooltip: t("tooltip.surprise") },
             ].map((row) => (
               <div key={row.label} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -266,7 +272,7 @@ export default function StockCard({ stock }: StockCardProps) {
           </div>
         </div>
 
-        {/* Insider — full width, up to 5 rows */}
+        {/* Insider buys — full width, up to 5 rows */}
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)", marginBottom: 8 }}>
             {t("stock.insider")}
@@ -279,17 +285,15 @@ export default function StockCard({ stock }: StockCardProps) {
                     {it.name || it.insider}{it.position ? ` (${it.position})` : ""}
                   </span>
                   <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    {it.value != null && <span style={{ ...mono, fontSize: 11, color: "#8d969e" }}>${fmt(it.value, 0)}</span>}
+                    {it.shares != null && <span style={{ ...mono, fontSize: 11, color: "#22c55e" }}>{Number(it.shares).toLocaleString()} 股</span>}
+                    {it.value != null && <span style={{ ...mono, fontSize: 11, color: "#8d969e" }}>{cur}{fmt(it.value, 0)}</span>}
                     {it.date && <span style={{ ...mono, fontSize: 11, color: "#8d969e" }}>{it.date}</span>}
-                    <span style={{ ...mono, fontSize: 12, color: (it.action || it.type || it.transaction || "").toLowerCase().includes("buy") ? "#ef4444" : "#22c55e" }}>
-                      {it.action || it.type || it.transaction}
-                    </span>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <span style={{ fontSize: 12, color: "#8d969e" }}>--</span>
+            <span style={{ fontSize: 12, color: "#8d969e" }}>{t("stock.insiderNone")}</span>
           )}
         </div>
       </div>

@@ -13,6 +13,16 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def _safe_float(val) -> float | None:
+    """安全转换为 float。"""
+    if val is None or val == "-" or val == "":
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
 class AKShareClient:
     """封装 AKShare 接口，提供统一的 A 股数据获取方法。
 
@@ -48,7 +58,7 @@ class AKShareClient:
             return None
 
     def get_index_quotes(self, symbols: list[str]) -> list[dict[str, Any]]:
-        """批量获取指数实时行情。一次 API 调用，过滤多个代码。"""
+        """批量获取指数实时行情。"""
         try:
             df = ak.stock_zh_index_spot_em()
             if df is None or df.empty:
@@ -95,10 +105,7 @@ class AKShareClient:
             return None
 
     def get_stock_quotes(self, symbols: list[str]) -> list[dict[str, Any]]:
-        """批量获取个股实时行情。一次 API 调用，过滤多个代码。
-
-        推荐：需要查询多只股票时使用此方法，避免重复调用全量接口。
-        """
+        """批量获取个股实时行情。"""
         try:
             df = ak.stock_zh_a_spot_em()
             if df is None or df.empty:
@@ -316,12 +323,15 @@ class AKShareClient:
             df = df[df["公告日"].apply(lambda x: x.date() if hasattr(x, "date") else x) >= cutoff]
             results = []
             for _, r in df.iterrows():
+                action = str(r.get("持股变动信息-增减", ""))
+                if "增" not in action:
+                    continue
                 results.append({
                     "name": str(r.get("名称", "")),
                     "position": str(r.get("股东名称", "")),
-                    "action": str(r.get("持股变动信息-增减", "")),
+                    "action": action,
                     "shares": self._safe_float(r.get("持股变动信息-变动数量")),
-                    "amount": None,  # 该接口不直接提供变动金额
+                    "amount": None,
                     "date": str(r.get("公告日", "")),
                 })
             return results
@@ -596,12 +606,4 @@ class AKShareClient:
 
     # ---- 工具方法 ----
 
-    @staticmethod
-    def _safe_float(val) -> float | None:
-        """安全转换为 float。"""
-        if val is None or val == "-" or val == "":
-            return None
-        try:
-            return float(val)
-        except (ValueError, TypeError):
-            return None
+    _safe_float = staticmethod(_safe_float)

@@ -4,7 +4,6 @@ interface IndexData {
   name: string;
   point: number;
   change: number;
-  change_pct?: number;
 }
 
 interface MarketOverviewProps {
@@ -13,13 +12,7 @@ interface MarketOverviewProps {
 
 function formatChange(val: number): string {
   const sign = val >= 0 ? "+" : "";
-  return `${sign}${val.toFixed(2)}`;
-}
-
-function formatPct(val?: number): string {
-  if (val == null) return "";
-  const sign = val >= 0 ? "+" : "";
-  return ` (${sign}${val.toFixed(2)}%)`;
+  return `${sign}${val.toFixed(2)}%`;
 }
 
 export default function MarketOverview({ indices }: MarketOverviewProps) {
@@ -32,10 +25,11 @@ export default function MarketOverview({ indices }: MarketOverviewProps) {
       <h2 style={{ color: "#fff", fontSize: 20, fontWeight: 600, margin: "0 0 16px 0" }}>
         {t("market.overview")}
       </h2>
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
         {indices.map((idx) => {
-          const isUp = idx.change >= 0;
-          const changeColor = isUp ? "#ef4444" : "#22c55e";
+          const isUp = idx.change > 0;
+          const isDown = idx.change < 0;
+          const changeColor = isUp ? "#ef4444" : isDown ? "#22c55e" : "#8d969e";
           return (
             <div
               key={idx.name}
@@ -69,7 +63,7 @@ export default function MarketOverview({ indices }: MarketOverviewProps) {
                   color: changeColor,
                 }}
               >
-                {formatChange(idx.change)}{formatPct(idx.change_pct)}
+                {formatChange(idx.change)}
               </span>
             </div>
           );

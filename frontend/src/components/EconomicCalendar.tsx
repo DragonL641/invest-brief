@@ -24,14 +24,18 @@ export default function EconomicCalendar({ calendar }: EconomicCalendarProps) {
       title: t("calendar.event"),
       dataIndex: "event",
       key: "event",
-      render: (v: string) => <span style={{ color: "#fff" }}>{v}</span>,
+      render: (v: string, record: any) => <span style={{ color: "#fff" }}>{v ?? record.name}</span>,
     },
     {
-      title: t("calendar.forecast"),
-      dataIndex: "forecast",
-      key: "forecast",
+      title: t("calendar.importance"),
+      dataIndex: "importance",
+      key: "importance",
       width: 100,
-      render: (v: string) => <span style={mono}>{v ?? "--"}</span>,
+      render: (v: string) => {
+        if (!v) return <span style={mono}>--</span>;
+        const color = v === "high" ? "#e23b4a" : v === "medium" ? "#ec7e00" : "#8d969e";
+        return <span style={{ color, fontWeight: 600 }}>{v}</span>;
+      },
     },
     {
       title: t("calendar.previous"),

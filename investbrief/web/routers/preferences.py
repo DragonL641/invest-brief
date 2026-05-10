@@ -99,6 +99,7 @@ def add_holding(
 
     updates = {
         "markets": {
+            **user.get("markets", {}),
             body.market: {**cfg, "holdings": holdings},
         }
     }

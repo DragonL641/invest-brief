@@ -19,8 +19,8 @@ export default function RecommendationsSection({ recommendations, market }: Reco
           <StockCard key={r.symbol || i} stock={r} market={market} />
         ))}
         {recommendations.length === 0 && (
-          <div style={{ color: "#8d969e", fontSize: 14, padding: "40px 0", textAlign: "center" }}>
-            --
+          <div style={{ background: "#16181a", borderRadius: 20, padding: 24, color: "#8d969e", fontSize: 14, textAlign: "center" }}>
+            {t("recommendations.empty")}
           </div>
         )}
       </div>

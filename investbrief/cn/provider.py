@@ -49,17 +49,20 @@ class CNMarketProvider(MarketProvider):
 
     def get_indices(self) -> list[dict[str, Any]]:
         """获取 A 股主要指数行情。"""
+        symbols = list(self.INDEX_SYMBOLS.values())
+        names = {s: n for n, s in self.INDEX_SYMBOLS.items()}
+        quotes = self.client.get_index_quotes(symbols)
         results = []
-        for name, symbol in self.INDEX_SYMBOLS.items():
-            quote = self.client.get_index_quote(symbol)
-            if quote:
+        for q in quotes:
+            sym = q["symbol"]
+            if sym in names:
                 results.append({
-                    "name": name,
-                    "symbol": symbol,
-                    "point": quote["price"],
-                    "change": quote.get("change_pct"),
-                    "change_amt": quote.get("change"),
-                    "amount": quote.get("amount"),
+                    "name": names[sym],
+                    "symbol": sym,
+                    "point": q["price"],
+                    "change": q.get("change_pct"),
+                    "change_amt": q.get("change"),
+                    "amount": q.get("amount"),
                 })
         return results
 
@@ -139,6 +142,17 @@ class CNMarketProvider(MarketProvider):
             if chart_b64:
                 data["chart_b64"] = chart_b64
             data["technicals"] = self._calc_technicals(history)
+            data["history"] = [
+                {
+                    "date": idx.strftime("%Y-%m-%d"),
+                    "open": round(float(row["open"]), 2),
+                    "high": round(float(row["high"]), 2),
+                    "low": round(float(row["low"]), 2),
+                    "close": round(float(row["close"]), 2),
+                    "volume": int(row.get("volume", 0) or 0),
+                }
+                for idx, row in history.iterrows()
+            ]
 
         if results.get("rating"):
             data["rating_summary"] = results["rating"]

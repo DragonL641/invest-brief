@@ -1,0 +1,603 @@
+[     755ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[     798ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[     798ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[     799ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[     800ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[     947ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[     947ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[     948ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[     948ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[    2256ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[    2256ms] [ERROR] 2026-05-09T21:16:04.217Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    2256ms] [WARNING] 2026-05-09T21:16:04.217Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    2425ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[    2425ms] [ERROR] 2026-05-09T21:16:04.387Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    2425ms] [WARNING] 2026-05-09T21:16:04.387Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    2889ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[    2889ms] [ERROR] 2026-05-09T21:16:04.850Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    2889ms] [WARNING] 2026-05-09T21:16:04.850Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    3351ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[    3352ms] [ERROR] 2026-05-09T21:16:05.313Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    3352ms] [WARNING] 2026-05-09T21:16:05.313Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    3839ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[    3839ms] [ERROR] 2026-05-09T21:16:05.801Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    3839ms] [WARNING] 2026-05-09T21:16:05.801Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    4349ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[    4349ms] [ERROR] 2026-05-09T21:16:06.310Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    4349ms] [WARNING] 2026-05-09T21:16:06.311Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    4851ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[    4851ms] [ERROR] 2026-05-09T21:16:06.813Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    4851ms] [WARNING] 2026-05-09T21:16:06.813Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    5359ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[    5359ms] [ERROR] 2026-05-09T21:16:07.321Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    5359ms] [WARNING] 2026-05-09T21:16:07.321Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    5842ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[    5842ms] [ERROR] 2026-05-09T21:16:07.803Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[    5842ms] [WARNING] 2026-05-09T21:16:07.803Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[   12971ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[   12972ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[   12972ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[   13507ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[   13507ms] [ERROR] 2026-05-09T21:16:15.468Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[   13507ms] [WARNING] 2026-05-09T21:16:15.469Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[   13544ms] [WARNING] 2026-05-09T21:16:15.505Z:Chart.LegendWidget:Quote snapshot error: Quotes snapshot is not received @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[   13971ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[   13971ms] [ERROR] 2026-05-09T21:16:15.932Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[   13971ms] [WARNING] 2026-05-09T21:16:15.932Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[   14494ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[   14494ms] [ERROR] 2026-05-09T21:16:16.456Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[   14494ms] [WARNING] 2026-05-09T21:16:16.456Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[   14535ms] [WARNING] 2026-05-09T21:16:16.496Z:Chart.LegendWidget:Quote snapshot error: Quotes snapshot is not received @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  402285ms] [WARNING] WebSocket connection to 'wss://pushstream.tradingview.com/message-pipe-ws/public' failed: WebSocket is closed before the connection is established. @ https://www.tradingview-widget.com/static/bundles/embed/99838.614e64f3e731dd202144.js:60
+[  402834ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  402835ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  402835ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  402877ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  402944ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  402978ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  403013ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  403013ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  403013ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  404206ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  404206ms] [ERROR] 2026-05-09T21:22:46.168Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  404206ms] [WARNING] 2026-05-09T21:22:46.168Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  404435ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  404435ms] [ERROR] 2026-05-09T21:22:46.397Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  404435ms] [WARNING] 2026-05-09T21:22:46.397Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  404914ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  404914ms] [ERROR] 2026-05-09T21:22:46.876Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  404914ms] [WARNING] 2026-05-09T21:22:46.876Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  405409ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  405409ms] [ERROR] 2026-05-09T21:22:47.370Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  405409ms] [WARNING] 2026-05-09T21:22:47.370Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  405906ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  405906ms] [ERROR] 2026-05-09T21:22:47.867Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  405906ms] [WARNING] 2026-05-09T21:22:47.867Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  406412ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  406412ms] [ERROR] 2026-05-09T21:22:48.374Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  406412ms] [WARNING] 2026-05-09T21:22:48.374Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  406915ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  406915ms] [ERROR] 2026-05-09T21:22:48.876Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  406915ms] [WARNING] 2026-05-09T21:22:48.876Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  407413ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  407413ms] [ERROR] 2026-05-09T21:22:49.375Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  407413ms] [WARNING] 2026-05-09T21:22:49.375Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  407916ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  407916ms] [ERROR] 2026-05-09T21:22:49.878Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  407916ms] [WARNING] 2026-05-09T21:22:49.878Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  409261ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  409261ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  409262ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  409739ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  409739ms] [ERROR] 2026-05-09T21:22:51.701Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  409739ms] [WARNING] 2026-05-09T21:22:51.701Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  410246ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  410246ms] [ERROR] 2026-05-09T21:22:52.208Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  410246ms] [WARNING] 2026-05-09T21:22:52.208Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  410795ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  410795ms] [ERROR] 2026-05-09T21:22:52.756Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  410795ms] [WARNING] 2026-05-09T21:22:52.756Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  482138ms] [WARNING] WebSocket connection to 'wss://pushstream.tradingview.com/message-pipe-ws/public' failed: WebSocket is closed before the connection is established. @ https://www.tradingview-widget.com/static/bundles/embed/99838.614e64f3e731dd202144.js:60
+[  482537ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  482542ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  482545ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  482546ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  482546ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  482547ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  482548ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  482548ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  482549ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  484491ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  484491ms] [ERROR] 2026-05-09T21:24:06.452Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  484491ms] [WARNING] 2026-05-09T21:24:06.452Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  484934ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  484934ms] [ERROR] 2026-05-09T21:24:06.896Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  484934ms] [WARNING] 2026-05-09T21:24:06.896Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  485433ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  485433ms] [ERROR] 2026-05-09T21:24:07.394Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  485433ms] [WARNING] 2026-05-09T21:24:07.394Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  485935ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  485936ms] [ERROR] 2026-05-09T21:24:07.897Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  485936ms] [WARNING] 2026-05-09T21:24:07.897Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  486433ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  486434ms] [ERROR] 2026-05-09T21:24:08.395Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  486434ms] [WARNING] 2026-05-09T21:24:08.395Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  486931ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  486931ms] [ERROR] 2026-05-09T21:24:08.892Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  486931ms] [WARNING] 2026-05-09T21:24:08.893Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  487442ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  487442ms] [ERROR] 2026-05-09T21:24:09.403Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  487442ms] [WARNING] 2026-05-09T21:24:09.403Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  487931ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  487931ms] [ERROR] 2026-05-09T21:24:09.893Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  487931ms] [WARNING] 2026-05-09T21:24:09.893Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  488433ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  488433ms] [ERROR] 2026-05-09T21:24:10.394Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  488433ms] [WARNING] 2026-05-09T21:24:10.394Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  502010ms] [WARNING] WebSocket connection to 'wss://pushstream.tradingview.com/message-pipe-ws/public' failed: WebSocket is closed before the connection is established. @ https://www.tradingview-widget.com/static/bundles/embed/99838.614e64f3e731dd202144.js:60
+[  502035ms] [ERROR] 2026-05-09T21:24:23.996Z:Fetch:POST https://telemetry.tradingview.com/widget/report. TypeError: Failed to fetch @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  502425ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  502426ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  502428ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  502432ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  502435ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  502435ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  502437ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  502438ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  502439ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  507688ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  507688ms] [ERROR] 2026-05-09T21:24:29.650Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  507688ms] [WARNING] 2026-05-09T21:24:29.650Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  508123ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  508123ms] [ERROR] 2026-05-09T21:24:30.084Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  508123ms] [WARNING] 2026-05-09T21:24:30.084Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  508625ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  508625ms] [ERROR] 2026-05-09T21:24:30.586Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  508625ms] [WARNING] 2026-05-09T21:24:30.586Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  509118ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  509118ms] [ERROR] 2026-05-09T21:24:31.080Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  509118ms] [WARNING] 2026-05-09T21:24:31.080Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  509620ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  509620ms] [ERROR] 2026-05-09T21:24:31.582Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  509620ms] [WARNING] 2026-05-09T21:24:31.582Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  510121ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  510121ms] [ERROR] 2026-05-09T21:24:32.083Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  510121ms] [WARNING] 2026-05-09T21:24:32.083Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  510617ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  510617ms] [ERROR] 2026-05-09T21:24:32.578Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  510617ms] [WARNING] 2026-05-09T21:24:32.578Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  511120ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  511120ms] [ERROR] 2026-05-09T21:24:33.082Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  511121ms] [WARNING] 2026-05-09T21:24:33.082Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  511624ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  511624ms] [ERROR] 2026-05-09T21:24:33.586Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  511624ms] [WARNING] 2026-05-09T21:24:33.586Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  516940ms] [WARNING] WebSocket connection to 'wss://pushstream.tradingview.com/message-pipe-ws/public' failed: WebSocket is closed before the connection is established. @ https://www.tradingview-widget.com/static/bundles/embed/99838.614e64f3e731dd202144.js:60
+[  517131ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  517131ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  517131ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  517131ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  517132ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  517132ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  517132ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  517132ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  517132ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  518282ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  518282ms] [ERROR] 2026-05-09T21:24:40.244Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  518282ms] [WARNING] 2026-05-09T21:24:40.244Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  518800ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  518800ms] [ERROR] 2026-05-09T21:24:40.762Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  518800ms] [WARNING] 2026-05-09T21:24:40.762Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  519280ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  519280ms] [ERROR] 2026-05-09T21:24:41.242Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  519280ms] [WARNING] 2026-05-09T21:24:41.242Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  519786ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  519786ms] [ERROR] 2026-05-09T21:24:41.747Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  519786ms] [WARNING] 2026-05-09T21:24:41.747Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  520281ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  520281ms] [ERROR] 2026-05-09T21:24:42.242Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  520281ms] [WARNING] 2026-05-09T21:24:42.242Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  520781ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  520781ms] [ERROR] 2026-05-09T21:24:42.742Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  520781ms] [WARNING] 2026-05-09T21:24:42.743Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  521288ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  521288ms] [ERROR] 2026-05-09T21:24:43.249Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  521288ms] [WARNING] 2026-05-09T21:24:43.249Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  521786ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  521786ms] [ERROR] 2026-05-09T21:24:43.748Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  521786ms] [WARNING] 2026-05-09T21:24:43.748Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  522281ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  522281ms] [ERROR] 2026-05-09T21:24:44.243Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  522281ms] [WARNING] 2026-05-09T21:24:44.243Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  536739ms] [ERROR] 2026-05-09T21:24:58.700Z:Fetch:POST https://telemetry.tradingview.com/widget/report. TypeError: Failed to fetch @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  536777ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  536778ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  536778ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  537540ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  537540ms] [ERROR] 2026-05-09T21:24:59.502Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  537540ms] [WARNING] 2026-05-09T21:24:59.502Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  538037ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  538037ms] [ERROR] 2026-05-09T21:24:59.998Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  538037ms] [WARNING] 2026-05-09T21:24:59.999Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  538537ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  538538ms] [ERROR] 2026-05-09T21:25:00.499Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  538538ms] [WARNING] 2026-05-09T21:25:00.499Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  709136ms] [WARNING] WebSocket connection to 'wss://pushstream.tradingview.com/message-pipe-ws/public' failed: WebSocket is closed before the connection is established. @ https://www.tradingview-widget.com/static/bundles/embed/99838.614e64f3e731dd202144.js:60
+[  710559ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  710801ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  710870ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  711072ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  711164ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  711253ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  711254ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  711449ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  711450ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  713751ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  713751ms] [ERROR] 2026-05-09T21:27:55.713Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  713752ms] [WARNING] 2026-05-09T21:27:55.713Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  713767ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  713768ms] [ERROR] 2026-05-09T21:27:55.729Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  713768ms] [WARNING] 2026-05-09T21:27:55.729Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  713787ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  713787ms] [ERROR] 2026-05-09T21:27:55.749Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  713787ms] [WARNING] 2026-05-09T21:27:55.749Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  713999ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  714000ms] [ERROR] 2026-05-09T21:27:55.961Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  714000ms] [WARNING] 2026-05-09T21:27:55.961Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  715190ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  715190ms] [ERROR] 2026-05-09T21:27:57.151Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  715190ms] [WARNING] 2026-05-09T21:27:57.152Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  715400ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  715400ms] [ERROR] 2026-05-09T21:27:57.362Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  715400ms] [WARNING] 2026-05-09T21:27:57.362Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  715640ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  715640ms] [ERROR] 2026-05-09T21:27:57.602Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  715640ms] [WARNING] 2026-05-09T21:27:57.602Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  716310ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  716310ms] [ERROR] 2026-05-09T21:27:58.272Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  716310ms] [WARNING] 2026-05-09T21:27:58.272Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  716794ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  716794ms] [ERROR] 2026-05-09T21:27:58.756Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  716795ms] [WARNING] 2026-05-09T21:27:58.756Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  726773ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  726773ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  726774ms] Uncaught TypeError: Cannot read properties of null (reading 'querySelector')
+    at _replaceScript (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:2585)
+    at p (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:2:778)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:729)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:725)
+    at <anonymous> (https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js:5:1792)
+[  728124ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  728124ms] [ERROR] 2026-05-09T21:28:10.086Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  728124ms] [WARNING] 2026-05-09T21:28:10.086Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  728303ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  728304ms] [ERROR] 2026-05-09T21:28:10.265Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  728304ms] [WARNING] 2026-05-09T21:28:10.265Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  729040ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.tradingview-widget.com/support/support-portal-problems/?language=en:0
+[  729041ms] [ERROR] 2026-05-09T21:28:11.002Z:Fetch:/support/support-portal-problems/?language=en. Status 403 @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10
+[  729041ms] [WARNING] 2026-05-09T21:28:11.002Z:Support.IncidentsModel:Couldn't load support portal problems @ https://www.tradingview-widget.com/static/bundles/embed/27079.81ad6bd886789540e136.js:10

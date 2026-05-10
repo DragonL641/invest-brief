@@ -1,0 +1,436 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - img "stock" [ref=e7]:
+        - img [ref=e8]
+      - generic [ref=e10]: Invest Brief
+    - generic [ref=e11]:
+      - button "美股" [ref=e12] [cursor=pointer]
+      - button "A股" [ref=e13] [cursor=pointer]
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - button "中" [ref=e16] [cursor=pointer]
+        - button "한" [ref=e17] [cursor=pointer]
+      - button "reload 刷新" [ref=e18] [cursor=pointer]:
+        - img "reload" [ref=e19]:
+          - img [ref=e20]
+        - text: 刷新
+      - generic [ref=e22]: 最后更新 2026.5.10 18:00
+      - img "user" [ref=e24]:
+        - img [ref=e25]
+  - generic [ref=e27]:
+    - navigation [ref=e29]:
+      - button "市场概览" [ref=e30] [cursor=pointer]
+      - button "市场新闻" [ref=e32] [cursor=pointer]
+      - button "经济日历" [ref=e33] [cursor=pointer]
+      - button "我的自选" [active] [ref=e34] [cursor=pointer]: 我的自选
+      - button "推荐关注" [ref=e35] [cursor=pointer]
+    - generic [ref=e36]:
+      - generic [ref=e38]:
+        - heading "市场概览" [level=2] [ref=e39]
+        - generic [ref=e40]:
+          - generic [ref=e41]:
+            - generic [ref=e42]: S&P 500
+            - generic [ref=e43]: 5,800.50
+            - generic [ref=e44]: +1.23%
+          - generic [ref=e45]:
+            - generic [ref=e46]: NASDAQ
+            - generic [ref=e47]: 18,500.75
+            - generic [ref=e48]: "-0.45%"
+      - generic [ref=e50]:
+        - heading "市场新闻" [level=2] [ref=e51]
+        - generic [ref=e53]:
+          - generic [ref=e54]: Test news article
+          - generic [ref=e55]:
+            - generic [ref=e56]: Reuters
+            - generic [ref=e57]: 2h ago
+            - generic [ref=e58]: 正面
+      - generic [ref=e60]:
+        - heading "经济日历" [level=2] [ref=e61]
+        - table [ref=e68]:
+          - rowgroup [ref=e74]:
+            - row "日期 事件 重要性 前值" [ref=e75]:
+              - columnheader "日期" [ref=e76]
+              - columnheader "事件" [ref=e77]
+              - columnheader "重要性" [ref=e78]
+              - columnheader "前值" [ref=e79]
+          - rowgroup [ref=e80]:
+            - row "2026-05-12 CPI Report high 3.2%" [ref=e81]:
+              - cell "2026-05-12" [ref=e82]
+              - cell "CPI Report" [ref=e83]
+              - cell "high" [ref=e84]
+              - cell "3.2%" [ref=e85]
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - heading "我的自选" [level=2] [ref=e89]
+          - button "plus 添加自选" [ref=e90] [cursor=pointer]:
+            - img "plus" [ref=e91]:
+              - img [ref=e92]
+            - text: 添加自选
+        - generic [ref=e96]:
+          - generic [ref=e97]:
+            - generic [ref=e98]:
+              - generic [ref=e99]: AAPL
+              - generic [ref=e100]: Apple Inc.
+            - generic [ref=e101]:
+              - generic [ref=e102]: "210.50"
+              - generic [ref=e103]: +1.10%
+          - generic [ref=e105]: MACD 看涨
+          - generic [ref=e106]:
+            - generic [ref=e107]:
+              - generic [ref=e108]: 市值
+              - generic [ref=e109]: $3,200,000,000,000
+            - generic [ref=e110]:
+              - generic [ref=e111]: P/E
+              - generic [ref=e112]: "32.5"
+            - generic [ref=e113]:
+              - generic [ref=e114]: Beta
+              - generic [ref=e115]: "1.20"
+            - generic [ref=e116]:
+              - generic [ref=e117]: 52周范围
+              - generic [ref=e118]: 165.00-220.00
+          - generic [ref=e122]:
+            - generic [ref=e123]: "165.00"
+            - generic [ref=e124]: "220.00"
+          - generic [ref=e125]:
+            - generic [ref=e126]:
+              - generic [ref=e127]:
+                - text: 分析师目标
+                - generic [ref=e129]: i
+              - generic [ref=e130]: 49 位分析师
+            - generic [ref=e131]:
+              - generic [ref=e132]:
+                - generic [ref=e133]: 目标均价
+                - generic [ref=e134]: $230.00
+              - generic [ref=e135]:
+                - generic [ref=e136]: 上行空间
+                - generic [ref=e137]: +9.30%
+            - generic [ref=e142]:
+              - generic [ref=e143]: 买入 35(71%)
+              - generic [ref=e144]: 持有 10(20%)
+              - generic [ref=e145]: 卖出 4(9%)
+            - button "查看详情 →" [ref=e146] [cursor=pointer]
+          - generic [ref=e147]:
+            - generic [ref=e148]:
+              - generic [ref=e149]: 技术指标
+              - generic [ref=e150]:
+                - generic [ref=e151]:
+                  - generic [ref=e152]:
+                    - text: RSI
+                    - generic [ref=e154]: i
+                  - generic [ref=e155]: "55.0"
+                - generic [ref=e156]:
+                  - generic [ref=e157]:
+                    - text: SMA 50
+                    - generic [ref=e159]: i
+                  - generic [ref=e160]: $205.00
+                - generic [ref=e161]:
+                  - generic [ref=e162]:
+                    - text: SMA 200
+                    - generic [ref=e164]: i
+                  - generic [ref=e165]: $195.00
+                - generic [ref=e166]:
+                  - generic [ref=e167]:
+                    - text: MACD
+                    - generic [ref=e169]: i
+                  - generic [ref=e170]: "1.5000"
+            - generic [ref=e171]:
+              - generic [ref=e172]: EPS 预估
+              - generic [ref=e173]:
+                - generic [ref=e174]:
+                  - generic [ref=e175]:
+                    - text: 本季度
+                    - generic [ref=e177]: i
+                  - generic [ref=e178]: "--"
+                - generic [ref=e179]:
+                  - generic [ref=e180]:
+                    - text: 下季度
+                    - generic [ref=e182]: i
+                  - generic [ref=e183]: "--"
+                - generic [ref=e184]:
+                  - generic [ref=e185]:
+                    - text: 惊喜
+                    - generic [ref=e187]: i
+                  - generic [ref=e188]: "--"
+            - generic [ref=e189]:
+              - generic [ref=e190]: 内部人交易
+              - text: "--"
+          - iframe [ref=e193]:
+            - generic [ref=f2e2]:
+              - toolbar [ref=f2e6]:
+                - generic [ref=f2e10]:
+                  - generic [ref=f2e12]:
+                    - radiogroup [ref=f2e13]:
+                      - radio "1 minute" [ref=f2e14]:
+                        - generic [ref=f2e16]: 1m
+                      - radio "30 minutes" [ref=f2e17]:
+                        - generic [ref=f2e19]: 30m
+                      - radio "1 hour" [ref=f2e20]:
+                        - generic [ref=f2e22]: 1h
+                      - radio "1 day" [checked] [ref=f2e23]:
+                        - generic [ref=f2e25]: D
+                    - button "Chart interval" [ref=f2e26]:
+                      - img [ref=f2e29]:
+                        - img [ref=f2e30]
+                  - generic [ref=f2e35]:
+                    - radiogroup [ref=f2e36]:
+                      - radio "Bars" [ref=f2e37]:
+                        - img [ref=f2e38]:
+                          - img [ref=f2e39]
+                      - radio "Candles" [checked] [ref=f2e41]:
+                        - img [ref=f2e42]:
+                          - img [ref=f2e43]
+                      - radio "Area" [ref=f2e48]:
+                        - img [ref=f2e49]:
+                          - img [ref=f2e50]
+                    - button "Bar's style" [ref=f2e52]:
+                      - img [ref=f2e55]:
+                        - img [ref=f2e56]
+                  - button "Compare symbols" [ref=f2e61]:
+                    - img [ref=f2e62]:
+                      - img [ref=f2e63]
+                  - button "Indicators, metrics, and strategies" [ref=f2e70]:
+                    - img [ref=f2e71]:
+                      - img [ref=f2e72]
+                    - generic [ref=f2e75]: Indicators
+              - 'region "Chart #1" [ref=f2e80]':
+                - generic [ref=f2e84]:
+                  - generic:
+                    - generic:
+                      - toolbar:
+                        - generic:
+                          - generic [ref=f2e85]:
+                            - generic [ref=f2e86]:
+                              - generic [ref=f2e87]:
+                                - img [ref=f2e89]
+                                - generic [ref=f2e90]: A
+                              - generic [ref=f2e91]: Apple Inc
+                            - generic "Change interval" [ref=f2e92]:
+                              - text: ·
+                              - button "Change interval" [ref=f2e93]: 1D
+                            - generic [ref=f2e94]:
+                              - text: ·
+                              - generic [ref=f2e95]: Cboe One
+                          - generic:
+                            - generic:
+                              - button "More":
+                                - generic:
+                                  - img
+                          - button "Market closed · Data is delayed" [ref=f2e97]:
+                            - img [ref=f2e98]:
+                              - img [ref=f2e99]
+                            - img [ref=f2e101]:
+                              - img [ref=f2e102]
+                        - generic [ref=f2e105]:
+                          - generic [ref=f2e106]:
+                            - generic [ref=f2e107]: O
+                            - generic [ref=f2e108]: "290.01"
+                          - generic [ref=f2e109]:
+                            - generic [ref=f2e110]: H
+                            - generic [ref=f2e111]: "294.76"
+                          - generic [ref=f2e112]:
+                            - generic [ref=f2e113]: L
+                            - generic [ref=f2e114]: "290.00"
+                          - generic [ref=f2e115]:
+                            - generic [ref=f2e116]: C
+                            - generic [ref=f2e117]: "293.32"
+                          - generic [ref=f2e119]: +5.88 (+2.05%)
+                    - generic:
+                      - button "Hide indicator legend" [ref=f2e120]:
+                        - img [ref=f2e122]
+                      - generic:
+                        - toolbar:
+                          - generic:
+                            - generic "Volume" [ref=f2e125]:
+                              - generic [ref=f2e126]: Vol
+                            - generic:
+                              - generic:
+                                - button "Hide":
+                                  - generic:
+                                    - img
+                                - button "Settings":
+                                  - generic:
+                                    - img
+                                - button "Remove":
+                                  - generic:
+                                    - img
+                                - button "More":
+                                  - generic:
+                                    - img
+                          - generic "Volume" [ref=f2e130]: 52.68 M
+                  - generic "Chart for BATS_DLY:AAPL, 1 day" [ref=f2e132]
+      - generic [ref=e195]:
+        - heading "推荐关注" [level=2] [ref=e196]
+        - generic [ref=e198]:
+          - generic [ref=e199]:
+            - generic [ref=e200]:
+              - generic [ref=e201]: NVDA
+              - generic [ref=e202]: NVIDIA
+            - generic [ref=e203]:
+              - generic [ref=e204]: "900.00"
+              - generic [ref=e205]: +0.39%
+          - generic [ref=e206]:
+            - generic [ref=e207]:
+              - generic [ref=e208]: 市值
+              - generic [ref=e209]: $2,200,000,000,000
+            - generic [ref=e210]:
+              - generic [ref=e211]: P/E
+              - generic [ref=e212]: "65.0"
+            - generic [ref=e213]:
+              - generic [ref=e214]: Beta
+              - generic [ref=e215]: "1.80"
+            - generic [ref=e216]:
+              - generic [ref=e217]: 52周范围
+              - generic [ref=e218]: "--"
+          - generic [ref=e219]:
+            - generic [ref=e220]:
+              - generic [ref=e221]: 技术指标
+              - generic [ref=e222]:
+                - generic [ref=e223]:
+                  - generic [ref=e224]:
+                    - text: RSI
+                    - generic [ref=e226]: i
+                  - generic [ref=e227]: "60.0"
+                - generic [ref=e228]:
+                  - generic [ref=e229]:
+                    - text: SMA 50
+                    - generic [ref=e231]: i
+                  - generic [ref=e232]: "--"
+                - generic [ref=e233]:
+                  - generic [ref=e234]:
+                    - text: SMA 200
+                    - generic [ref=e236]: i
+                  - generic [ref=e237]: "--"
+                - generic [ref=e238]:
+                  - generic [ref=e239]:
+                    - text: MACD
+                    - generic [ref=e241]: i
+                  - generic [ref=e242]: "--"
+            - generic [ref=e243]:
+              - generic [ref=e244]: EPS 预估
+              - generic [ref=e245]:
+                - generic [ref=e246]:
+                  - generic [ref=e247]:
+                    - text: 本季度
+                    - generic [ref=e249]: i
+                  - generic [ref=e250]: "--"
+                - generic [ref=e251]:
+                  - generic [ref=e252]:
+                    - text: 下季度
+                    - generic [ref=e254]: i
+                  - generic [ref=e255]: "--"
+                - generic [ref=e256]:
+                  - generic [ref=e257]:
+                    - text: 惊喜
+                    - generic [ref=e259]: i
+                  - generic [ref=e260]: "--"
+            - generic [ref=e261]:
+              - generic [ref=e262]: 内部人交易
+              - text: "--"
+          - iframe [ref=e265]:
+            - generic [ref=f1e2]:
+              - toolbar [ref=f1e6]:
+                - generic [ref=f1e10]:
+                  - generic [ref=f1e12]:
+                    - radiogroup [ref=f1e13]:
+                      - radio "1 minute" [ref=f1e14]:
+                        - generic [ref=f1e16]: 1m
+                      - radio "30 minutes" [ref=f1e17]:
+                        - generic [ref=f1e19]: 30m
+                      - radio "1 hour" [ref=f1e20]:
+                        - generic [ref=f1e22]: 1h
+                      - radio "1 day" [checked] [ref=f1e23]:
+                        - generic [ref=f1e25]: D
+                    - button "Chart interval" [ref=f1e26]:
+                      - img [ref=f1e29]:
+                        - img [ref=f1e30]
+                  - generic [ref=f1e35]:
+                    - radiogroup [ref=f1e36]:
+                      - radio "Bars" [ref=f1e37]:
+                        - img [ref=f1e38]:
+                          - img [ref=f1e39]
+                      - radio "Candles" [checked] [ref=f1e41]:
+                        - img [ref=f1e42]:
+                          - img [ref=f1e43]
+                      - radio "Area" [ref=f1e48]:
+                        - img [ref=f1e49]:
+                          - img [ref=f1e50]
+                    - button "Bar's style" [ref=f1e52]:
+                      - img [ref=f1e55]:
+                        - img [ref=f1e56]
+                  - button "Compare symbols" [ref=f1e61]:
+                    - img [ref=f1e62]:
+                      - img [ref=f1e63]
+                  - button "Indicators, metrics, and strategies" [ref=f1e70]:
+                    - img [ref=f1e71]:
+                      - img [ref=f1e72]
+                    - generic [ref=f1e75]: Indicators
+              - 'region "Chart #1" [ref=f1e80]':
+                - generic [ref=f1e84]:
+                  - generic:
+                    - generic:
+                      - toolbar:
+                        - generic:
+                          - generic [ref=f1e85]:
+                            - generic [ref=f1e86]:
+                              - generic [ref=f1e87]:
+                                - img [ref=f1e89]
+                                - generic [ref=f1e90]: "N"
+                              - generic [ref=f1e91]: NVIDIA Corporation
+                            - generic "Change interval" [ref=f1e92]:
+                              - text: ·
+                              - button "Change interval" [ref=f1e93]: 1D
+                            - generic [ref=f1e94]:
+                              - text: ·
+                              - generic [ref=f1e95]: Cboe One
+                          - generic:
+                            - generic:
+                              - button "More":
+                                - generic:
+                                  - img
+                          - button "Market closed · Data is delayed" [ref=f1e97]:
+                            - img [ref=f1e98]:
+                              - img [ref=f1e99]
+                            - img [ref=f1e101]:
+                              - img [ref=f1e102]
+                        - generic [ref=f1e105]:
+                          - generic [ref=f1e106]:
+                            - generic [ref=f1e107]: O
+                            - generic [ref=f1e108]: "213.03"
+                          - generic [ref=f1e109]:
+                            - generic [ref=f1e110]: H
+                            - generic [ref=f1e111]: "217.80"
+                          - generic [ref=f1e112]:
+                            - generic [ref=f1e113]: L
+                            - generic [ref=f1e114]: "212.89"
+                          - generic [ref=f1e115]:
+                            - generic [ref=f1e116]: C
+                            - generic [ref=f1e117]: "215.20"
+                          - generic [ref=f1e119]: +3.70 (+1.75%)
+                    - generic:
+                      - button "Hide indicator legend" [ref=f1e120]:
+                        - img [ref=f1e122]
+                      - generic:
+                        - toolbar:
+                          - generic:
+                            - generic "Volume" [ref=f1e125]:
+                              - generic [ref=f1e126]: Vol
+                            - generic:
+                              - generic:
+                                - button "Hide":
+                                  - generic:
+                                    - img
+                                - button "Settings":
+                                  - generic:
+                                    - img
+                                - button "Remove":
+                                  - generic:
+                                    - img
+                                - button "More":
+                                  - generic:
+                                    - img
+                          - generic "Volume" [ref=f1e130]: 136.36 M
+                  - generic "Chart for BATS_DLY:NVDA, 1 day" [ref=f1e132]
+  - button "robot" [ref=e266] [cursor=pointer]:
+    - img "robot" [ref=e267]:
+      - img [ref=e268]

@@ -2,8 +2,9 @@ FROM python:3.12-slim
 
 # System deps for matplotlib
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libfreetype6-dev && \
-    rm -rf /var/lib/apt/lists/*
+    libfreetype6-dev \
+    fonts-noto-cjk \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

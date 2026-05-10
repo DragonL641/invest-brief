@@ -115,12 +115,23 @@ class USMarketProvider(MarketProvider):
             if insiders:
                 data["insider_trades"] = insiders
 
-            # 1-month chart
-            history = self.yf.get_history(symbol, period="1mo")
-            if history is not None:
-                chart_b64 = generate_stock_chart(symbol, history, period="1mo")
+            # 6-month chart
+            history = self.yf.get_history(symbol, period="6mo")
+            if history is not None and not history.empty:
+                chart_b64 = generate_stock_chart(symbol, history, period="6mo")
                 if chart_b64:
                     data["chart_b64"] = chart_b64
+                data["history"] = [
+                    {
+                        "date": idx.strftime("%Y-%m-%d"),
+                        "open": round(float(row["Open"]), 2),
+                        "high": round(float(row["High"]), 2),
+                        "low": round(float(row["Low"]), 2),
+                        "close": round(float(row["Close"]), 2),
+                        "volume": int(row.get("Volume", 0) or 0),
+                    }
+                    for idx, row in history.iterrows()
+                ]
 
             # Technical indicators
             tech = self.yf.get_technical_indicators(symbol)
@@ -256,7 +267,6 @@ class USMarketProvider(MarketProvider):
         """获取美股全部数据。"""
         from .calendar import get_upcoming_events
         from .congress import get_recent_congressional_trades
-        from .insider import get_form4_filings
 
         holdings_symbols = [h["symbol"] for h in holdings]
 
@@ -267,12 +277,6 @@ class USMarketProvider(MarketProvider):
         earnings = self.get_earnings_calendar(holdings, recommendations)
         economic = get_upcoming_events()
         congressional = get_recent_congressional_trades(tickers=holdings_symbols)
-
-        # SEC EDGAR insider trades enhancement (top 5 holdings)
-        for h in holdings_data[:5]:
-            edgar_data = get_form4_filings(h["symbol"])
-            if edgar_data:
-                h["insider_trades_edgar"] = edgar_data
 
         return {
             "indices": indices,
@@ -734,24 +738,21 @@ class USMarketProvider(MarketProvider):
                 html += f'<span>MACD: <strong style="color:{macd_color}">{macd_label}</strong></span>'
             html += '</div></div>'
 
-        # Insider trades
+        # Insider buys
         insiders = stock.get("insider_trades")
         if insiders:
             html += '''
   <div class="insider-section">
-    <div style="font-weight: 600; margin-bottom: 6px; color: #2c3e50;">👔 内部人交易</div>
+    <div style="font-weight: 600; margin-bottom: 6px; color: #2c3e50;">👔 内部人买入</div>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; font-size:12px; table-layout:fixed;">
-      <colgroup><col style="width:30%"/><col style="width:15%"/><col style="width:15%"/><col style="width:20%"/><col style="width:20%"/></colgroup>
+      <colgroup><col style="width:35%"/><col style="width:20%"/><col style="width:25%"/><col style="width:20%"/></colgroup>
       <tr style="background:rgba(0,0,0,0.03);">
         <th style="text-align:left; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">人员</th>
-        <th style="text-align:left; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">操作</th>
         <th style="text-align:right; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">股数</th>
         <th style="text-align:right; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">金额</th>
         <th style="text-align:right; padding:4px 5px; font-weight:600; color:#2c3e50; border-bottom:1px solid #ccc;">日期</th>
       </tr>'''
             for ins in insiders[:5]:
-                action_label = ins.get("transaction", "")
-                action_color = "#27ae60" if "Buy" in action_label else "#e74c3c" if "Sale" in action_label else "#555"
                 value_str = f'{currency}{ins["value"]:,.0f}' if ins.get("value") else "-"
                 shares_str = f'{ins["shares"]:,}' if ins.get("shares") else "-"
                 person = ins.get("insider", "")
@@ -760,8 +761,7 @@ class USMarketProvider(MarketProvider):
                 html += f'''
       <tr>
         <td style="padding:4px 5px; border-bottom:1px solid #f0e8d8; font-weight:500; color:#2c3e50; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{person_display}</td>
-        <td style="padding:4px 5px; border-bottom:1px solid #f0e8d8; color:{action_color}; font-weight:500;">{action_label}</td>
-        <td style="padding:4px 5px; border-bottom:1px solid #f0e8d8; text-align:right;">{shares_str}</td>
+        <td style="padding:4px 5px; border-bottom:1px solid #f0e8d8; text-align:right; color:#2e7d32;">{shares_str}</td>
         <td style="padding:4px 5px; border-bottom:1px solid #f0e8d8; text-align:right;">{value_str}</td>
         <td style="padding:4px 5px; border-bottom:1px solid #f0e8d8; text-align:right; color:#999; font-size:11px;">{ins.get("date", "")}</td>
       </tr>'''
@@ -851,12 +851,10 @@ class USMarketProvider(MarketProvider):
                 bg = "#e8f5e9" if surprise > 0 else "#fde8e8"
                 annotations.append({"text": f"💰 上季财报{label}{surprise:+.0f}%", "style": f"background:{bg}; color:{color};"})
 
-        # Insider large buys
+        # Insider buys
         insiders = stock.get("insider_trades")
-        if insiders:
-            buy_count = sum(1 for i in insiders if "Buy" in i.get("transaction", ""))
-            if buy_count >= 2:
-                annotations.append({"text": "👔 多位内部人买入", "style": "background:#e8f5e9; color:#2e7d32;"})
+        if insiders and len(insiders) >= 2:
+            annotations.append({"text": "👔 多位内部人买入", "style": "background:#e8f5e9; color:#2e7d32;"})
 
         # Earnings approaching
         if earnings_symbols and symbol in earnings_symbols:

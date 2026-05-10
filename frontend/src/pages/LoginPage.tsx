@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Form, Input, Button, Typography, message } from "antd";
+import { Form, Input, Button, Typography, App } from "antd";
 import { MailOutlined, LockOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { login, getMe } from "../api/auth";
@@ -11,6 +11,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { setUser } = useAuth();
   const { t } = useTranslation();
+  const { message } = App.useApp();
 
   const onFinish = async (values: { email: string; password: string }) => {
     setLoading(true);

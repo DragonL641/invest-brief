@@ -121,43 +121,51 @@ export default function AnalystDetailModal({
           </div>
         )}
 
-        {/* Upgrades table */}
+        {/* Upgrades/downgrades table */}
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.72)", marginBottom: 8 }}>
             {t("stock.analystModal.upgrades")}
           </div>
-          {upgrades.length > 0 ? (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
-                  <th style={{ textAlign: "left", padding: "6px 8px", color: "#8d969e", fontWeight: 500 }}>{t("stock.analystModal.firm")}</th>
-                  <th style={{ textAlign: "left", padding: "6px 8px", color: "#8d969e", fontWeight: 500 }}>{t("stock.analystModal.grade")}</th>
-                  <th style={{ textAlign: "right", padding: "6px 8px", color: "#8d969e", fontWeight: 500 }}>{t("stock.analystModal.targetPrice")}</th>
-                  <th style={{ textAlign: "right", padding: "6px 8px", color: "#8d969e", fontWeight: 500 }}>{t("stock.analystModal.date")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {upgrades.slice(0, 10).map((u, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                    <td style={{ padding: "6px 8px", color: "#fff", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {u.firm || u.institution}
-                    </td>
-                    <td style={{ padding: "6px 8px", color: "#e0e0e0" }}>
-                      {u.from_grade && u.to_grade ? `${u.from_grade} → ${u.to_grade}` : u.change || u.grade || ""}
-                    </td>
-                    <td style={{ ...mono, padding: "6px 8px", textAlign: "right", color: "#fff" }}>
-                      {u.price_target != null ? `$${fmt(u.price_target, 0)}` : "--"}
-                    </td>
-                    <td style={{ padding: "6px 8px", textAlign: "right", color: "#8d969e" }}>
-                      {u.date || "--"}
-                    </td>
+          {(() => {
+            const realChanges = upgrades.filter(
+              (u) => u.from_grade !== u.to_grade || u.action === "up" || u.action === "down" || u.action === "init"
+            );
+            return realChanges.length > 0 ? (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                    <th style={{ textAlign: "left", padding: "6px 8px", color: "#8d969e", fontWeight: 500 }}>{t("stock.analystModal.firm")}</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px", color: "#8d969e", fontWeight: 500 }}>{t("stock.analystModal.grade")}</th>
+                    <th style={{ textAlign: "right", padding: "6px 8px", color: "#8d969e", fontWeight: 500 }}>{t("stock.analystModal.targetPrice")}</th>
+                    <th style={{ textAlign: "right", padding: "6px 8px", color: "#8d969e", fontWeight: 500 }}>{t("stock.analystModal.date")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <span style={{ fontSize: 12, color: "#8d969e" }}>{t("stock.analystModal.noData")}</span>
-          )}
+                </thead>
+                <tbody>
+                  {realChanges.slice(0, 10).map((u, i) => {
+                    const actionColor = u.action === "up" ? "#ef4444" : u.action === "down" ? "#22c55e" : "#494fdf";
+                    return (
+                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                        <td style={{ padding: "6px 8px", color: "#fff", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {u.firm || u.institution}
+                        </td>
+                        <td style={{ padding: "6px 8px", color: actionColor }}>
+                          {u.from_grade && u.to_grade ? `${u.from_grade} → ${u.to_grade}` : u.change || u.grade || ""}
+                        </td>
+                        <td style={{ ...mono, padding: "6px 8px", textAlign: "right", color: "#fff" }}>
+                          {u.price_target != null ? `$${fmt(u.price_target, 0)}` : "--"}
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", color: "#8d969e" }}>
+                          {u.date || "--"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <span style={{ fontSize: 12, color: "#8d969e" }}>{t("stock.analystModal.noData")}</span>
+            );
+          })()}
         </div>
 
         {/* Close button */}

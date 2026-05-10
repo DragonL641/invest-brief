@@ -59,13 +59,12 @@ export default function ChatPanel({ open, onClose, market }: ChatPanelProps) {
       open={open}
       onClose={onClose}
       title="AI 助手"
-      width={400}
       styles={{
         header: { background: "#000", borderBottom: "1px solid rgba(255,255,255,0.08)" },
         body: { background: "#000", display: "flex", flexDirection: "column", padding: 0 },
         wrapper: {},
+        mask: { background: "rgba(0,0,0,0.5)" },
       }}
-      maskStyle={{ background: "rgba(0,0,0,0.5)" }}
     >
       {/* Message list */}
       <div

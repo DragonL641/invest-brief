@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Input, List, Button, Spin, App } from "antd";
 import { PlusOutlined, CheckOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
@@ -17,6 +17,8 @@ export default function StockSearch({ market, existingSymbols, onAdd }: StockSea
   const [results, setResults] = useState<StockSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   const handleSearch = useCallback(
     (value: string) => {

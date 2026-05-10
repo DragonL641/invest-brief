@@ -96,12 +96,18 @@ uv run run.py --market <us|cn|all> [--now] [--dry-run] [--skip-summary] [--log-l
   "markets": {
     "us": {
       "enabled": true,
-      "schedule": { "cron": "0 23 * * 1-5", "timezone": "Asia/Shanghai" }
+      "schedule": [
+        { "cron": "30 22 * * 1-5", "timezone": "Asia/Shanghai" },
+        { "cron": "0 5 * * 2-6", "timezone": "Asia/Shanghai" }
+      ]
     },
     "cn": {
       "enabled": true,
       "max_recommendations": 3,
-      "schedule": { "cron": "0 17 * * 1-5", "timezone": "Asia/Shanghai" }
+      "schedule": [
+        { "cron": "30 10 * * 1-5", "timezone": "Asia/Shanghai" },
+        { "cron": "0 18 * * 1-5", "timezone": "Asia/Shanghai" }
+      ]
     }
   },
   "email_service": {
@@ -145,7 +151,7 @@ uv run run.py --market <us|cn|all> [--now] [--dry-run] [--skip-summary] [--log-l
 | 字段 | 说明 |
 |------|------|
 | `markets.<market>.enabled` | 是否启用该市场 |
-| `markets.<market>.schedule.cron` | 定时调度 cron 表达式 |
+| `markets.<market>.schedule` | 定时调度，支持单条或数组（开盘1小时 + 收盘后）|
 | `markets.cn.max_recommendations` | A 股动态推荐股票数量（默认 3）|
 | `email_service.provider` | 邮件服务商：qq / gmail / outlook / 163 |
 | `recipients[].language` | 收件人语言：zh-CN / ko-KR |

@@ -191,7 +191,7 @@ export default function PreferencesModal({ open, onClose }: Props) {
                 value={selected}
                 onChange={(values) => setIndustries((prev) => ({ ...prev, [mkt]: values }))}
                 options={options.map((i) => ({ value: i.key, label: i.label }))}
-                placeholder="选择偏好的行业"
+                placeholder={t("prefs.industries.placeholder")}
                 style={{ width: "100%" }}
               />
             )}
@@ -242,7 +242,7 @@ export default function PreferencesModal({ open, onClose }: Props) {
           </div>
         </Card>
       ))}
-      <Button icon={<DeleteOutlined />} onClick={addDeliveryEntry}>{t("prefs.delivery.addEmail")}</Button>
+      <Button icon={<MailOutlined />} onClick={addDeliveryEntry}>{t("prefs.delivery.addEmail")}</Button>
     </div>
   );
 

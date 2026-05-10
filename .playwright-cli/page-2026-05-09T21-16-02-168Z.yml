@@ -1,0 +1,45 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - img "stock" [ref=e7]:
+        - img [ref=e8]
+      - generic [ref=e10]: Invest Brief
+    - generic [ref=e11]:
+      - button "美股" [ref=e12] [cursor=pointer]
+      - button "A股" [ref=e13] [cursor=pointer]
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - button "中" [ref=e16] [cursor=pointer]
+        - button "한" [ref=e17] [cursor=pointer]
+      - button "reload 刷新" [ref=e18] [cursor=pointer]:
+        - img "reload" [ref=e19]:
+          - img [ref=e20]
+        - text: 刷新
+      - img "user" [ref=e23]:
+        - img [ref=e24]
+  - generic [ref=e27]:
+    - generic [ref=e30]:
+      - heading [level=3] [ref=e31]
+      - list [ref=e32]:
+        - listitem [ref=e33]
+        - listitem [ref=e34]
+    - generic [ref=e37]:
+      - heading [level=3] [ref=e38]
+      - list [ref=e39]:
+        - listitem [ref=e40]
+        - listitem [ref=e41]
+    - generic [ref=e44]:
+      - heading [level=3] [ref=e45]
+      - list [ref=e46]:
+        - listitem [ref=e47]
+        - listitem [ref=e48]
+    - generic [ref=e51]:
+      - heading [level=3] [ref=e52]
+      - list [ref=e53]:
+        - listitem [ref=e54]
+        - listitem [ref=e55]
+    - generic [ref=e58]:
+      - heading [level=3] [ref=e59]
+      - list [ref=e60]:
+        - listitem [ref=e61]
+        - listitem [ref=e62]

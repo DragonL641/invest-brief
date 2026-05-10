@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const client = axios.create({ baseURL: "/api" });
+const client = axios.create({ baseURL: "/api", timeout: 60000 });
 
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
@@ -11,7 +11,7 @@ client.interceptors.request.use((config) => {
 client.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    if (err.response?.status === 401 && !err.config.url?.includes("/auth/login")) {
       localStorage.removeItem("token");
       window.location.href = "/login";
     }

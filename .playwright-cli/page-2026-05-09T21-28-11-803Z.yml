@@ -1,0 +1,567 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - img "stock" [ref=e7]:
+        - img [ref=e8]
+      - generic [ref=e10]: Invest Brief
+    - generic [ref=e11]:
+      - button "美股" [ref=e12] [cursor=pointer]
+      - button "A股" [active] [ref=e13] [cursor=pointer]
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - button "中" [ref=e16] [cursor=pointer]
+        - button "한" [ref=e17] [cursor=pointer]
+      - button "reload 刷新" [ref=e18] [cursor=pointer]:
+        - img "reload" [ref=e19]:
+          - img [ref=e20]
+        - text: 刷新
+      - generic [ref=e22]: 最后更新 2026.5.10 05:21
+      - img "user" [ref=e24]:
+        - img [ref=e25]
+  - generic [ref=e27]:
+    - navigation [ref=e1094]:
+      - button "市场概览" [ref=e1095] [cursor=pointer]: 市场概览
+      - button "市场新闻" [ref=e1097] [cursor=pointer]
+      - button "经济日历" [ref=e1098] [cursor=pointer]
+      - button "我的自选" [ref=e1099] [cursor=pointer]
+      - button "推荐关注" [ref=e1100] [cursor=pointer]
+    - generic [ref=e35]:
+      - generic [ref=e1102]:
+        - heading "市场概览" [level=2] [ref=e1103]
+        - generic [ref=e1104]:
+          - generic [ref=e1105]:
+            - generic [ref=e1106]: 上证指数
+            - generic [ref=e1107]: 4,179.95
+            - generic [ref=e1108]: +0.00%
+          - generic [ref=e1109]:
+            - generic [ref=e1110]: 深证成指
+            - generic [ref=e1111]: 15,563.80
+            - generic [ref=e1112]: "-0.50%"
+          - generic [ref=e1113]:
+            - generic [ref=e1114]: 创业板指
+            - generic [ref=e1115]: 3,796.13
+            - generic [ref=e1116]: "-0.96%"
+          - generic [ref=e1117]:
+            - generic [ref=e1118]: 沪深300
+            - generic [ref=e1119]: 4,871.91
+            - generic [ref=e1120]: "-0.58%"
+          - generic [ref=e1121]:
+            - generic [ref=e1122]: 科创50
+            - generic [ref=e1123]: 1,640.46
+            - generic [ref=e1124]: "-2.29%"
+      - generic [ref=e1126]:
+        - heading "市场新闻" [level=2] [ref=e1127]
+        - generic [ref=e1128]:
+          - generic [ref=e1129]:
+            - generic [ref=e1130]: 景顺长城顶流刘彦春“减负”，三只基金增聘，“团队化”成公募新方向
+            - generic [ref=e1132]: 界面新闻
+          - generic [ref=e1133]:
+            - generic [ref=e1134]: 造车再下一城：宁德时代落子土耳其
+            - generic [ref=e1136]: 财中社
+          - generic [ref=e1137]:
+            - generic [ref=e1138]: 100股今日获机构买入评级 12股上涨空间超20%
+            - generic [ref=e1140]: 证券时报网
+          - generic [ref=e1141]:
+            - generic [ref=e1142]: 锂电池板块掀涨停潮，碳酸锂价格重返20万创两年多来新高
+            - generic [ref=e1144]: 界面新闻
+          - generic [ref=e1145]:
+            - generic [ref=e1146]: 119股今日获机构买入评级 12股上涨空间超20%
+            - generic [ref=e1148]: 证券时报网
+          - generic [ref=e1149]:
+            - generic [ref=e1150]: 计算机行业资金流入榜：中科曙光、美利云等净流入资金居前
+            - generic [ref=e1152]: 证券时报网
+          - generic [ref=e1153]:
+            - generic [ref=e1154]: 宁德时代：完成配售H股 募资约391.23亿港元
+            - generic [ref=e1156]: 财联社
+          - generic [ref=e1157]:
+            - generic [ref=e1158]: 北方华创002371.SZ)：2026年一季报净利润为16.35亿元、同比较去年同期上涨3.42%
+            - generic [ref=e1160]: 界面新闻
+          - generic [ref=e1161]:
+            - generic [ref=e1162]: 北方华创：Q1归母净利润为16.35亿元，同比上升3.42%
+            - generic [ref=e1164]: 财中社
+          - generic [ref=e1165]:
+            - generic [ref=e1166]: 北方华创：一季度净利润16.35亿元 同比增长3.42%
+            - generic [ref=e1168]: 证券时报网
+          - generic [ref=e1169]:
+            - generic [ref=e1170]: 北方华创：一季度净利润同比增长3.42%
+            - generic [ref=e1172]: 科创板日报
+          - generic [ref=e1173]:
+            - generic [ref=e1174]: 科大讯飞拟每10股派发现金红利1元
+            - generic [ref=e1176]: 财中社
+          - generic [ref=e1177]:
+            - generic [ref=e1178]: 科大讯飞002230.SZ)：2025年年报净利润为8.39亿元
+            - generic [ref=e1180]: 界面新闻
+          - generic [ref=e1181]:
+            - generic [ref=e1182]: 科大讯飞002230.SZ)：2026年一季报净利润为-1.70亿元
+            - generic [ref=e1184]: 界面新闻
+          - generic [ref=e1185]:
+            - generic [ref=e1186]: 2026年一季报净利润为207.38亿元、宁德时代300750.SZ)较去年同期上涨48.52%
+            - generic [ref=e1188]: 界面新闻
+      - generic [ref=e1190]:
+        - heading "经济日历" [level=2] [ref=e1191]
+        - table [ref=e1198]:
+          - rowgroup [ref=e1204]:
+            - row "日期 事件 重要性 前值" [ref=e1205]:
+              - columnheader "日期" [ref=e1206]
+              - columnheader "事件" [ref=e1207]
+              - columnheader "重要性" [ref=e1208]
+              - columnheader "前值" [ref=e1209]
+          - rowgroup [ref=e1210]:
+            - row "2026-05-20 LPR 报价 high --" [ref=e1211]:
+              - cell "2026-05-20" [ref=e1212]
+              - cell "LPR 报价" [ref=e1213]
+              - cell "high" [ref=e1214]
+              - cell "--" [ref=e1215]
+            - row "2026-05-31 官方 PMI high --" [ref=e1216]:
+              - cell "2026-05-31" [ref=e1217]
+              - cell "官方 PMI" [ref=e1218]
+              - cell "high" [ref=e1219]
+              - cell "--" [ref=e1220]
+            - row "2026-06-03 财新 PMI medium --" [ref=e1221]:
+              - cell "2026-06-03" [ref=e1222]
+              - cell "财新 PMI" [ref=e1223]
+              - cell "medium" [ref=e1224]
+              - cell "--" [ref=e1225]
+      - generic [ref=e1227]:
+        - generic [ref=e1228]:
+          - heading "我的自选" [level=2] [ref=e1229]
+          - button "plus 添加自选" [ref=e1230] [cursor=pointer]:
+            - img "plus" [ref=e1231]:
+              - img [ref=e1232]
+            - text: 添加自选
+        - generic [ref=e1235]:
+          - generic [ref=e1236]:
+            - generic [ref=e1237]:
+              - generic [ref=e1238]:
+                - generic [ref=e1239]: "002371"
+                - generic [ref=e1240]: 北方华创
+              - generic [ref=e1241]:
+                - generic [ref=e1242]: "540.79"
+                - generic [ref=e1243]: "-2.06%"
+            - generic [ref=e1244]:
+              - generic [ref=e1245]:
+                - generic [ref=e1246]: 市值
+                - generic [ref=e1247]: "--"
+              - generic [ref=e1248]:
+                - generic [ref=e1249]: P/E
+                - generic [ref=e1250]: "--"
+              - generic [ref=e1251]:
+                - generic [ref=e1252]: Beta
+                - generic [ref=e1253]: "--"
+              - generic [ref=e1254]:
+                - generic [ref=e1255]: 52周范围
+                - generic [ref=e1256]: "--"
+            - generic [ref=e1257]:
+              - generic [ref=e1258]:
+                - generic [ref=e1259]: 技术指标
+                - generic [ref=e1260]:
+                  - generic [ref=e1261]:
+                    - generic [ref=e1262]:
+                      - text: RSI
+                      - generic [ref=e1264]: i
+                    - generic [ref=e1265]: "--"
+                  - generic [ref=e1266]:
+                    - generic [ref=e1267]:
+                      - text: SMA 50
+                      - generic [ref=e1269]: i
+                    - generic [ref=e1270]: "--"
+                  - generic [ref=e1271]:
+                    - generic [ref=e1272]:
+                      - text: SMA 200
+                      - generic [ref=e1274]: i
+                    - generic [ref=e1275]: "--"
+                  - generic [ref=e1276]:
+                    - generic [ref=e1277]:
+                      - text: MACD
+                      - generic [ref=e1279]: i
+                    - generic [ref=e1280]: "--"
+              - generic [ref=e1281]:
+                - generic [ref=e1282]: EPS 预估
+                - generic [ref=e1283]:
+                  - generic [ref=e1284]:
+                    - generic [ref=e1285]:
+                      - text: 本季度
+                      - generic [ref=e1287]: i
+                    - generic [ref=e1288]: "--"
+                  - generic [ref=e1289]:
+                    - generic [ref=e1290]:
+                      - text: 下季度
+                      - generic [ref=e1292]: i
+                    - generic [ref=e1293]: "--"
+                  - generic [ref=e1294]:
+                    - generic [ref=e1295]:
+                      - text: 惊喜
+                      - generic [ref=e1297]: i
+                    - generic [ref=e1298]: "--"
+              - generic [ref=e1299]:
+                - generic [ref=e1300]: 内部人交易
+                - text: "--"
+            - iframe [ref=e1303]:
+              - generic [ref=f85e2]:
+                - toolbar [ref=f85e6]:
+                  - generic [ref=f85e10]:
+                    - generic [ref=f85e12]:
+                      - radiogroup [ref=f85e13]:
+                        - radio "1 minute" [disabled] [ref=f85e14]:
+                          - generic [ref=f85e16]: 1m
+                        - radio "30 minutes" [disabled] [ref=f85e17]:
+                          - generic [ref=f85e19]: 30m
+                        - radio "1 hour" [disabled] [ref=f85e20]:
+                          - generic [ref=f85e22]: 1h
+                        - radio "1 day" [checked] [ref=f85e23]:
+                          - generic [ref=f85e25]: D
+                      - button "Chart interval" [ref=f85e26]:
+                        - img [ref=f85e29]:
+                          - img [ref=f85e30]
+                    - generic [ref=f85e35]:
+                      - radiogroup [ref=f85e36]:
+                        - radio "Bars" [ref=f85e37]:
+                          - img [ref=f85e38]:
+                            - img [ref=f85e39]
+                        - radio "Candles" [checked] [ref=f85e41]:
+                          - img [ref=f85e42]:
+                            - img [ref=f85e43]
+                        - radio "Area" [ref=f85e48]:
+                          - img [ref=f85e49]:
+                            - img [ref=f85e50]
+                      - button "Bar's style" [ref=f85e52]:
+                        - img [ref=f85e55]:
+                          - img [ref=f85e56]
+                    - button "Compare symbols" [ref=f85e61]:
+                      - img [ref=f85e62]:
+                        - img [ref=f85e63]
+                    - button "Indicators, metrics, and strategies" [ref=f85e70]:
+                      - img [ref=f85e71]:
+                        - img [ref=f85e72]
+                      - generic [ref=f85e75]: Indicators
+                - 'region "Chart #1" [ref=f85e80]':
+                  - generic [ref=f85e84]:
+                    - generic:
+                      - generic:
+                        - toolbar:
+                          - generic:
+                            - generic [ref=f85e85]:
+                              - generic [ref=f85e86]:
+                                - generic [ref=f85e87]:
+                                  - img [ref=f85e89]
+                                  - generic [ref=f85e90]: "0"
+                                - generic [ref=f85e91]: SZSE:002371
+                              - generic "Change interval" [ref=f85e92]:
+                                - text: ·
+                                - button "Change interval" [ref=f85e93]: 1D
+                            - generic:
+                              - generic:
+                                - button "More":
+                                  - generic:
+                                    - img
+                            - button "Market closed · End of day data" [ref=f85e95]:
+                              - img [ref=f85e96]:
+                                - img [ref=f85e97]
+                              - img [ref=f85e99]:
+                                - img [ref=f85e100]
+                          - generic [ref=f85e103]:
+                            - generic [ref=f85e104]:
+                              - generic [ref=f85e105]: O
+                              - generic [ref=f85e106]: ∅
+                            - generic [ref=f85e107]:
+                              - generic [ref=f85e108]: H
+                              - generic [ref=f85e109]: ∅
+                            - generic [ref=f85e110]:
+                              - generic [ref=f85e111]: L
+                              - generic [ref=f85e112]: ∅
+                            - generic [ref=f85e113]:
+                              - generic [ref=f85e114]: C
+                              - generic [ref=f85e115]: ∅
+                            - generic [ref=f85e117]: ∅ (∅%)
+                    - generic "Chart for SZSE_EOD:002371, 1 day" [ref=f85e119]
+          - generic [ref=e1304]:
+            - generic [ref=e1305]:
+              - generic [ref=e1306]:
+                - generic [ref=e1307]: "300750"
+                - generic [ref=e1308]: 宁德时代
+              - generic [ref=e1309]:
+                - generic [ref=e1310]: "437.00"
+                - generic [ref=e1311]: "-3.24%"
+            - generic [ref=e1312]:
+              - generic [ref=e1313]:
+                - generic [ref=e1314]: 市值
+                - generic [ref=e1315]: "--"
+              - generic [ref=e1316]:
+                - generic [ref=e1317]: P/E
+                - generic [ref=e1318]: "--"
+              - generic [ref=e1319]:
+                - generic [ref=e1320]: Beta
+                - generic [ref=e1321]: "--"
+              - generic [ref=e1322]:
+                - generic [ref=e1323]: 52周范围
+                - generic [ref=e1324]: "--"
+            - generic [ref=e1325]:
+              - generic [ref=e1326]:
+                - generic [ref=e1327]: 技术指标
+                - generic [ref=e1328]:
+                  - generic [ref=e1329]:
+                    - generic [ref=e1330]:
+                      - text: RSI
+                      - generic [ref=e1332]: i
+                    - generic [ref=e1333]: "--"
+                  - generic [ref=e1334]:
+                    - generic [ref=e1335]:
+                      - text: SMA 50
+                      - generic [ref=e1337]: i
+                    - generic [ref=e1338]: "--"
+                  - generic [ref=e1339]:
+                    - generic [ref=e1340]:
+                      - text: SMA 200
+                      - generic [ref=e1342]: i
+                    - generic [ref=e1343]: "--"
+                  - generic [ref=e1344]:
+                    - generic [ref=e1345]:
+                      - text: MACD
+                      - generic [ref=e1347]: i
+                    - generic [ref=e1348]: "--"
+              - generic [ref=e1349]:
+                - generic [ref=e1350]: EPS 预估
+                - generic [ref=e1351]:
+                  - generic [ref=e1352]:
+                    - generic [ref=e1353]:
+                      - text: 本季度
+                      - generic [ref=e1355]: i
+                    - generic [ref=e1356]: "--"
+                  - generic [ref=e1357]:
+                    - generic [ref=e1358]:
+                      - text: 下季度
+                      - generic [ref=e1360]: i
+                    - generic [ref=e1361]: "--"
+                  - generic [ref=e1362]:
+                    - generic [ref=e1363]:
+                      - text: 惊喜
+                      - generic [ref=e1365]: i
+                    - generic [ref=e1366]: "--"
+              - generic [ref=e1367]:
+                - generic [ref=e1368]: 内部人交易
+                - text: "--"
+            - iframe [ref=e1371]:
+              - generic [ref=f86e2]:
+                - toolbar [ref=f86e6]:
+                  - generic [ref=f86e10]:
+                    - generic [ref=f86e12]:
+                      - radiogroup [ref=f86e13]:
+                        - radio "1 minute" [disabled] [ref=f86e14]:
+                          - generic [ref=f86e16]: 1m
+                        - radio "30 minutes" [disabled] [ref=f86e17]:
+                          - generic [ref=f86e19]: 30m
+                        - radio "1 hour" [disabled] [ref=f86e20]:
+                          - generic [ref=f86e22]: 1h
+                        - radio "1 day" [checked] [ref=f86e23]:
+                          - generic [ref=f86e25]: D
+                      - button "Chart interval" [ref=f86e26]:
+                        - img [ref=f86e29]:
+                          - img [ref=f86e30]
+                    - generic [ref=f86e35]:
+                      - radiogroup [ref=f86e36]:
+                        - radio "Bars" [ref=f86e37]:
+                          - img [ref=f86e38]:
+                            - img [ref=f86e39]
+                        - radio "Candles" [checked] [ref=f86e41]:
+                          - img [ref=f86e42]:
+                            - img [ref=f86e43]
+                        - radio "Area" [ref=f86e48]:
+                          - img [ref=f86e49]:
+                            - img [ref=f86e50]
+                      - button "Bar's style" [ref=f86e52]:
+                        - img [ref=f86e55]:
+                          - img [ref=f86e56]
+                    - button "Compare symbols" [ref=f86e61]:
+                      - img [ref=f86e62]:
+                        - img [ref=f86e63]
+                    - button "Indicators, metrics, and strategies" [ref=f86e70]:
+                      - img [ref=f86e71]:
+                        - img [ref=f86e72]
+                      - generic [ref=f86e75]: Indicators
+                - 'region "Chart #1" [ref=f86e80]':
+                  - generic [ref=f86e84]:
+                    - generic:
+                      - generic:
+                        - toolbar:
+                          - generic:
+                            - generic [ref=f86e85]:
+                              - generic [ref=f86e86]:
+                                - generic [ref=f86e87]:
+                                  - img [ref=f86e89]
+                                  - generic [ref=f86e90]: "3"
+                                - generic [ref=f86e91]: SZSE:300750
+                              - generic "Change interval" [ref=f86e92]:
+                                - text: ·
+                                - button "Change interval" [ref=f86e93]: 1D
+                            - generic:
+                              - generic:
+                                - button "More":
+                                  - generic:
+                                    - img
+                            - button "Market closed · End of day data · Halal symbol" [ref=f86e95]:
+                              - img [ref=f86e96]:
+                                - img [ref=f86e97]
+                              - img [ref=f86e99]:
+                                - img [ref=f86e100]
+                              - img [ref=f86e102]:
+                                - img [ref=f86e103]
+                          - generic [ref=f86e107]:
+                            - generic [ref=f86e108]:
+                              - generic [ref=f86e109]: O
+                              - generic [ref=f86e110]: ∅
+                            - generic [ref=f86e111]:
+                              - generic [ref=f86e112]: H
+                              - generic [ref=f86e113]: ∅
+                            - generic [ref=f86e114]:
+                              - generic [ref=f86e115]: L
+                              - generic [ref=f86e116]: ∅
+                            - generic [ref=f86e117]:
+                              - generic [ref=f86e118]: C
+                              - generic [ref=f86e119]: ∅
+                            - generic [ref=f86e121]: ∅ (∅%)
+                    - generic "Chart for SZSE_EOD:300750, 1 day" [ref=f86e123]
+          - generic [ref=e1372]:
+            - generic [ref=e1373]:
+              - generic [ref=e1374]:
+                - generic [ref=e1375]: "002230"
+                - generic [ref=e1376]: 科大讯飞
+              - generic [ref=e1377]:
+                - generic [ref=e1378]: "49.91"
+                - generic [ref=e1379]: "-0.14%"
+            - generic [ref=e1380]:
+              - generic [ref=e1381]:
+                - generic [ref=e1382]: 市值
+                - generic [ref=e1383]: "--"
+              - generic [ref=e1384]:
+                - generic [ref=e1385]: P/E
+                - generic [ref=e1386]: "--"
+              - generic [ref=e1387]:
+                - generic [ref=e1388]: Beta
+                - generic [ref=e1389]: "--"
+              - generic [ref=e1390]:
+                - generic [ref=e1391]: 52周范围
+                - generic [ref=e1392]: "--"
+            - generic [ref=e1393]:
+              - generic [ref=e1394]:
+                - generic [ref=e1395]: 技术指标
+                - generic [ref=e1396]:
+                  - generic [ref=e1397]:
+                    - generic [ref=e1398]:
+                      - text: RSI
+                      - generic [ref=e1400]: i
+                    - generic [ref=e1401]: "--"
+                  - generic [ref=e1402]:
+                    - generic [ref=e1403]:
+                      - text: SMA 50
+                      - generic [ref=e1405]: i
+                    - generic [ref=e1406]: "--"
+                  - generic [ref=e1407]:
+                    - generic [ref=e1408]:
+                      - text: SMA 200
+                      - generic [ref=e1410]: i
+                    - generic [ref=e1411]: "--"
+                  - generic [ref=e1412]:
+                    - generic [ref=e1413]:
+                      - text: MACD
+                      - generic [ref=e1415]: i
+                    - generic [ref=e1416]: "--"
+              - generic [ref=e1417]:
+                - generic [ref=e1418]: EPS 预估
+                - generic [ref=e1419]:
+                  - generic [ref=e1420]:
+                    - generic [ref=e1421]:
+                      - text: 本季度
+                      - generic [ref=e1423]: i
+                    - generic [ref=e1424]: "--"
+                  - generic [ref=e1425]:
+                    - generic [ref=e1426]:
+                      - text: 下季度
+                      - generic [ref=e1428]: i
+                    - generic [ref=e1429]: "--"
+                  - generic [ref=e1430]:
+                    - generic [ref=e1431]:
+                      - text: 惊喜
+                      - generic [ref=e1433]: i
+                    - generic [ref=e1434]: "--"
+              - generic [ref=e1435]:
+                - generic [ref=e1436]: 内部人交易
+                - text: "--"
+            - iframe [ref=e1439]:
+              - generic [ref=f87e2]:
+                - toolbar [ref=f87e6]:
+                  - generic [ref=f87e10]:
+                    - generic [ref=f87e12]:
+                      - radiogroup [ref=f87e13]:
+                        - radio "1 minute" [disabled] [ref=f87e14]:
+                          - generic [ref=f87e16]: 1m
+                        - radio "30 minutes" [disabled] [ref=f87e17]:
+                          - generic [ref=f87e19]: 30m
+                        - radio "1 hour" [disabled] [ref=f87e20]:
+                          - generic [ref=f87e22]: 1h
+                        - radio "1 day" [checked] [ref=f87e23]:
+                          - generic [ref=f87e25]: D
+                      - button "Chart interval" [ref=f87e26]:
+                        - img [ref=f87e29]:
+                          - img [ref=f87e30]
+                    - generic [ref=f87e35]:
+                      - radiogroup [ref=f87e36]:
+                        - radio "Bars" [ref=f87e37]:
+                          - img [ref=f87e38]:
+                            - img [ref=f87e39]
+                        - radio "Candles" [checked] [ref=f87e41]:
+                          - img [ref=f87e42]:
+                            - img [ref=f87e43]
+                        - radio "Area" [ref=f87e48]:
+                          - img [ref=f87e49]:
+                            - img [ref=f87e50]
+                      - button "Bar's style" [ref=f87e52]:
+                        - img [ref=f87e55]:
+                          - img [ref=f87e56]
+                    - button "Compare symbols" [ref=f87e61]:
+                      - img [ref=f87e62]:
+                        - img [ref=f87e63]
+                    - button "Indicators, metrics, and strategies" [ref=f87e70]:
+                      - img [ref=f87e71]:
+                        - img [ref=f87e72]
+                      - generic [ref=f87e75]: Indicators
+                - 'region "Chart #1" [ref=f87e80]':
+                  - generic [ref=f87e84]:
+                    - generic:
+                      - generic:
+                        - toolbar:
+                          - generic:
+                            - generic [ref=f87e85]:
+                              - generic [ref=f87e86]:
+                                - generic [ref=f87e87]:
+                                  - img [ref=f87e89]
+                                  - generic [ref=f87e90]: "0"
+                                - generic [ref=f87e91]: SZSE:002230
+                              - generic "Change interval" [ref=f87e92]:
+                                - text: ·
+                                - button "Change interval" [ref=f87e93]: 1D
+                            - generic:
+                              - generic:
+                                - button "More":
+                                  - generic:
+                                    - img
+                          - generic [ref=f87e95]:
+                            - generic [ref=f87e96]:
+                              - generic [ref=f87e97]: O
+                              - generic [ref=f87e98]: ∅
+                            - generic [ref=f87e99]:
+                              - generic [ref=f87e100]: H
+                              - generic [ref=f87e101]: ∅
+                            - generic [ref=f87e102]:
+                              - generic [ref=f87e103]: L
+                              - generic [ref=f87e104]: ∅
+                            - generic [ref=f87e105]:
+                              - generic [ref=f87e106]: C
+                              - generic [ref=f87e107]: ∅
+                            - generic [ref=f87e109]: ∅ (∅%)
+                    - generic "Chart for SZSE_EOD:002230, 1 day" [ref=f87e116]
+      - generic [ref=e1441]:
+        - heading "推荐关注" [level=2] [ref=e1442]
+        - generic [ref=e1444]: 暂无推荐数据，数据源暂时不可用
+  - button "robot" [ref=e1445] [cursor=pointer]:
+    - img "robot" [ref=e1446]:
+      - img [ref=e1447]
