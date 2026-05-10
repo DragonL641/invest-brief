@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from investbrief.web.routers import auth, data, watchlist, chat, preferences, email
+from investbrief.web.routers import auth, data, stocks, chat, preferences, email
 
 
 def create_app() -> FastAPI:
@@ -15,7 +15,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(data.router)
-    app.include_router(watchlist.router)
+    app.include_router(stocks.router)
     app.include_router(chat.router)
     app.include_router(preferences.router)
     app.include_router(email.router)

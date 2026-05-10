@@ -20,19 +20,6 @@ class UserInfo(BaseModel):
     markets: dict
 
 
-class WatchlistItem(BaseModel):
-    symbol: str
-    name: str
-    market: str
-
-
-class WatchlistResponse(BaseModel):
-    id: str
-    symbol: str
-    name: str
-    market: str
-
-
 class ChatRequest(BaseModel):
     message: str
     market: str
@@ -55,6 +42,12 @@ class StatusResponse(BaseModel):
 
 
 class HoldingItem(BaseModel):
+    symbol: str
+    name: str
+
+
+class AddHoldingRequest(BaseModel):
+    market: str
     symbol: str
     name: str
 

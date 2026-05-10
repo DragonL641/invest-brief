@@ -17,7 +17,7 @@ import logging
 from dotenv import load_dotenv
 
 # Load credentials from project root .env
-load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env", override=False)
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +213,17 @@ class FinnhubClient:
             })
 
         return news_items
+
+    def search_symbol(self, query: str) -> list[dict]:
+        """Search for stock symbols matching query."""
+        data = self._request("search", {"q": query})
+        if not data:
+            return []
+        return [
+            {"symbol": r.get("displaySymbol", ""), "name": r.get("description", "")}
+            for r in data.get("result", [])
+            if r.get("type") == "Common Stock" and r.get("displaySymbol")
+        ][:20]
 
 
 class AlphaVantageClient:
@@ -816,7 +827,7 @@ class YFinanceClient:
             return None
 
     def get_insider_transactions(self, symbol: str, limit: int = 10) -> Optional[List[Dict[str, Any]]]:
-        """Get recent insider transactions (last 90 days)."""
+        """Get recent insider buy transactions (last 30 days)."""
         if not self.enabled:
             return None
         try:
@@ -824,35 +835,27 @@ class YFinanceClient:
             df = t.insider_transactions
             if df is None or df.empty:
                 return None
-            # Filter to last 90 days using Start Date column
+            # Filter to last 30 days
             if 'Start Date' in df.columns:
-                cutoff = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+                cutoff = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
                 df['_date_str'] = df['Start Date'].astype(str).str[:10]
                 df = df[df['_date_str'] >= cutoff]
                 df = df.drop(columns=['_date_str'])
                 if df.empty:
                     return None
             results = []
-            for idx, row in df.head(limit * 2).iterrows():
-                # Extract action from Text field (e.g. "Sale at price ...")
+            for idx, row in df.head(limit * 3).iterrows():
                 text = row.get("Text", "")
-                if "Buy" in str(text):
-                    action = "Buy"
-                elif "Sale" in str(text):
-                    action = "Sale"
-                else:
-                    action = row.get("Transaction", "") or ""
-                # Skip records with no action info
-                if not action:
+                # Only keep buy transactions
+                if "Buy" not in str(text):
                     continue
-                # Date: keep only date part
                 date_str = str(row.get("Start Date", ""))[:10]
                 results.append({
                     "insider": row.get("Insider", ""),
                     "position": row.get("Position", ""),
                     "shares": int(row.get("Shares", 0)),
                     "value": float(row.get("Value", 0)) if row.get("Value") else None,
-                    "transaction": action,
+                    "transaction": "Buy",
                     "date": date_str,
                     "text": text,
                 })
