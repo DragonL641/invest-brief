@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 interface NewsItem {
   title: string;
@@ -24,23 +25,22 @@ function sentimentColor(s: string): string {
   return "#494fdf";
 }
 
-function sentimentLabel(s: string): string {
+function sentimentLabel(s: string, t: TFunction): string {
   if (!s) return "--";
   const lower = s.toLowerCase();
-  if (lower.includes("positive") || lower.includes("正面")) return "正面";
-  if (lower.includes("negative") || lower.includes("负面")) return "负面";
-  if (lower.includes("neutral") || lower.includes("中性")) return "中性";
-  if (lower.includes("긍정")) return "긍정";
-  if (lower.includes("부정")) return "부정";
-  if (lower.includes("중립")) return "중립";
+  if (lower.includes("positive") || lower.includes("正面") || lower.includes("긍정")) return t("sentiment.positive");
+  if (lower.includes("negative") || lower.includes("负面") || lower.includes("부정")) return t("sentiment.negative");
+  if (lower.includes("neutral") || lower.includes("中性") || lower.includes("중립")) return t("sentiment.neutral");
   return s;
 }
 
 function splitSummary(text: string): string[] {
-  const parts = text.split(/[；;]/).map((s) => s.trim()).filter(Boolean);
-  if (parts.length > 1) return parts;
-  const byPeriod = text.split(/[。.]/).map((s) => s.trim()).filter(Boolean);
-  if (byPeriod.length > 1) return byPeriod;
+  // LLM output: each point on its own line
+  const byLine = text.split(/\n/).map((s) => s.replace(/^[-•*\d.、)\s]+/, "").trim()).filter(Boolean);
+  if (byLine.length > 1) return byLine;
+  // Fallback: split on Chinese semicolons
+  const bySemicolon = text.split(/[；;]/).map((s) => s.trim()).filter(Boolean);
+  if (bySemicolon.length > 1) return bySemicolon;
   return [text];
 }
 
@@ -102,7 +102,7 @@ export default function NewsList({ news }: NewsListProps) {
                       fontWeight: 600,
                     }}
                   >
-                    {sentimentLabel(item.sentiment)}
+                    {sentimentLabel(item.sentiment, t)}
                   </span>
                 )}
                 {item.url && (

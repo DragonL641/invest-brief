@@ -100,9 +100,11 @@ def _translate_news(items: list[dict], language: str, market: str) -> list[dict]
         )
 
         prompt = (
-            f"Translate the following news items from {source_lang} to {target_lang}. "
-            f"Return a JSON array of objects with 'title' and 'summary' fields, same order. "
-            f"Only output the JSON array, nothing else.\n\n{payload}"
+            f"将以下新闻从{source_lang}翻译为{target_lang}。"
+            f"返回 JSON 数组，每项含 title 和 summary 字段，顺序不变。"
+            f"summary 要求：提炼为 2-3 个要点，每点一行，用换行符分隔，不要编号或前缀符号。"
+            f"每个要点简洁（不超过 40 字），避免冗长叙述。"
+            f"只输出 JSON 数组，不要其他内容。\n\n{payload}"
         )
 
         resp = client.messages.create(
