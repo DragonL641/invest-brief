@@ -9,7 +9,7 @@ export default function InfoTooltip({ text }: InfoTooltipProps) {
 
   return (
     <span
-      style={{ position: "relative", display: "inline-flex", alignItems: "center", marginLeft: 4, cursor: "help" }}
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", marginLeft: 4, cursor: "help", flexShrink: 0 }}
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
     >
@@ -43,7 +43,7 @@ export default function InfoTooltip({ text }: InfoTooltipProps) {
             borderRadius: 6,
             fontSize: 11,
             lineHeight: 1.4,
-            width: 200,
+            width: 180,
             whiteSpace: "normal",
             zIndex: 50,
             boxShadow: "0 2px 8px rgba(0,0,0,0.4)",

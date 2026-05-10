@@ -8,6 +8,9 @@ Provides clients for:
 """
 
 import os
+import math
+import time
+import threading
 import requests
 from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
@@ -20,6 +23,30 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env", override=False)
 
 logger = logging.getLogger(__name__)
+
+_HIGH_IMPORTANCE_PATTERNS = [
+    "cpi", "consumer price", "non farm", "employment situation",
+    "fomc", "federal funds", "interest rate", "gdp", "gross domestic",
+    "pce", "personal consumption", "unemployment rate",
+]
+
+
+def _classify_economic_importance(event_name: str) -> str:
+    lower = event_name.lower()
+    for pattern in _HIGH_IMPORTANCE_PATTERNS:
+        if pattern in lower:
+            return "high"
+    return "medium"
+
+
+def _fmt_econ_value(val) -> Optional[str]:
+    if val is None:
+        return None
+    if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+        return None
+    if isinstance(val, float):
+        return f"{val:.1f}"
+    return str(val) if val != "" else None
 
 # Environment variable names for API keys
 ENV_KEYS = {
@@ -646,6 +673,10 @@ class YFinanceClient:
     Provides: prices, analyst targets, upgrades/downgrades, EPS, insider trades.
     """
 
+    _MIN_INTERVAL = 0.4  # seconds between yfinance requests
+    _lock = threading.Lock()
+    _last_request = 0.0
+
     def __init__(self):
         try:
             import yfinance
@@ -655,8 +686,23 @@ class YFinanceClient:
             self._yf = None
             self.enabled = False
         self._ticker_cache: dict = {}
+        self._history_cache: dict = {}
+        self._max_cache = 50
+
+    @classmethod
+    def _throttle(cls):
+        """Block until enough time has passed since the last yfinance request."""
+        with cls._lock:
+            now = time.monotonic()
+            wait = cls._MIN_INTERVAL - (now - cls._last_request)
+            if wait > 0:
+                time.sleep(wait)
+            cls._last_request = time.monotonic()
 
     def _ticker(self, symbol: str):
+        if len(self._ticker_cache) > self._max_cache:
+            oldest = next(iter(self._ticker_cache))
+            del self._ticker_cache[oldest]
         if symbol not in self._ticker_cache:
             self._ticker_cache[symbol] = self._yf.Ticker(symbol)
         return self._ticker_cache[symbol]
@@ -668,6 +714,7 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
+            self._throttle()
             t = self._ticker(symbol)
             fi = t.fast_info
             current = float(fi.last_price) if fi.last_price else None
@@ -701,6 +748,7 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
+            self._throttle()
             t = self._ticker(symbol)
             targets = t.analyst_price_targets
             if not targets or not targets.get("mean"):
@@ -722,6 +770,7 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
+            self._throttle()
             t = self._ticker(symbol)
             df = t.upgrades_downgrades
             if df is None or df.empty:
@@ -751,6 +800,7 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
+            self._throttle()
             t = self._ticker(symbol)
             df = t.recommendations
             if df is None or df.empty:
@@ -775,6 +825,7 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
+            self._throttle()
             t = self._ticker(symbol)
             return t.info
         except Exception as e:
@@ -786,6 +837,7 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
+            self._throttle()
             t = self._ticker(symbol)
             df = t.earnings_estimate
             if df is None or df.empty:
@@ -809,6 +861,7 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
+            self._throttle()
             t = self._ticker(symbol)
             df = t.earnings_history
             if df is None or df.empty:
@@ -831,6 +884,7 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
+            self._throttle()
             t = self._ticker(symbol)
             df = t.insider_transactions
             if df is None or df.empty:
@@ -880,6 +934,7 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
+            self._throttle()
             t = self._ticker(symbol)
             df = t.history(period=period)
             if df is None or df.empty:
@@ -894,6 +949,7 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
+            self._throttle()
             t = self._ticker(symbol)
             info = t.info
             pre_price = info.get("preMarketPrice")
@@ -916,6 +972,7 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
+            self._throttle()
             t = self._ticker(symbol)
             cal = t.calendar
             if cal is None:
@@ -947,12 +1004,58 @@ class YFinanceClient:
             logger.warning(f"yfinance earnings_dates error ({symbol}): {e}")
             return None
 
-    def get_technical_indicators(self, symbol: str, period: str = "1y") -> Optional[Dict[str, Any]]:
+    def get_economic_calendar(
+        self, start: str = None, end: str = None, limit: int = 30
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Fetch US economic events calendar via yfinance Calendars API."""
+        if not self.enabled:
+            return None
+        try:
+            self._throttle()
+            import pandas as pd
+            cal = self._yf.Calendars(start=start, end=end)
+            df = cal.get_economic_events_calendar(limit=limit)
+            if df is None or df.empty:
+                return None
+
+            now = datetime.now()
+            results = []
+            for event_name, row in df.iterrows():
+                region = str(row.get("Region", ""))
+                if region and region != "US":
+                    continue
+
+                event_time = row.get("Event Time")
+                if event_time is None or not hasattr(event_time, "strftime"):
+                    continue
+
+                date_str = event_time.strftime("%Y-%m-%d")
+                days_away = (event_time.replace(tzinfo=None) - now).days
+                if days_away < -1:
+                    continue
+
+                results.append({
+                    "name": str(event_name),
+                    "date": date_str,
+                    "importance": _classify_economic_importance(str(event_name)),
+                    "days_away": days_away,
+                    "actual": _fmt_econ_value(row.get("Actual")),
+                    "forecast": _fmt_econ_value(row.get("Expected")),
+                    "previous": _fmt_econ_value(row.get("Last")),
+                })
+
+            results.sort(key=lambda x: x["days_away"])
+            return results if results else None
+        except Exception as e:
+            logger.warning(f"yfinance economic calendar error: {e}")
+            return None
+
+    def get_technical_indicators(self, symbol: str, period: str = "1y", history_df=None) -> Optional[Dict[str, Any]]:
         """Calculate RSI(14), SMA(50/200), MACD from yfinance history."""
         if not self.enabled:
             return None
         try:
-            df = self.get_history(symbol, period=period)
+            df = history_df if history_df is not None else self.get_history(symbol, period=period)
             if df is None or len(df) < 50:
                 return None
 

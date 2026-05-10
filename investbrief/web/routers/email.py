@@ -29,13 +29,16 @@ def trigger_email(
     if not markets:
         return EmailSendResponse(status="error", message="No markets configured")
 
+    logger.info(f"[email] user={user.get('name')} id={user['id']} body.market={body.market!r} resolved_markets={markets}")
+
     for m in markets:
         lock_key = f"email_lock:{user['id']}:{m}"
         if redis.get(lock_key):
             return EmailSendResponse(status="rate_limited", message=f"Please wait before sending another {m} email")
         redis.setex(lock_key, RATE_LIMIT_TTL, "1")
 
-    for m in markets:
+    for i, m in enumerate(markets):
+        logger.info(f"[email] adding background task #{i}: market={m}")
         background_tasks.add_task(send_email_for_user, m, user)
 
     return EmailSendResponse(status="started", message=f"Sending email for: {', '.join(markets)}")

@@ -1,6 +1,10 @@
 import json
+import logging
 import os
+
 import anthropic
+
+logger = logging.getLogger(__name__)
 
 
 def _get_client():
@@ -32,14 +36,24 @@ def stream_chat(message: str, market: str, market_data: dict, history: list[dict
 
     messages = history + [{"role": "user", "content": message}]
 
-    with client.messages.stream(
-        model=model,
-        max_tokens=1024,
-        system=system_prompt,
-        messages=messages,
-    ) as stream:
-        for text in stream.text_stream:
-            yield text
+    try:
+        with client.messages.stream(
+            model=model,
+            max_tokens=1024,
+            system=system_prompt,
+            messages=messages,
+        ) as stream:
+            for text in stream.text_stream:
+                yield text
+    except anthropic.AuthenticationError:
+        logger.error("Anthropic API authentication failed")
+        raise
+    except anthropic.RateLimitError:
+        logger.error("Anthropic API rate limit exceeded")
+        raise
+    except anthropic.APIError as e:
+        logger.error(f"Anthropic API error: {e}")
+        raise
 
 
 def analyze_section(section: str, market: str, section_data: dict) -> str:
@@ -52,9 +66,13 @@ def analyze_section(section: str, market: str, section_data: dict) -> str:
 
 要求：用中文回答，200-400字，分析当前状态、趋势、风险点，不给确定性建议"""
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.content[0].text
+    try:
+        response = client.messages.create(
+            model=model,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text
+    except anthropic.APIError as e:
+        logger.error(f"Section analysis API error: {e}")
+        raise

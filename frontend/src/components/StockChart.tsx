@@ -5,11 +5,12 @@ interface StockChartProps {
   symbol: string;
 }
 
+const CHART_HEIGHT = 400;
+
 const TV_LOCALE: Record<string, string> = { zh: "zh", ko: "ko" };
 
 function toTVSymbol(symbol: string): string {
   if (/^\d{6}$/.test(symbol)) {
-    // 6xxxxx = SSE (Shanghai), everything else (0xxxxx, 3xxxxx, 8xxxxx) = SZSE
     const exchange = /^6/.test(symbol) ? "SSE" : "SZSE";
     return `${exchange}:${symbol}`;
   }
@@ -28,13 +29,12 @@ export default function StockChart({ symbol }: StockChartProps) {
 
     const widget = document.createElement("div");
     widget.className = "tradingview-widget-container__widget";
-    widget.style.height = "300px";
+    widget.style.height = CHART_HEIGHT + "px";
     widget.style.width = "100%";
     el.appendChild(widget);
 
     const script = document.createElement("script");
-    script.src =
-      "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
     script.async = true;
     script.textContent = JSON.stringify({
       symbol: toTVSymbol(symbol),
@@ -47,7 +47,6 @@ export default function StockChart({ symbol }: StockChartProps) {
       hide_legend: true,
       save_image: false,
       allow_symbol_change: false,
-      autosize: true,
     });
     el.appendChild(script);
 
@@ -59,14 +58,16 @@ export default function StockChart({ symbol }: StockChartProps) {
   return (
     <div
       style={{
-        background: "#0a0a0a",
+        height: CHART_HEIGHT,
+        width: "100%",
+        background: "#0a0a0b",
         borderRadius: 8,
-        overflow: "hidden",
       }}
     >
       <div
         ref={containerRef}
         className="tradingview-widget-container"
+        style={{ height: "100%", width: "100%" }}
       />
     </div>
   );

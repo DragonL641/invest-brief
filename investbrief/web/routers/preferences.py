@@ -78,7 +78,7 @@ def update_preferences(
 
     result = update_recipient(user["id"], updates)
     if result is None:
-        return {"error": "user_not_found"}
+        raise HTTPException(status_code=500, detail="user_not_found")
 
     return {"status": "ok"}
 
@@ -105,6 +105,6 @@ def add_holding(
     }
     result = update_recipient(user["id"], updates)
     if result is None:
-        return {"error": "user_not_found"}
+        raise HTTPException(status_code=500, detail="user_not_found")
 
     return {"status": "ok"}

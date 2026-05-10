@@ -124,8 +124,9 @@ class USMarketProvider(MarketProvider):
                 data["insider_trades"] = insiders
 
         # 6-month chart
+        history = None
         if "chart_b64" not in data:
-            history = self.yf.get_history(symbol, period="6mo")
+            history = self.yf.get_history(symbol, period="1y")
             if history is not None and not history.empty:
                 chart_b64 = generate_stock_chart(symbol, history, period="6mo")
                 if chart_b64:
@@ -142,9 +143,11 @@ class USMarketProvider(MarketProvider):
                     for idx, row in history.iterrows()
                 ]
 
-        # Technical indicators
+        # Technical indicators — reuse history if already fetched
         if "technicals" not in data:
-            tech = self.yf.get_technical_indicators(symbol)
+            if history is None:
+                history = self.yf.get_history(symbol, period="1y")
+            tech = self.yf.get_technical_indicators(symbol, history_df=history)
             if tech:
                 data["technicals"] = tech
 
@@ -749,8 +752,20 @@ class USMarketProvider(MarketProvider):
             rsi_label = "超买" if rsi and rsi > 70 else "超卖" if rsi and rsi < 30 else ""
 
             macd_hist = techs.get("macd_hist", 0)
-            macd_label = "金叉" if macd_hist > 0 else "死叉"
+            macd_line = techs.get("macd_line", 0)
+            macd_signal = techs.get("macd_signal", 0)
+
+            # Nuanced MACD signal: combine histogram direction with MACD line position
+            if macd_hist > 0 and macd_line > 0:
+                macd_label = "强势金叉"
+            elif macd_hist > 0:
+                macd_label = "金叉"
+            elif macd_hist < 0 and macd_line < 0:
+                macd_label = "强势死叉"
+            else:
+                macd_label = "死叉"
             macd_color = "#27ae60" if macd_hist > 0 else "#e74c3c"
+            hist_color = "#27ae60" if macd_hist > 0 else "#e74c3c"
 
             html += f'''
   <div style="background:#f0f4f8; border-radius:6px; padding:10px; margin:8px 0; border-left:3px solid #3498db;">
@@ -768,7 +783,15 @@ class USMarketProvider(MarketProvider):
                 html += f'<span>MA200: {currency}{sma_200:.2f} ({sma2_pct:+.1f}%)</span>'
             if macd_hist is not None:
                 html += f'<span>MACD: <strong style="color:{macd_color}">{macd_label}</strong></span>'
-            html += '</div></div>'
+            html += '</div>'
+            # MACD detail row
+            if macd_line is not None:
+                html += f'''<div style="display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:#7f8c8d; margin-top:6px;">
+      <span>DIF: {macd_line:.4f}</span>
+      <span>DEA: {macd_signal:.4f}</span>
+      <span>柱状图: <strong style="color:{hist_color}">{macd_hist:.4f}</strong></span>
+    </div>'''
+            html += '</div>'
 
         # Insider buys
         insiders = stock.get("insider_trades")
@@ -836,9 +859,11 @@ class USMarketProvider(MarketProvider):
         """Render a guidance tip block. Returns empty string if no text."""
         if not text:
             return ""
+        from investbrief.report import md_inline
+        rendered = md_inline(text)
         return f'''
       <div style="font-size:12px; color:#6c757d; background:#f8f9fa; padding:8px 12px; border-radius:4px; margin:4px 0 8px 0; border-left:3px solid #adb5bd; line-height:1.5;">
-        💡 {text}
+        💡 {rendered}
       </div>'''
 
     # ==================== Stock Annotations ====================
@@ -861,10 +886,15 @@ class USMarketProvider(MarketProvider):
 
         # MACD signals
         macd_hist = techs.get("macd_hist")
+        macd_line = techs.get("macd_line")
         if macd_hist is not None:
-            if macd_hist > 0:
-                annotations.append({"text": "📊 MACD金叉", "style": "background:#e8f5e9; color:#2e7d32;"})
-            elif macd_hist < 0 and (rsi and rsi < 50):
+            if macd_hist > 0 and macd_line is not None and macd_line > 0:
+                annotations.append({"text": "📊 MACD强势金叉，趋势动能强劲", "style": "background:#e8f5e9; color:#2e7d32;"})
+            elif macd_hist > 0:
+                annotations.append({"text": "📊 MACD金叉，短期动能向上", "style": "background:#e8f5e9; color:#2e7d32;"})
+            elif macd_hist < 0 and macd_line is not None and macd_line < 0:
+                annotations.append({"text": "📊 MACD强势死叉，趋势偏空", "style": "background:#fde8e8; color:#c62828;"})
+            elif macd_hist < 0:
                 annotations.append({"text": "📊 MACD死叉，短期承压", "style": "background:#fde8e8; color:#c62828;"})
 
         # Target upside

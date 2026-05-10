@@ -1,4 +1,3 @@
-import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -6,17 +5,16 @@ from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FILE = Path(__file__).resolve().parent.parent.parent.parent / "config.json"
-
 
 def send_email_for_user(market: str, user_config: dict) -> dict:
     """Run the email pipeline for a single user and single market."""
+    logger.info(f"[email-task] START market={market} user={user_config.get('name')} delivery_count={len(user_config.get('delivery') or [])}")
     try:
         from investbrief.core.mailer import EmailSender
         from investbrief.report import load_template, render_template, translate_html
+        from investbrief.web.config import get_config
 
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            config = json.load(f)
+        config = get_config()
 
         market_cfg = user_config.get("markets", {}).get(market, {})
         holdings = market_cfg.get("holdings", [])
@@ -78,11 +76,12 @@ def send_email_for_user(market: str, user_config: dict) -> dict:
         delivery = user_config.get("delivery")
         if not delivery:
             delivery = [{"email": user_config["email"], "language": language, "schedule": {}}]
+        logger.info(f"[email-task] market={market} delivery={delivery}")
 
-        sender = EmailSender(str(CONFIG_FILE))
+        sender = EmailSender(str(Path(__file__).resolve().parent.parent.parent.parent / "config.json"))
         sent_count = 0
 
-        for target in delivery:
+        for idx, target in enumerate(delivery):
             target_email = target["email"]
             target_lang = target.get("language", language)
 
@@ -97,12 +96,13 @@ def send_email_for_user(market: str, user_config: dict) -> dict:
             try:
                 sender.send(target_email, subject, html)
                 sent_count += 1
-                logger.info(f"Email sent to {target_email}")
+                logger.info(f"[email-task] SENT market={market} #{idx} to={target_email} subject={subject}")
             except Exception as e:
                 logger.error(f"Failed to send to {target_email}: {e}")
 
+        logger.info(f"[email-task] DONE market={market} sent_count={sent_count}")
         return {"status": "ok", "message": f"Sent {sent_count} email(s) for {market}"}
 
     except Exception as e:
-        logger.error(f"Email pipeline failed: {e}", exc_info=True)
+        logger.error(f"[email-task] FAILED market={market}: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}

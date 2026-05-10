@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 
@@ -21,13 +21,13 @@ class UserInfo(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    message: str
-    market: str
+    message: str = Field(..., min_length=1, max_length=2000)
+    market: str = Field(..., pattern=r"^(us|cn)$")
 
 
 class SectionAnalysisRequest(BaseModel):
-    section: str
-    market: str
+    section: str = Field(..., min_length=1, max_length=100)
+    market: str = Field(..., pattern=r"^(us|cn)$")
     data: dict
 
 
@@ -47,9 +47,9 @@ class HoldingItem(BaseModel):
 
 
 class AddHoldingRequest(BaseModel):
-    market: str
-    symbol: str
-    name: str
+    market: str = Field(..., pattern=r"^(us|cn)$")
+    symbol: str = Field(..., min_length=1, max_length=20)
+    name: str = Field(..., min_length=1, max_length=100)
 
 
 class MarketPreferences(BaseModel):

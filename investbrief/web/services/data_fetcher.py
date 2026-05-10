@@ -115,13 +115,8 @@ def _translate_news(items: list[dict], language: str, market: str) -> list[dict]
     import os
     import json
     try:
-        import anthropic
-        api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
-        base_url = os.environ.get("ANTHROPIC_BASE_URL")
-        kwargs = {"api_key": api_key}
-        if base_url:
-            kwargs["base_url"] = base_url
-        client = anthropic.Anthropic(**kwargs)
+        from investbrief.web.services.ai_chat import _get_client
+        client = _get_client()
         model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
 
         payload = json.dumps(
@@ -184,7 +179,9 @@ def _fetch_section(redis_client, market: str, section_name: str,
         data = _sanitize_floats(data)
         now = _time.strftime("%Y-%m-%dT%H:%M:%S%z")
         result = {"data": data, "updated_at": now}
-        set_section_cached(redis_client, market, section_name, result, ttl, uid)
+        # Only cache if data is non-empty
+        if data and data != [] and data != {}:
+            set_section_cached(redis_client, market, section_name, result, ttl, uid)
         return {"data": data, "status": "ok", "updated_at": now}
     except Exception as e:
         logger.warning(f"Section {section_name} failed for {market}: {e}", exc_info=True)
@@ -257,6 +254,51 @@ def get_market_data(redis_client, market: str, user: dict) -> dict:
     return {"sections": sections}
 
 
+def fetch_single_section(redis_client, market: str, section_name: str, user: dict) -> dict:
+    """Fetch a single section independently (for SSE streaming).
+
+    Returns the section result dict (same shape as _fetch_section output).
+    """
+    config = SECTION_CONFIG[market]
+    is_private = section_name in config.get("private", {})
+    is_news = section_name == "news"
+    uid = str(user["id"]) if is_private else None
+
+    market_cfg = user.get("markets", {}).get(market, {})
+    holdings = market_cfg.get("holdings", [])
+    industries = market_cfg.get("industries", [])
+    holdings_symbols = [h["symbol"] if isinstance(h, dict) else h for h in holdings]
+
+    # For news, use dedicated path
+    if is_news:
+        language = user.get("language", "zh-CN")
+        news_cache_key = f"market:{market}:section:news:{language}"
+        news_cached = get_cached(redis_client, news_cache_key)
+        if news_cached is not None:
+            return {"data": news_cached["data"], "status": "cached",
+                    "updated_at": news_cached["updated_at"]}
+        return _fetch_news_section(redis_client, market, language,
+                                   holdings_symbols, industries)
+
+    if not is_private and section_name not in config.get("public", {}):
+        return {"data": None, "status": "error",
+                "error": {"reason": "invalid_section",
+                          "detail": f"Unknown section: {section_name}",
+                          "section": section_name, "retryable": False,
+                          "suggestion_key": "error.suggestion.unknown"},
+                "updated_at": None}
+
+    provider = _create_provider(market)
+    section_kwargs = {
+        "holdings": holdings,
+        "holdings_symbols": holdings_symbols,
+        "industries": industries,
+        "recommendations": [],
+    }
+    return _fetch_section(redis_client, market, section_name, provider,
+                          uid=uid, **section_kwargs)
+
+
 def refresh_market(redis_client, market: str, user: dict) -> dict:
     if not can_refresh(redis_client, market):
         return {"status": "rate_limited"}
@@ -266,14 +308,19 @@ def refresh_market(redis_client, market: str, user: dict) -> dict:
     uid = str(user["id"])
     config = SECTION_CONFIG[market]
 
-    for name in config["public"]:
-        invalidate_section(redis_client, market, name)
-    for name in config["private"]:
-        invalidate_section(redis_client, market, name, uid=uid)
-    for key in redis_client.scan_iter(f"market:{market}:section:news:*"):
-        invalidate(redis_client, key)
+    try:
+        for name in config["public"]:
+            invalidate_section(redis_client, market, name)
+        for name in config["private"]:
+            invalidate_section(redis_client, market, name, uid=uid)
+        for key in redis_client.scan_iter(f"market:{market}:section:news:*"):
+            invalidate(redis_client, key)
 
-    return get_market_data(redis_client, market, user)
+        return get_market_data(redis_client, market, user)
+    except Exception:
+        # Clear the refresh lock early on failure so user isn't blocked
+        invalidate(redis_client, f"refresh_lock:{market}")
+        raise
 
 
 def refresh_section(redis_client, market: str, section_name: str, user: dict) -> dict:

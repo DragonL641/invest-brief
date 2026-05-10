@@ -42,30 +42,32 @@ export default function WatchlistSection({ holdings, market, onRefresh }: Watchl
           marginBottom: 16,
         }}
       >
-        <h2 style={{ color: "#fff", fontSize: 20, fontWeight: 600, margin: 0 }}>
+        <h2 style={{ color: "#fff", fontSize: 18, fontWeight: 600, margin: 0 }}>
           {t("watchlist.title")}
         </h2>
         <button
           onClick={() => setModalOpen(true)}
           style={{
             height: 32,
-            background: "#16181a",
-            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(73,79,223,0.12)",
+            border: "1px solid rgba(73,79,223,0.3)",
             borderRadius: 9999,
-            color: "#fff",
+            color: "#494fdf",
             fontSize: 13,
+            fontWeight: 600,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: 6,
             padding: "0 16px",
+            transition: "background 0.2s",
           }}
         >
           <PlusOutlined style={{ fontSize: 12 }} />
           {t("watchlist.add")}
         </button>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {holdings.map((h, i) => (
           <StockCard key={h.symbol || i} stock={h} market={market} />
         ))}

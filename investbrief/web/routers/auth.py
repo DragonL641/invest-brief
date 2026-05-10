@@ -25,6 +25,8 @@ def login(req: LoginRequest):
 
 @router.post("/logout")
 def logout():
+    """Logout endpoint. Note: JWT tokens remain valid for up to 24h after logout;
+    there is no server-side token revocation. The client should discard the token."""
     return {"message": "ok"}
 
 

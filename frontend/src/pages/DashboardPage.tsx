@@ -14,7 +14,7 @@ import PreferencesModal from "../components/PreferencesModal";
 import SectionErrorCard from "../components/SectionErrorCard";
 import type { SectionDef } from "../components/SectionNav";
 import type { SectionState } from "../types/section";
-import { getMarketData, refreshMarket, refreshSection } from "../api/data";
+import { getMarketData, refreshMarket, refreshSection, streamMarketData } from "../api/data";
 import { useAuth } from "../hooks/useAuth";
 
 const SECTIONS: SectionDef[] = [
@@ -79,18 +79,24 @@ function SectionSkeleton() {
 
 export default function DashboardPage() {
   const [market, setMarket] = useState<"us" | "cn">("us");
-  const [sections, setSections] = useState<Record<string, SectionState>>({});
+  const [sectionsCache, setSectionsCache] = useState<Record<string, Record<string, SectionState>>>({});
   const [globalRefreshing, setGlobalRefreshing] = useState(false);
   const [refreshingSection, setRefreshingSection] = useState<string | null>(null);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [initialError, setInitialError] = useState(false);
   const [activeId, setActiveId] = useState(SECTIONS[0].id);
   const spyDisabledRef = useRef(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const streamControllerRef = useRef<AbortController | null>(null);
   useAuth();
   const { t } = useTranslation();
   const { message } = App.useApp();
+
+  const sections = sectionsCache[market] || {};
+
+  const ALL_SECTION_KEYS = [
+    "indices", "economic_calendar", "congressional_trades",
+    "news", "premarket_movers", "holdings", "recommendations", "earnings_calendar",
+  ];
 
   const mapSectionsResponse = (data: any): Record<string, SectionState> => {
     const result: Record<string, SectionState> = {};
@@ -108,28 +114,57 @@ export default function DashboardPage() {
   };
 
   const fetchData = (m: string) => {
-    setInitialLoading(true);
-    setInitialError(false);
-    getMarketData(m)
-      .then((r) => {
-        setSections(mapSectionsResponse(r.data));
-        setInitialError(false);
-      })
-      .catch(() => {
-        setInitialError(true);
-        setSections({});
-      })
-      .finally(() => setInitialLoading(false));
+    // Cancel any previous stream
+    streamControllerRef.current?.abort();
+
+    const controller = streamMarketData(
+      m,
+      (name, payload) => {
+        const rawStatus = payload.status === "cached" ? "ok" : payload.status;
+        const status = (rawStatus === "ok" || rawStatus === "error" || rawStatus === "loading" || rawStatus === "idle")
+          ? rawStatus : "error" as const;
+        const sectionState: SectionState = {
+          status,
+          data: payload.data,
+          error: payload.error,
+          updatedAt: payload.updated_at,
+        };
+        setSectionsCache((prev) => ({
+          ...prev,
+          [m]: { ...(prev[m] || {}), [name]: sectionState },
+        }));
+      },
+      () => {
+        // Stream completed
+      },
+      (err) => {
+        // Connection error — fall back to monolithic fetch
+        console.warn("SSE stream failed, falling back to polling", err);
+        getMarketData(m)
+          .then((r) => {
+            setSectionsCache((prev) => ({ ...prev, [m]: mapSectionsResponse(r.data) }));
+          })
+          .catch(() => {
+            const errored: Record<string, SectionState> = {};
+            for (const key of ALL_SECTION_KEYS) {
+              errored[key] = { status: "error", data: null };
+            }
+            setSectionsCache((prev) => ({ ...prev, [m]: errored }));
+          });
+      },
+    );
+    streamControllerRef.current = controller;
   };
 
   const refreshData = (m: string) => {
     setGlobalRefreshing(true);
-    setSections((prev) => {
+    setSectionsCache((prev) => {
+      const existing = prev[m] || {};
       const next: Record<string, SectionState> = {};
-      for (const [key, val] of Object.entries(prev)) {
+      for (const [key, val] of Object.entries(existing)) {
         next[key] = { ...val, status: "loading" };
       }
-      return next;
+      return { ...prev, [m]: next };
     });
     refreshMarket(m)
       .then((r) => {
@@ -139,7 +174,7 @@ export default function DashboardPage() {
           fetchData(m);
           return;
         }
-        setSections(mapSectionsResponse(d));
+        setSectionsCache((prev) => ({ ...prev, [m]: mapSectionsResponse(d) }));
         message.success(t("refresh.success"));
       })
       .catch(() => {
@@ -151,19 +186,25 @@ export default function DashboardPage() {
 
   const retrySection = (m: string, sectionName: string) => {
     setRefreshingSection(sectionName);
-    setSections((prev) => ({
-      ...prev,
-      [sectionName]: { ...prev[sectionName], status: "loading" },
-    }));
+    setSectionsCache((prev) => {
+      const existing = prev[m] || {};
+      return {
+        ...prev,
+        [m]: { ...existing, [sectionName]: { ...existing[sectionName], status: "loading" } },
+      };
+    });
     refreshSection(m, sectionName)
       .then((r) => {
         const d = r.data;
         if (d.status === "rate_limited") {
           message.warning(t("refresh.rateLimited"));
-          setSections((prev) => ({
-            ...prev,
-            [sectionName]: { ...prev[sectionName], status: "error" },
-          }));
+          setSectionsCache((prev) => {
+            const existing = prev[m] || {};
+            return {
+              ...prev,
+              [m]: { ...existing, [sectionName]: { ...existing[sectionName], status: "error" } },
+            };
+          });
           return;
         }
         const sectionResult: SectionState = {
@@ -172,16 +213,22 @@ export default function DashboardPage() {
           error: d.error,
           updatedAt: d.updated_at,
         };
-        setSections((prev) => ({ ...prev, [sectionName]: sectionResult }));
+        setSectionsCache((prev) => {
+          const existing = prev[m] || {};
+          return { ...prev, [m]: { ...existing, [sectionName]: sectionResult } };
+        });
         if (d.status === "error") {
           message.error(t("refresh.failed"));
         }
       })
       .catch(() => {
-        setSections((prev) => ({
-          ...prev,
-          [sectionName]: { ...prev[sectionName], status: "error" },
-        }));
+        setSectionsCache((prev) => {
+          const existing = prev[m] || {};
+          return {
+            ...prev,
+            [m]: { ...existing, [sectionName]: { ...existing[sectionName], status: "error" } },
+          };
+        });
         message.error(t("refresh.failed"));
       })
       .finally(() => setRefreshingSection(null));
@@ -189,10 +236,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData(market);
+    return () => { streamControllerRef.current?.abort(); };
   }, [market]);
 
   useEffect(() => {
-    if (initialLoading) return;
     const handleScroll = () => {
       if (spyDisabledRef.current) return;
       const anchor = 120;
@@ -209,7 +256,7 @@ export default function DashboardPage() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [initialLoading, sections]);
+  }, [sections]);
 
   const sectionRef = useCallback((id: string) => (el: HTMLElement | null) => {
     if (el) sectionRefs.current.set(id, el);
@@ -270,11 +317,9 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#000" }}>
-      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={globalRefreshing} updatedAt={formatUpdatedAt(latestUpdatedAt)} onOpenPreferences={() => setPrefsOpen(true)} />
+      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={globalRefreshing} updatedAt={formatUpdatedAt(latestUpdatedAt ?? undefined)} onOpenPreferences={() => setPrefsOpen(true)} />
       <ProgressBar active={globalRefreshing} />
-      {!initialLoading && (
-        <SectionNav sections={visibleSections} activeId={activeId} onNavigate={handleNavigate} />
-      )}
+      <SectionNav sections={visibleSections} activeId={activeId} onNavigate={handleNavigate} />
       <main
         style={{
           maxWidth: 1280,
@@ -285,63 +330,41 @@ export default function DashboardPage() {
           gap: 48,
         }}
       >
-        {initialLoading ? (
-          <>
-            <SectionSkeleton />
-            <SectionSkeleton />
-            <SectionSkeleton />
-            <SectionSkeleton />
-            <SectionSkeleton />
-          </>
-        ) : initialError ? (
-          <div style={{ textAlign: "center", padding: "80px 0" }}>
-            <p style={{ color: "#8d969e", fontSize: 16, marginBottom: 16 }}>{t("error.loadFailed")}</p>
-            <button
-              onClick={() => fetchData(market)}
-              style={{ background: "#494fdf", color: "#fff", border: "none", borderRadius: 8, padding: "8px 24px", cursor: "pointer", fontSize: 14 }}
-            >
-              {t("error.retry")}
-            </button>
-          </div>
-        ) : (
-          <>
-            <section id="overview" ref={sectionRef("overview")}>
-              {renderSectionContent("indices", (
-                <>
-                  <MarketOverview indices={indices} />
-                  {calendar.length > 0 && (
-                    <div style={{ marginTop: 32 }}>
-                      {renderSectionContent("economic_calendar",
-                        <EconomicCalendar calendar={calendar} />,
-                      )}
-                    </div>
+        <section id="overview" ref={sectionRef("overview")}>
+          {renderSectionContent("indices", (
+            <>
+              <MarketOverview indices={indices} />
+              {calendar.length > 0 && (
+                <div style={{ marginTop: 32 }}>
+                  {renderSectionContent("economic_calendar",
+                    <EconomicCalendar calendar={calendar} />,
                   )}
-                  <div style={{ marginTop: 24 }}>
-                    <MarketAnalysisPanel indices={indices} calendar={calendar} market={market} />
-                  </div>
-                </>
-              ))}
-            </section>
-            {news.length > 0 && (
-              <section id="news" ref={sectionRef("news")}>
-                {renderSectionContent("news", <NewsList news={news} />)}
-              </section>
-            )}
-            <section id="watchlist" ref={sectionRef("watchlist")}>
-              {renderSectionContent("holdings",
-                <WatchlistSection holdings={holdings.map((h: any) => ({ ...h, earnings_approaching: earningsSymbols.has(h.symbol) }))} market={market} onRefresh={() => fetchData(market)} />,
+                </div>
               )}
-            </section>
-            <section id="recommendations" ref={sectionRef("recommendations")}>
-              {renderSectionContent("recommendations",
-                <RecommendationsSection recommendations={recommendations.map((r: any) => ({ ...r, earnings_approaching: earningsSymbols.has(r.symbol) }))} market={market} />,
-              )}
-            </section>
-          </>
+              <div style={{ marginTop: 24 }}>
+                <MarketAnalysisPanel indices={indices} calendar={calendar} market={market} />
+              </div>
+            </>
+          ))}
+        </section>
+        {(news.length > 0 || sections.news?.status === "loading") && (
+          <section id="news" ref={sectionRef("news")}>
+            {renderSectionContent("news", <NewsList news={news} />)}
+          </section>
         )}
+        <section id="watchlist" ref={sectionRef("watchlist")}>
+          {renderSectionContent("holdings",
+            <WatchlistSection holdings={holdings.map((h: any) => ({ ...h, earnings_approaching: earningsSymbols.has(h.symbol) }))} market={market} onRefresh={() => fetchData(market)} />,
+          )}
+        </section>
+        <section id="recommendations" ref={sectionRef("recommendations")}>
+          {renderSectionContent("recommendations",
+            <RecommendationsSection recommendations={recommendations.map((r: any) => ({ ...r, earnings_approaching: earningsSymbols.has(r.symbol) }))} market={market} />,
+          )}
+        </section>
       </main>
       <PreferencesModal open={prefsOpen} onClose={() => setPrefsOpen(false)} />
-      {!initialLoading && !initialError && <ChatWidget market={market} data={{ indices, holdings, recommendations, news, economic_calendar: calendar, earnings_calendar: earningsCalendar }} />}
+      <ChatWidget market={market} data={{ indices, holdings, recommendations, news, economic_calendar: calendar, earnings_calendar: earningsCalendar }} />
     </div>
   );
 }

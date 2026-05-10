@@ -1,10 +1,20 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from investbrief.web.routers import auth, data, stocks, chat, preferences, email
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    # Shutdown: clean up the data router's thread pool
+    from investbrief.web.routers.data import _pool
+    _pool.shutdown(wait=False)
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Invest Brief API", version="0.1.0")
+    app = FastAPI(title="Invest Brief API", version="0.1.0", lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,

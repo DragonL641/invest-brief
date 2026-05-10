@@ -31,6 +31,21 @@ const INDEX_TOOLTIP_MAP: Record<string, string> = {
   "科创50": "tooltip.index.kc50",
 };
 
+const INDEX_NAME_MAP: Record<string, string> = {
+  "S&P 500": "index.sp500",
+  "NASDAQ": "index.nasdaq",
+  "Dow Jones": "index.dowjones",
+  "VIX": "index.vix",
+  "10Y国债": "index.tnx",
+  "WTI原油": "index.wti",
+  "美元指数": "index.dxy",
+  "上证指数": "index.sh",
+  "深证成指": "index.sz",
+  "创业板指": "index.cyb",
+  "沪深300": "index.hs300",
+  "科创50": "index.kc50",
+};
+
 const INDEX_CATEGORIES = [
   {
     titleKey: "market.category.stockUS",
@@ -68,7 +83,7 @@ function IndexCard({ idx }: { idx: IndexData }) {
       }}
     >
       <span style={{ fontSize: 13, color: "#8d969e", fontWeight: 500, display: "flex", alignItems: "center" }}>
-        {idx.name}
+        {t(INDEX_NAME_MAP[idx.name] ?? idx.name)}
         {tooltipKey && <InfoTooltip text={t(tooltipKey)} />}
       </span>
       <span

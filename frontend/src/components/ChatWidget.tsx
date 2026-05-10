@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from "react";
 import { RobotOutlined, CloseOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import ChatPanel from "./ChatPanel";
 import type { Message, Session } from "./ChatPanel";
 import { streamChat } from "../api/chat";
@@ -39,6 +40,7 @@ interface ChatWidgetProps {
 }
 
 export default function ChatWidget({ market }: ChatWidgetProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [sessions, setSessions] = useState<Session[]>(loadSessions);
   const [currentId, setCurrentId] = useState<string>(() => {
@@ -91,14 +93,14 @@ export default function ChatWidget({ market }: ChatWidgetProps) {
           });
         }
       } catch {
-        streamingRef.current.content += "\n[请求失败，请重试]";
+        streamingRef.current.content += "\n" + t("chat.requestFailed");
         updateSession(currentId, {
           messages: [...newMessages.slice(0, -1), { ...streamingRef.current }],
           title,
         });
       }
     },
-    [currentId, messages, currentSession, market, updateSession]
+    [currentId, messages, currentSession, market, updateSession, t]
   );
 
   const handleNewSession = useCallback(() => {

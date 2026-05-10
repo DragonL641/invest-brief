@@ -11,8 +11,20 @@ def get_config() -> dict:
     global _config_cache
     if _config_cache is None:
         config_path = Path(__file__).resolve().parent.parent.parent / "config.json"
-        with open(config_path) as f:
-            _config_cache = json.load(f)
+        try:
+            with open(config_path) as f:
+                _config_cache = json.load(f)
+        except FileNotFoundError:
+            raise RuntimeError(f"config.json not found at {config_path}. Copy from config.example.json.")
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"config.json has invalid JSON: {e}")
+
+        if "web" not in _config_cache:
+            raise RuntimeError("config.json missing 'web' section")
+        if not _config_cache["web"].get("secret_key"):
+            raise RuntimeError("config.json missing web.secret_key")
+        if not _config_cache.get("recipients"):
+            raise RuntimeError("config.json missing 'recipients' array")
     return _config_cache
 
 

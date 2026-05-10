@@ -125,3 +125,27 @@ def get_upcoming_events(days_ahead: int = 21) -> List[Dict[str, Any]]:
 
     events.sort(key=lambda x: x["days_away"])
     return events
+
+
+def get_upcoming_events_with_yfinance(days_ahead: int = 21) -> List[Dict[str, Any]]:
+    """Get upcoming economic events, trying yfinance first, falling back to hardcoded rules."""
+    try:
+        from .clients import YFinanceClient
+        client = YFinanceClient()
+        if not client.enabled:
+            return get_upcoming_events(days_ahead)
+
+        now = datetime.now()
+        start = now.strftime("%Y-%m-%d")
+        end = (now + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+
+        events = client.get_economic_calendar(start=start, end=end, limit=30)
+        if events:
+            filtered = [e for e in events if -1 <= e["days_away"] <= days_ahead]
+            if filtered:
+                logger.info(f"Got {len(filtered)} economic events from yfinance")
+                return filtered
+    except Exception as e:
+        logger.warning(f"yfinance economic calendar failed, falling back: {e}")
+
+    return get_upcoming_events(days_ahead)

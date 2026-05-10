@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import ReactMarkdown from "react-markdown";
 import { sectionAnalysis } from "../api/chat";
 
 interface MarketAnalysisPanelProps {
@@ -75,7 +76,19 @@ export default function MarketAnalysisPanel({ indices, calendar, market }: Marke
       )}
       {analysis && !loading && (
         <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, lineHeight: 1.8 }}>
-          {analysis}
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => <p style={{ margin: "0 0 12px 0" }}>{children}</p>,
+              ul: ({ children }) => <ul style={{ margin: "4px 0 12px 0", paddingLeft: 20 }}>{children}</ul>,
+              ol: ({ children }) => <ol style={{ margin: "4px 0 12px 0", paddingLeft: 20 }}>{children}</ol>,
+              li: ({ children }) => <li style={{ margin: "4px 0" }}>{children}</li>,
+              strong: ({ children }) => <strong style={{ color: "#fff" }}>{children}</strong>,
+              h3: ({ children }) => <h3 style={{ color: "#fff", fontSize: 15, fontWeight: 600, margin: "16px 0 8px 0" }}>{children}</h3>,
+              h4: ({ children }) => <h4 style={{ color: "#fff", fontSize: 14, fontWeight: 600, margin: "12px 0 6px 0" }}>{children}</h4>,
+            }}
+          >
+            {analysis}
+          </ReactMarkdown>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Dropdown, App } from "antd";
-import { StockOutlined, ReloadOutlined, LoadingOutlined, SendOutlined, SettingOutlined, LogoutOutlined } from "@ant-design/icons";
+import { StockOutlined, ReloadOutlined, LoadingOutlined, SendOutlined, SettingOutlined, LogoutOutlined, DownOutlined } from "@ant-design/icons";
 import { useAuth } from "../hooks/useAuth";
 import { logout } from "../api/auth";
 import { sendEmail } from "../api/email";
@@ -13,19 +13,6 @@ interface HeaderProps {
   updatedAt?: string;
   onOpenPreferences?: () => void;
 }
-
-const pillStyle = (active: boolean): React.CSSProperties => ({
-  padding: "6px 20px",
-  borderRadius: 9999,
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-  background: active ? "#494fdf" : "#16181a",
-  color: "#fff",
-  border: "none",
-  outline: "none",
-  transition: "background 0.2s",
-});
 
 const langPillStyle = (active: boolean): React.CSSProperties => ({
   padding: "4px 10px",
@@ -84,6 +71,11 @@ export default function Header({ market, onMarketChange, onRefresh, refreshing, 
     { key: "logout", icon: <LogoutOutlined />, label: t("avatar.logout"), onClick: handleLogout },
   ];
 
+  const marketMenuItems = [
+    { key: "us", label: t("tab.us") },
+    { key: "cn", label: t("tab.cn") },
+  ];
+
   return (
     <header
       style={{
@@ -94,33 +86,51 @@ export default function Header({ market, onMarketChange, onRefresh, refreshing, 
         alignItems: "center",
         justifyContent: "space-between",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
+        position: "sticky",
+        top: 0,
+        zIndex: 200,
       }}
     >
-      {/* Left: Logo */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <StockOutlined style={{ fontSize: 22, color: "#494fdf" }} />
-        <span style={{ color: "#fff", fontSize: 20, fontWeight: 600 }}>
-          {t("app.title")}
-        </span>
-      </div>
-
-      {/* Center: Market tabs */}
-      <div style={{ display: "flex", gap: 8 }}>
-        <button style={pillStyle(market === "us")} onClick={() => onMarketChange("us")}>
-          {t("tab.us")}
-        </button>
-        <button style={pillStyle(market === "cn")} onClick={() => onMarketChange("cn")}>
-          {t("tab.cn")}
-        </button>
+      {/* Left: Logo + Market dropdown */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <StockOutlined style={{ fontSize: 20, color: "#494fdf" }} />
+          <span style={{ color: "#fff", fontSize: 18, fontWeight: 700, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            {t("app.title")}
+          </span>
+        </div>
+        <Dropdown
+          menu={{ items: marketMenuItems, onClick: (e) => onMarketChange(e.key as "us" | "cn"), selectedKeys: [market] }}
+          trigger={["click"]}
+        >
+          <button
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 8,
+              padding: "5px 12px",
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            {market === "us" ? t("tab.us") : t("tab.cn")}
+            <DownOutlined style={{ fontSize: 10, color: "#8d969e" }} />
+          </button>
+        </Dropdown>
       </div>
 
       {/* Right */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         {/* Language switch */}
         <div
           style={{
             display: "flex",
-            background: "#16181a",
+            background: "rgba(255,255,255,0.06)",
             borderRadius: 9999,
             padding: 2,
           }}
@@ -139,10 +149,10 @@ export default function Header({ market, onMarketChange, onRefresh, refreshing, 
             display: "flex",
             alignItems: "center",
             gap: 6,
-            background: "#16181a",
+            background: "rgba(255,255,255,0.06)",
             border: "none",
             borderRadius: 9999,
-            padding: "6px 16px",
+            padding: "5px 14px",
             color: "#fff",
             fontSize: 13,
             cursor: refreshing ? "not-allowed" : "pointer",
@@ -179,7 +189,7 @@ export default function Header({ market, onMarketChange, onRefresh, refreshing, 
               alignItems: "center",
               justifyContent: "center",
               color: "#fff",
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
             }}

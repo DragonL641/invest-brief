@@ -1,12 +1,14 @@
 import asyncio
+import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse
 from investbrief.web.auth import get_current_user
 from investbrief.web.deps import get_redis
 from investbrief.web.services.data_fetcher import (
-    get_market_data, refresh_market, refresh_section, SECTION_CONFIG,
+    get_market_data, refresh_market, refresh_section, fetch_single_section,
+    SECTION_CONFIG,
 )
 from investbrief.web.services.cache import get_section_cached
 
@@ -15,7 +17,7 @@ router = APIRouter(prefix="/api/data", tags=["data"])
 
 _pool = ThreadPoolExecutor(max_workers=4)
 
-FETCH_TIMEOUT = 90
+FETCH_TIMEOUT = 180
 
 
 def _error_sections(market: str, reason: str = "timeout") -> dict:
@@ -36,6 +38,19 @@ def _error_sections(market: str, reason: str = "timeout") -> dict:
     return {"sections": sections}
 
 
+# Section fetch order: fast/light sections first, heavy sections last
+_STREAM_ORDER = [
+    "indices",
+    "economic_calendar",
+    "congressional_trades",
+    "news",
+    "premarket_movers",
+    "holdings",
+    "recommendations",
+    "earnings_calendar",
+]
+
+
 @router.get("/status")
 def get_status(redis=Depends(get_redis)):
     """Return last-updated timestamp per market (from the most recent public section)."""
@@ -52,10 +67,64 @@ def get_status(redis=Depends(get_redis)):
     return result
 
 
+async def _stream_sections(market: str, user: dict, redis):
+    """Async generator that yields SSE events for each section as it completes."""
+    loop = asyncio.get_event_loop()
+    for section_name in _STREAM_ORDER:
+        cfg = SECTION_CONFIG.get(market, {})
+        is_valid = (
+            section_name in cfg.get("public", {})
+            or section_name in cfg.get("private", {})
+            or section_name == "news"
+        )
+        if not is_valid:
+            continue
+        try:
+            result = await asyncio.wait_for(
+                loop.run_in_executor(
+                    _pool, fetch_single_section, redis, market, section_name, user,
+                ),
+                timeout=FETCH_TIMEOUT,
+            )
+            event = {"type": "section", "section": section_name, **result}
+        except asyncio.TimeoutError:
+            logger.warning(f"SSE section timeout: {market}/{section_name}")
+            event = {
+                "type": "section", "section": section_name,
+                "data": None, "status": "error",
+                "error": {"reason": "timeout", "detail": "", "section": section_name,
+                          "retryable": True, "suggestion_key": "error.suggestion.timeout"},
+                "updated_at": None,
+            }
+        except Exception as e:
+            logger.error(f"SSE section error: {market}/{section_name}: {e}")
+            event = {
+                "type": "section", "section": section_name,
+                "data": None, "status": "error",
+                "error": {"reason": "unknown", "detail": str(e)[:200], "section": section_name,
+                          "retryable": True, "suggestion_key": "error.suggestion.unknown"},
+                "updated_at": None,
+            }
+        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    yield "data: {\"type\": \"done\"}\n\n"
+
+
+@router.get("/{market}/stream")
+async def stream_data(market: str, user: dict = Depends(get_current_user), redis=Depends(get_redis)):
+    if market not in ("us", "cn"):
+        raise HTTPException(status_code=400, detail="invalid market")
+    return StreamingResponse(
+        _stream_sections(market, user, redis),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @router.get("/{market}")
 async def get_data(market: str, user: dict = Depends(get_current_user), redis=Depends(get_redis)):
     if market not in ("us", "cn"):
-        return {"error": "invalid market"}
+        raise HTTPException(status_code=400, detail="invalid market")
     loop = asyncio.get_event_loop()
     try:
         return await asyncio.wait_for(
@@ -73,7 +142,7 @@ async def get_data(market: str, user: dict = Depends(get_current_user), redis=De
 @router.post("/{market}/refresh")
 async def refresh_data(market: str, user: dict = Depends(get_current_user), redis=Depends(get_redis)):
     if market not in ("us", "cn"):
-        return {"error": "invalid market"}
+        raise HTTPException(status_code=400, detail="invalid market")
     loop = asyncio.get_event_loop()
     try:
         result = await asyncio.wait_for(
@@ -97,7 +166,7 @@ async def refresh_single_section(
     user: dict = Depends(get_current_user), redis=Depends(get_redis),
 ):
     if market not in ("us", "cn"):
-        return {"error": "invalid market"}
+        raise HTTPException(status_code=400, detail="invalid market")
     loop = asyncio.get_event_loop()
     try:
         result = await asyncio.wait_for(

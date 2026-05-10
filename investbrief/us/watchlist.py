@@ -61,9 +61,14 @@ def get_watchlist_stocks(industries: list) -> list:
 
     Returns list of dicts with symbol, name, industry keys.
     """
+    from .industries import US_INDUSTRIES_MIGRATION
     stocks = []
+    seen = set()
     for industry in industries:
-        watchlist = INDUSTRY_WATCHLISTS.get(industry, [])
+        gics_key = US_INDUSTRIES_MIGRATION.get(industry, industry)
+        watchlist = INDUSTRY_WATCHLISTS.get(gics_key, [])
         for s in watchlist:
-            stocks.append({**s, "industry": industry})
+            if s["symbol"] not in seen:
+                seen.add(s["symbol"])
+                stocks.append({**s, "industry": gics_key})
     return stocks

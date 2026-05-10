@@ -32,7 +32,7 @@ export default function LoginPage() {
     <div style={{ height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: "#000" }}>
       <div style={{ width: 360, padding: 40, background: "#16181a", borderRadius: 20 }}>
         <Typography.Title level={2} style={{ color: "#fff", textAlign: "center", marginBottom: 32 }}>
-          Invest Brief
+          {t("app.title")}
         </Typography.Title>
         <Form onFinish={onFinish} size="large">
           <Form.Item name="email" rules={[{ required: true }]}>

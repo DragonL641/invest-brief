@@ -6,21 +6,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 WORKDIR /app
 
-# Install uv
-RUN pip install --no-cache-dir uv
+# Layer 1: dependencies (cached unless pyproject.toml/uv.lock change)
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
 
-# Copy dependency declaration first (layer caching)
-COPY pyproject.toml uv.lock .
-
-# Copy application code
+# Layer 2: application code
 COPY run.py .
 COPY investbrief/ investbrief/
 COPY templates/ templates/
-
-# Install dependencies
-RUN uv sync
 
 # Config and data mounted at runtime
 VOLUME /app/config.json

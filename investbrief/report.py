@@ -25,6 +25,7 @@ Usage:
     python send_report.py --data-file report_data.json
 """
 import sys
+import re
 import json
 import logging
 import argparse
@@ -41,6 +42,29 @@ except ImportError:
     HAS_ANTHROPIC = False
 
 logger = logging.getLogger(__name__)
+
+
+def md_inline(text: str) -> str:
+    """Convert common Markdown patterns to inline HTML for email rendering.
+
+    Handles: **bold**, *italic*, ## headings (→ styled bold), - list items (→ bullets).
+    Does NOT produce block elements (no <h2>, <ul>) to avoid CSS font-size inheritance issues.
+    """
+    if not text:
+        return ""
+    # Bold: **text**
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    # Italic: *text* (avoid matching inside <strong> tags)
+    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
+    # Headings: ## text → styled bold span
+    text = re.sub(r'^#{1,3}\s+(.+)$', r'<strong style="display:inline-block;margin:4px 0;">\1</strong>', text, flags=re.MULTILINE)
+    # Unordered list: - text or * text → indented bullet
+    text = re.sub(r'^[\-\*]\s+(.+)$', r'<span style="display:block;padding-left:12px;">• \1</span>', text, flags=re.MULTILINE)
+    # Ordered list: 1. text
+    text = re.sub(r'^(\d+)\.\s+(.+)$', r'<span style="display:block;padding-left:12px;">\1. \2</span>', text, flags=re.MULTILINE)
+    # Line breaks (after all other conversions)
+    text = text.replace('\n', '<br>')
+    return text
 
 
 # ============================================================================
@@ -228,11 +252,11 @@ def build_news_html(news_items):
         else:
             title_html = f'<span style="font-weight:600; color:#2c3e50;">{title}</span>'
 
-        # Summary: truncate + preserve line breaks
+        # Summary: truncate + convert Markdown to inline HTML
         summary = item.get('summary', '')
         if len(summary) > 200:
             summary = summary[:200] + '...'
-        summary = summary.replace('\n', '<br>')
+        summary = md_inline(summary)
 
         tag_html = ''
         if item.get('tag'):

@@ -1,4 +1,5 @@
 import json
+import logging
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from investbrief.web.auth import get_current_user
@@ -7,6 +8,7 @@ from investbrief.web.models.schemas import ChatRequest, SectionAnalysisRequest
 from investbrief.web.services import ai_chat
 from investbrief.web.services.data_fetcher import get_market_data
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 
@@ -32,12 +34,21 @@ def chat(req: ChatRequest, user: dict = Depends(get_current_user), redis=Depends
 
     def generate():
         collected = ""
-        for chunk in ai_chat.stream_chat(req.message, req.market, market_data, history):
-            collected += chunk
-            yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
-        history.append({"role": "user", "content": req.message})
-        history.append({"role": "assistant", "content": collected})
-        _save_history(redis, user["id"], history)
+        try:
+            for chunk in ai_chat.stream_chat(req.message, req.market, market_data, history):
+                collected += chunk
+                yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+            history.append({"role": "user", "content": req.message})
+            history.append({"role": "assistant", "content": collected})
+            _save_history(redis, user["id"], history)
+        except Exception as e:
+            logger.error(f"Chat stream error for user {user['id']}: {e}", exc_info=True)
+            # Save partial response if any content was collected
+            if collected:
+                history.append({"role": "user", "content": req.message})
+                history.append({"role": "assistant", "content": collected})
+                _save_history(redis, user["id"], history)
+            yield f"data: {json.dumps({'error': 'stream_failed'}, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")

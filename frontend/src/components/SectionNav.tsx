@@ -19,56 +19,59 @@ export default function SectionNav({ sections, activeId, onNavigate }: SectionNa
       style={{
         position: "sticky",
         top: 64,
-        width: 200,
-        minWidth: 200,
-        height: "calc(100vh - 64px)",
-        padding: "32px 0",
-        overflowY: "auto",
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
+        zIndex: 100,
+        background: "#000",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        padding: "0 40px",
       }}
     >
-      {sections.map((s) => {
-        const isActive = s.id === activeId;
-        return (
-          <button
-            key={s.id}
-            onClick={() => onNavigate(s.id)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "10px 20px",
-              fontSize: 14,
-              fontWeight: 500,
-              color: isActive ? "#fff" : "#8d969e",
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              textAlign: "left",
-              position: "relative",
-              transition: "color 0.2s",
-            }}
-          >
-            {isActive && (
-              <span
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  width: 2,
-                  height: 16,
-                  borderRadius: 1,
-                  background: "#494fdf",
-                }}
-              />
-            )}
-            {t(s.titleKey)}
-          </button>
-        );
-      })}
+      <div
+        style={{
+          maxWidth: 1280,
+          margin: "0 auto",
+          display: "flex",
+          gap: 0,
+          overflowX: "auto",
+          scrollbarWidth: "none",
+        }}
+      >
+        {sections.map((s) => {
+          const isActive = s.id === activeId;
+          return (
+            <button
+              key={s.id}
+              onClick={() => onNavigate(s.id)}
+              style={{
+                padding: "12px 20px",
+                fontSize: 14,
+                fontWeight: isActive ? 600 : 500,
+                color: isActive ? "#fff" : "#8d969e",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                position: "relative",
+                whiteSpace: "nowrap",
+                transition: "color 0.2s",
+              }}
+            >
+              {t(s.titleKey)}
+              {isActive && (
+                <span
+                  style={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: 20,
+                    right: 20,
+                    height: 2,
+                    background: "#494fdf",
+                    borderRadius: 1,
+                  }}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 }
