@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, Tabs, Table, Button, Input, Select, TimePicker, Card, Space, App } from "antd";
+import dayjs from "dayjs";
+import { Modal, Tabs, Table, Button, Input, Select, TimePicker, Card, App } from "antd";
 import { PlusOutlined, DeleteOutlined, MailOutlined } from "@ant-design/icons";
-import type { PreferencesData, DeliveryEntry, HoldingItem, PreferencesUpdate } from "../api/preferences";
+import type { DeliveryEntry, HoldingItem, PreferencesUpdate } from "../api/preferences";
 import { getPreferences, updatePreferences } from "../api/preferences";
 
 const US_INDUSTRIES = ["semiconductor_ai", "aerospace_defense", "e_commerce", "software_cloud", "ev_automotive"];
@@ -16,7 +17,7 @@ interface Props {
 export default function PreferencesModal({ open, onClose }: Props) {
   const { t } = useTranslation();
   const { message } = App.useApp();
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [holdings, setHoldings] = useState<Record<string, HoldingItem[]>>({});
@@ -208,7 +209,7 @@ export default function PreferencesModal({ open, onClose }: Props) {
                       <span key={ti} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                         <TimePicker
                           format="HH:mm"
-                          value={(() => { const [h, m] = time.split(":").map(Number); const d = new Date(); d.setHours(h, m, 0, 0); return d; })()}
+                          value={(() => { const [h, m] = time.split(":").map(Number); return dayjs().hour(h).minute(m); })()}
                           onChange={(_, timeStr) => { if (timeStr) updateScheduleTime(idx, mkt, ti, timeStr); }}
                           size="small"
                         />

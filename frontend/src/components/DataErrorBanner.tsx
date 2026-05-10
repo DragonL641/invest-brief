@@ -43,7 +43,7 @@ export default function DataErrorBanner({ errors, onClose }: Props) {
   const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const titleKey = errors.length >= 5 ? "error.bannerTitleFull" : "error.bannerTitle";
 
-  const items = errors.map((e, i) => {
+  const items = errors.map((e) => {
     const sectionName = t(sectionKeyMap[e.section] ?? e.section);
     const solutionText = t(solutionKeyMap[e.reason] ?? solutionKeyMap.unknown);
     return `${sectionName}：${solutionText}`;
