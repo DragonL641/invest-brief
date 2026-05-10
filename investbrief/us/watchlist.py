@@ -3,10 +3,14 @@ Industry watchlists for stock recommendations.
 
 Each industry has a curated list of representative stocks used to
 find high-conviction analyst picks for the "推荐关注" section.
+
+Keys use GICS sector codes to match the preferences system.
 """
 
+from investbrief.us.industries import US_GICS_SECTORS
+
 INDUSTRY_WATCHLISTS = {
-    "semiconductor_ai": [
+    "information_technology": [
         {"symbol": "AVGO", "name": "Broadcom"},
         {"symbol": "QCOM", "name": "Qualcomm"},
         {"symbol": "TXN", "name": "Texas Instruments"},
@@ -20,7 +24,7 @@ INDUSTRY_WATCHLISTS = {
         {"symbol": "TSM", "name": "TSMC"},
         {"symbol": "ASML", "name": "ASML"},
     ],
-    "aerospace_defense": [
+    "industrials": [
         {"symbol": "LMT", "name": "Lockheed Martin"},
         {"symbol": "RTX", "name": "RTX Corp"},
         {"symbol": "NOC", "name": "Northrop Grumman"},
@@ -30,8 +34,6 @@ INDUSTRY_WATCHLISTS = {
         {"symbol": "TDG", "name": "TransDigm"},
         {"symbol": "HEI", "name": "HEICO"},
         {"symbol": "AXON", "name": "Axon Enterprise"},
-    ],
-    "machinery": [
         {"symbol": "CAT", "name": "Caterpillar"},
         {"symbol": "DE", "name": "John Deere"},
         {"symbol": "MMM", "name": "3M"},
@@ -41,7 +43,7 @@ INDUSTRY_WATCHLISTS = {
         {"symbol": "CMI", "name": "Cummins"},
         {"symbol": "PCAR", "name": "PACCAR"},
     ],
-    "education": [
+    "consumer_discretionary": [
         {"symbol": "DUOL", "name": "Duolingo"},
         {"symbol": "LRN", "name": "Stride"},
         {"symbol": "STRA", "name": "Strategic Education"},
@@ -50,12 +52,7 @@ INDUSTRY_WATCHLISTS = {
     ],
 }
 
-INDUSTRY_LABELS = {
-    "semiconductor_ai": "半导体/AI",
-    "aerospace_defense": "航空航天/国防",
-    "machinery": "机械制造",
-    "education": "教育科技",
-}
+INDUSTRY_LABELS = {s["key"]: s["label"] for s in US_GICS_SECTORS}
 
 
 def get_watchlist_stocks(industries: list) -> list:
