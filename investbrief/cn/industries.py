@@ -1,0 +1,46 @@
+"""CN industry classifications based on 申万一级行业分类 (2021 version)."""
+
+CN_SW_INDUSTRIES = [
+    {"key": "agriculture", "label": "农林牧渔"},
+    {"key": "coal", "label": "煤炭"},
+    {"key": "petrochemical", "label": "石油石化"},
+    {"key": "nonferrous_metals", "label": "有色金属"},
+    {"key": "steel", "label": "钢铁"},
+    {"key": "chemicals", "label": "基础化工"},
+    {"key": "electronics", "label": "电子"},
+    {"key": "home_appliances", "label": "家用电器"},
+    {"key": "food_beverage", "label": "食品饮料"},
+    {"key": "textile_clothing", "label": "纺织服饰"},
+    {"key": "light_manufacturing", "label": "轻工制造"},
+    {"key": "pharmaceuticals", "label": "医药生物"},
+    {"key": "utilities", "label": "公用事业"},
+    {"key": "transportation", "label": "交通运输"},
+    {"key": "real_estate", "label": "房地产"},
+    {"key": "banking", "label": "银行"},
+    {"key": "non_bank_financials", "label": "非银金融"},
+    {"key": "trade_retail", "label": "商贸零售"},
+    {"key": "social_services", "label": "社会服务"},
+    {"key": "conglomerate", "label": "综合"},
+    {"key": "building_materials", "label": "建筑材料"},
+    {"key": "building_decoration", "label": "建筑装饰"},
+    {"key": "power_equipment", "label": "电力设备"},
+    {"key": "defense", "label": "国防军工"},
+    {"key": "computer", "label": "计算机"},
+    {"key": "media", "label": "传媒"},
+    {"key": "telecom", "label": "通信"},
+    {"key": "machinery", "label": "机械设备"},
+    {"key": "environmental", "label": "环保"},
+    {"key": "beauty_care", "label": "美容护理"},
+    {"key": "automotive", "label": "汽车"},
+]
+
+# Migration from old custom industry keys to 申万 industries
+CN_INDUSTRIES_MIGRATION = {
+    "semiconductor": "electronics",
+    "new_energy": "power_equipment",
+    "consumer_electronics": "electronics",
+    "pharmaceuticals": "pharmaceuticals",
+    "ai_concept": "computer",
+    "consumption": "food_beverage",
+    "ai_digital": "computer",
+}
