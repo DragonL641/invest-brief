@@ -16,14 +16,14 @@ export default function StockSearch({ market, existingSymbols, onAdd }: StockSea
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StockSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<number | null>(null);
 
-  useEffect(() => () => clearTimeout(timerRef.current), []);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   const handleSearch = useCallback(
     (value: string) => {
       setQuery(value);
-      clearTimeout(timerRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
       if (!value.trim()) {
         setResults([]);
         return;
