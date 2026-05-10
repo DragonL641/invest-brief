@@ -32,9 +32,11 @@ def _classify_error(exc: Exception) -> dict:
         return {"reason": "rate_limited", "detail": str(exc)[:200]}
     if "401" in msg or "403" in msg or "api key" in msg:
         return {"reason": "auth", "detail": str(exc)[:200]}
-    if "429" in msg or "limit" in msg:
+    if "429" in msg:
         return {"reason": "rate_limited", "detail": str(exc)[:200]}
-    return {"reason": "api_error", "detail": str(exc)[:200]}
+    if "api" in msg or "500" in msg or "503" in msg:
+        return {"reason": "api_error", "detail": str(exc)[:200]}
+    return {"reason": "unknown", "detail": str(exc)[:200]}
 
 
 def _public_keys(market: str) -> list[str]:
