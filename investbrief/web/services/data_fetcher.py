@@ -74,6 +74,56 @@ def _fetch_news(market: str, symbols: list[str], industries: list[str]) -> tuple
         return [], [{"section": "news", **_classify_error(e)}]
 
 
+def _translate_news(items: list[dict], language: str, market: str) -> list[dict]:
+    """Translate news title and summary via Claude API. Returns translated items."""
+    source_lang = "Chinese" if market == "cn" else "English"
+    target_lang = {"zh-CN": "简体中文", "ko-KR": "한국어", "en": "English"}.get(language, language)
+
+    if source_lang == "Chinese" and language.startswith("zh"):
+        return items
+
+    import os
+    import json
+    try:
+        import anthropic
+        api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        base_url = os.environ.get("ANTHROPIC_BASE_URL")
+        kwargs = {"api_key": api_key}
+        if base_url:
+            kwargs["base_url"] = base_url
+        client = anthropic.Anthropic(**kwargs)
+        model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
+
+        payload = json.dumps(
+            [{"title": it.get("title", ""), "summary": it.get("summary", "")} for it in items],
+            ensure_ascii=False,
+        )
+
+        prompt = (
+            f"Translate the following news items from {source_lang} to {target_lang}. "
+            f"Return a JSON array of objects with 'title' and 'summary' fields, same order. "
+            f"Only output the JSON array, nothing else.\n\n{payload}"
+        )
+
+        resp = client.messages.create(
+            model=model,
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        translated = json.loads(resp.content[0].text.strip())
+        for i, item in enumerate(items):
+            if i < len(translated):
+                if translated[i].get("title"):
+                    item["title"] = translated[i]["title"]
+                if translated[i].get("summary"):
+                    item["summary"] = translated[i]["summary"]
+        return items
+    except Exception as e:
+        logger.warning(f"News translation failed: {e}", exc_info=True)
+        return items
+
+
 def get_market_data(redis_client, market: str, user: dict) -> dict:
     result = {}
     errors = []
@@ -95,8 +145,10 @@ def get_market_data(redis_client, market: str, user: dict) -> dict:
     for k in _private_keys(market):
         result[k] = user_cache.get(k, [])
 
-    # News (cached per market, fetched on cache miss)
-    news_cache = get_cached(redis_client, f"market:{market}:news")
+    # News (cached per market+language)
+    language = user.get("language", "zh-CN")
+    news_cache_key = f"market:{market}:news:{language}"
+    news_cache = get_cached(redis_client, news_cache_key)
     if news_cache is None:
         market_cfg = user.get("markets", {}).get(market, {})
         symbols = [h.get("symbol", h) if isinstance(h, dict) else h
@@ -105,8 +157,11 @@ def get_market_data(redis_client, market: str, user: dict) -> dict:
         news_items, news_errors = _fetch_news(market, symbols, industries)
         errors.extend(news_errors)
         if news_items:
-            set_cached(redis_client, f"market:{market}:news", news_items)
-        news_cache = news_items
+            translated = _translate_news(news_items[:5], language, market)
+            set_cached(redis_client, news_cache_key, translated)
+            news_cache = translated
+        else:
+            news_cache = news_items
     result["news"] = news_cache or []
     result["updated_at"] = get_last_updated(redis_client, market) or ""
     if errors:
@@ -165,7 +220,8 @@ def refresh_market(redis_client, market: str, user: dict) -> dict:
     set_refresh_lock(redis_client, market)
 
     invalidate(redis_client, f"market:{market}:public")
-    invalidate(redis_client, f"market:{market}:news")
+    for key in redis_client.scan_iter(f"market:{market}:news:*"):
+        invalidate(redis_client, key)
     for key in redis_client.scan_iter(f"market:{market}:user:*:private"):
         invalidate(redis_client, key)
 
