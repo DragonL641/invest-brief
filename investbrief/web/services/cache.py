@@ -33,3 +33,44 @@ def can_refresh(redis_client, market: str) -> bool:
 
 def set_refresh_lock(redis_client, market: str, ttl: int = 60):
     redis_client.setex(f"market:{market}:refresh_lock", ttl, "1")
+
+
+# --- Section-level cache operations ---
+
+def get_section_cached(redis_client, market: str, section: str, uid: str | None = None) -> dict | None:
+    key = _section_key(market, section, uid)
+    return get_cached(redis_client, key)
+
+
+def set_section_cached(redis_client, market: str, section: str, value: dict,
+                       ttl: int, uid: str | None = None):
+    key = _section_key(market, section, uid)
+    set_cached(redis_client, key, value, ttl_seconds=ttl)
+
+
+def invalidate_section(redis_client, market: str, section: str, uid: str | None = None):
+    key = _section_key(market, section, uid)
+    invalidate(redis_client, key)
+
+
+def can_section_refresh(redis_client, market: str, section: str, uid: str | None = None) -> bool:
+    key = _section_refresh_lock_key(market, section, uid)
+    return redis_client.get(key) is None
+
+
+def set_section_refresh_lock(redis_client, market: str, section: str,
+                             uid: str | None = None, ttl: int = 30):
+    key = _section_refresh_lock_key(market, section, uid)
+    redis_client.setex(key, ttl, "1")
+
+
+def _section_key(market: str, section: str, uid: str | None) -> str:
+    if uid:
+        return f"market:{market}:user:{uid}:section:{section}"
+    return f"market:{market}:section:{section}"
+
+
+def _section_refresh_lock_key(market: str, section: str, uid: str | None) -> str:
+    if uid:
+        return f"market:{market}:user:{uid}:section:{section}:refresh_lock"
+    return f"market:{market}:section:{section}:refresh_lock"

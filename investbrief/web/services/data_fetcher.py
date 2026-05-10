@@ -1,5 +1,6 @@
 import logging
 import math
+import time as _time
 
 from investbrief.web.services.cache import (
     get_cached, set_cached, invalidate, get_last_updated,
@@ -40,13 +41,40 @@ def _classify_error(exc: Exception) -> dict:
 
 
 def _public_keys(market: str) -> list[str]:
-    if market == "us":
-        return ["indices", "economic_calendar", "premarket_movers", "earnings_calendar", "congressional_trades"]
-    return ["indices", "economic_calendar", "dragon_tiger", "sector_performance"]
+    return list(SECTION_CONFIG.get(market, {}).get("public", {}).keys())
 
 
 def _private_keys(market: str) -> list[str]:
-    return ["holdings", "recommendations"]
+    return list(SECTION_CONFIG.get(market, {}).get("private", {}).keys())
+
+
+SECTION_CONFIG = {
+    "us": {
+        "public": {
+            "indices":              {"ttl": 300,   "method": "get_indices"},
+            "economic_calendar":    {"ttl": 14400, "method": "get_economic_calendar"},
+            "premarket_movers":     {"ttl": 300,   "method": "get_premarket_movers"},
+            "earnings_calendar":    {"ttl": 14400, "method": "get_earnings_calendar"},
+            "congressional_trades": {"ttl": 14400, "method": "get_congressional_trades"},
+        },
+        "private": {
+            "holdings":             {"ttl": 600,   "method": "get_holdings_data"},
+            "recommendations":      {"ttl": 1800,  "method": "get_recommendations"},
+        },
+    },
+    "cn": {
+        "public": {
+            "indices":              {"ttl": 300,   "method": "get_indices"},
+            "economic_calendar":    {"ttl": 14400, "method": "get_economic_calendar"},
+            "dragon_tiger":         {"ttl": 3600,  "method": "get_dragon_tiger"},
+            "sector_performance":   {"ttl": 1800,  "method": "get_sector_performance"},
+        },
+        "private": {
+            "holdings":             {"ttl": 600,   "method": "get_holdings_data"},
+            "recommendations":      {"ttl": 1800,  "method": "get_recommendations"},
+        },
+    },
+}
 
 
 def _fetch_news(market: str, symbols: list[str], industries: list[str]) -> tuple[list, list]:
