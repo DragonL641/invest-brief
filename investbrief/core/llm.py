@@ -13,10 +13,9 @@ def get_client() -> anthropic.Anthropic:
     """返回进程级缓存的 Anthropic client。"""
     api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
     base_url = os.environ.get("ANTHROPIC_BASE_URL")
-    kwargs = {"api_key": api_key}
     if base_url:
-        kwargs["base_url"] = base_url
-    return anthropic.Anthropic(**kwargs)
+        return anthropic.Anthropic(api_key=api_key, base_url=base_url)
+    return anthropic.Anthropic(api_key=api_key)
 
 
 def default_model() -> str:
