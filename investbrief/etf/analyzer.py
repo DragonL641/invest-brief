@@ -106,7 +106,7 @@ class ETFAnalyzer:
     ) -> str:
         """调用 Claude 进行综合研判。"""
         try:
-            from investbrief.web.services.ai_chat import _get_client
+            from investbrief.core.llm import get_client as _get_client
             client = _get_client()
             model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
         except Exception as e:
