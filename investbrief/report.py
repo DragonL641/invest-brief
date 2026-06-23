@@ -286,9 +286,7 @@ def render_template(template, data, language, recipient_settings):
     html = html.replace('{{color_down}}', config['color_down'])
 
     # Basic info
-    market_titles = {"us": "美股日报", "cn": "A股日报"}
-    market_label = market_titles.get(data.get("market", "us"), "投资日报")
-    html = html.replace('{{title}}', f'\U0001F4C5 {market_label}')
+    html = html.replace('{{title}}', '🗓️ 宏观经济日报')
     html = html.replace('{{date}}', datetime.now().strftime('%Y年%m月%d日'))
     html = html.replace('{{data_time_label}}', '数据截止')
     html = html.replace('{{data_time}}', data.get('data_time', datetime.now().strftime('%H:%M:%S')))
@@ -296,6 +294,10 @@ def render_template(template, data, language, recipient_settings):
     # Global section labels
     html = html.replace('{{global_market_title}}', '🌍 全球市场概况')
     html = html.replace('{{global_news_title}}', '📰 重要新闻')
+
+    # Macro summary (① 核心观点) and risk outlook (⑥ 风险提示)
+    html = html.replace('{{macro_summary}}', data.get('macro_summary') or '<p>暂无研判。</p>')
+    html = html.replace('{{risk_outlook}}', data.get('risk_outlook') or '<p>—</p>')
 
     # Global metrics
     html = html.replace('{{global_metrics}}', build_metrics_html(data.get('global_metrics', []), config))
