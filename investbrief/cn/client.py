@@ -872,6 +872,85 @@ class AKShareClient:
             logger.warning(f"AKShare search_etf failed for {keyword}: {e}")
             return []
 
+    # ---- 宏观货币与汇率 ----
+
+    def get_cn_monetary_policy(self) -> dict[str, Any]:
+        """最新一期宏观货币数据：LPR / M2 / M1 / 社融 / 中国10Y国债收益率。
+
+        每个数据源独立 try/except，单点失败仅置 None，不影响其它字段。
+        akshare 返回的 DataFrame 排序方向不一致，统一按日期/月份降序取首行。
+        """
+        result: dict[str, Any] = {
+            "lpr_1y": None, "lpr_5y": None, "m2_yoy": None,
+            "m1_yoy": None, "social_financing": None, "cn_10y_yield": None,
+        }
+        # LPR
+        try:
+            df = ak.macro_china_lpr()
+            if df is not None and not df.empty:
+                latest = df.sort_values("TRADE_DATE", ascending=False).iloc[0]
+                result["lpr_1y"] = self._safe_float(latest.get("LPR1Y"))
+                result["lpr_5y"] = self._safe_float(latest.get("LPR5Y"))
+        except Exception as e:
+            logger.warning(f"macro_china_lpr failed: {e}")
+        # M2 / M1 同比
+        try:
+            df = ak.macro_china_money_supply()
+            if df is not None and not df.empty:
+                # "月份" 形如 "2008年01月份"，归一为 "2008-01" 以便排序
+                df = df.copy()
+                df["_m"] = (
+                    df["月份"].astype(str)
+                    .str.replace("年", "-", regex=False)
+                    .str.replace("月份", "", regex=False)
+                )
+                latest = df.sort_values("_m", ascending=False).iloc[0]
+                result["m2_yoy"] = self._safe_float(latest.get("货币和准货币(M2)-同比增长"))
+                result["m1_yoy"] = self._safe_float(latest.get("货币(M1)-同比增长"))
+        except Exception as e:
+            logger.warning(f"macro_china_money_supply failed: {e}")
+        # 社融增量
+        try:
+            df = ak.macro_china_shrzgm()
+            if df is not None and not df.empty:
+                latest = df.sort_values("月份", ascending=False).iloc[0]
+                result["social_financing"] = self._safe_float(latest.get("社会融资规模增量"))
+        except Exception as e:
+            logger.warning(f"macro_china_shrzgm failed: {e}")
+        # 中国 10Y 国债收益率
+        try:
+            end = datetime.now().strftime("%Y%m%d")
+            start = (datetime.now() - timedelta(days=60)).strftime("%Y%m%d")
+            df = ak.bond_china_yield(start_date=start, end_date=end)
+            if df is not None and not df.empty:
+                cn = df[df["曲线名称"] == "中债国债收益率曲线"]
+                if not cn.empty:
+                    latest = cn.sort_values("日期", ascending=False).iloc[0]
+                    result["cn_10y_yield"] = self._safe_float(latest.get("10年"))
+        except Exception as e:
+            logger.warning(f"bond_china_yield failed: {e}")
+        return result
+
+    def get_fx_rate_usdcny(self) -> dict[str, Any] | None:
+        """USDCNY 即期汇率（lazy import yfinance，避免 CN 客户端硬依赖 yfinance）。"""
+        try:
+            import yfinance as yf
+            t = yf.Ticker("USDCNY=X")
+            fi = t.fast_info
+            price = float(fi.last_price) if fi.last_price else None
+            prev = float(fi.previous_close) if fi.previous_close else price
+            if not price:
+                return None
+            chg = ((price - prev) / prev * 100) if prev else 0
+            return {
+                "pair": "USDCNY",
+                "price": round(price, 4),
+                "change_pct": round(chg, 2),
+            }
+        except Exception as e:
+            logger.warning(f"get_fx_rate_usdcny failed: {e}")
+            return None
+
     # ---- 工具方法 ----
 
     _safe_float = staticmethod(_safe_float)
