@@ -20,4 +20,9 @@ invest-brief = "run:main"
 [dependency-groups]
 dev = [
     "playwright>=1.59.0",
+    "pytest>=9.1.1",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
