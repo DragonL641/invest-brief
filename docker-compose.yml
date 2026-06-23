@@ -1,56 +1,11 @@
 services:
-  nginx:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
-    ports:
-      - "80:80"
-    depends_on:
-      api:
-        condition: service_started
-    restart: unless-stopped
-
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
-    environment:
-      - REDIS_URL=redis://redis:6379
-    volumes:
-      - ./config.json:/app/config.json:ro
-      - ./.env:/app/.env:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
   scheduler:
     build:
       context: .
       dockerfile: Dockerfile.scheduler
-    environment:
-      - REDIS_URL=redis://redis:6379
     volumes:
       - ./config.json:/app/config.json:ro
       - ./.env:/app/.env:ro
       - ./logs:/app/logs
       - ./reports:/app/reports
-    depends_on:
-      redis:
-        condition: service_healthy
     restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
-volumes:
-  redis_data:
