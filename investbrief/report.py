@@ -139,11 +139,8 @@ def translate_html(html_content, target_language, max_retries=2):
         logger.warning('anthropic package not installed, skipping translation')
         return html_content
 
-    import os
-    client = anthropic.Anthropic(
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
-        base_url=os.environ.get("ANTHROPIC_BASE_URL"),
-    )
+    from investbrief.core.llm import get_client
+    client = get_client()
 
     language_names = {
         'zh-CN': 'Simplified Chinese (简体中文)',

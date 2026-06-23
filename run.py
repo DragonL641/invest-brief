@@ -274,13 +274,10 @@ def summarize_news(news: list, market="us") -> list:
     news = news[:NEWS_LIMIT]
 
     try:
-        import anthropic
+        from investbrief.core.llm import get_client
         import re
 
-        client = anthropic.Anthropic(
-            api_key=os.environ.get("ANTHROPIC_API_KEY"),
-            base_url=os.environ.get("ANTHROPIC_BASE_URL"),
-        )
+        client = get_client()
 
         items_text = "\n".join(
             f"{i+1}. Title: {n.get('title', '')}\n   Content: {n.get('summary', '')[:500]}"
@@ -488,13 +485,10 @@ def _serialize_market_context(market_data, news, holdings, market="us"):
 def generate_daily_summary(market_data, news, holdings, market="us"):
     """Generate personalized daily summary via Claude API."""
     try:
-        import anthropic
+        from investbrief.core.llm import get_client
         import re
 
-        client = anthropic.Anthropic(
-            api_key=os.environ.get("ANTHROPIC_API_KEY"),
-            base_url=os.environ.get("ANTHROPIC_BASE_URL"),
-        )
+        client = get_client()
 
         context = _serialize_market_context(market_data, news, holdings, market=market)
         holdings_symbols = ", ".join(h["symbol"] for h in holdings)
@@ -547,12 +541,9 @@ SECTION_GUIDANCE_PROMPT = """你是面向投资小白的理财顾问。根据提
 def generate_section_guidance(market_data, news, holdings, market="us"):
     """Generate per-section investment guidance via Claude API. Returns dict of section_key -> guidance_text."""
     try:
-        import anthropic
+        from investbrief.core.llm import get_client
 
-        client = anthropic.Anthropic(
-            api_key=os.environ.get("ANTHROPIC_API_KEY"),
-            base_url=os.environ.get("ANTHROPIC_BASE_URL"),
-        )
+        client = get_client()
 
         context = _serialize_market_context(market_data, news, holdings, market=market)
         holdings_symbols = ", ".join(h["symbol"] for h in holdings)
