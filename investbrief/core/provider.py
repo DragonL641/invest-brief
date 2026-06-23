@@ -27,18 +27,8 @@ class MarketProvider(ABC):
         """大类资产表现（宏观板块④）。"""
 
     @abstractmethod
-    def get_holdings_data(self, holdings: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """获取持仓个股详情。"""
-
-    @abstractmethod
-    def get_recommendations(self, industries: list[str], exclude: list[str] | None = None,
-                           max_recommendations: int = 3) -> list[dict[str, Any]]:
-        """按行业获取推荐关注个股。"""
-
-    @abstractmethod
-    def fetch_all(self, holdings: list[dict], industries: list[str],
-                 max_recommendations: int = 3) -> dict[str, Any]:
-        """获取该市场全部数据，返回供 report 使用的 dict。"""
+    def fetch_all(self) -> dict[str, Any]:
+        """获取该市场宏观数据（monetary_policy / asset_performance / economic_calendar）。"""
 
     @abstractmethod
     def render_section(self, data: dict[str, Any], config: dict[str, Any], **kwargs) -> str:

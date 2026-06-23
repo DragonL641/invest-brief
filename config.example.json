@@ -9,7 +9,6 @@
     },
     "cn": {
       "enabled": true,
-      "max_recommendations": 3,
       "schedule": [
         { "cron": "30 10 * * 1-5", "timezone": "Asia/Shanghai" },
         { "cron": "0 18 * * 1-5", "timezone": "Asia/Shanghai" }
@@ -28,25 +27,7 @@
       "email": "recipient@example.com",
       "name": "Recipient1",
       "active": true,
-      "language": "zh-CN",
-      "markets": {
-        "us": {
-          "industries": ["semiconductor_ai", "aerospace_defense"],
-          "holdings": [
-            {"symbol": "AMD", "name": "AMD"},
-            {"symbol": "NVDA", "name": "NVIDIA"}
-          ],
-          "news_count": 10
-        },
-        "cn": {
-          "industries": ["semiconductor", "new_energy"],
-          "holdings": [
-            {"symbol": "002371", "name": "北方华创"},
-            {"symbol": "300750", "name": "宁德时代"}
-          ],
-          "news_count": 10
-        }
-      }
+      "language": "zh-CN"
     }
   ]
 }
