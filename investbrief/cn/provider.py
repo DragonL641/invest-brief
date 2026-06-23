@@ -66,6 +66,29 @@ class CNMarketProvider(MarketProvider):
                 })
         return results
 
+    def get_monetary_policy(self) -> dict[str, Any]:
+        """③ 货币政策与利率：LPR / M2 / M1 / 社融 / 中国10Y国债。"""
+        try:
+            return self.client.get_cn_monetary_policy()
+        except Exception as e:
+            logger.warning(f"CN monetary policy failed: {e}")
+            return {}
+
+    def get_asset_performance(self) -> list[dict[str, Any]]:
+        """④ 大类资产表现：A 股指数 + 人民币汇率。"""
+        assets = self.get_indices()
+        try:
+            fx = self.client.get_fx_rate_usdcny()
+            if fx:
+                assets.append({
+                    "name": "人民币汇率(USDCNY)",
+                    "point": fx.get("price"),
+                    "change": fx.get("change_pct"),
+                })
+        except Exception as e:
+            logger.warning(f"CN fx rate failed: {e}")
+        return assets
+
     def get_holdings_data(self, holdings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """获取持仓个股详情。并发拉取每只股票的多个数据源。"""
         symbols = [h["symbol"] for h in holdings]

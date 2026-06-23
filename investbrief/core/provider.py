@@ -19,6 +19,14 @@ class MarketProvider(ABC):
         """获取主要指数行情。"""
 
     @abstractmethod
+    def get_monetary_policy(self) -> dict[str, Any]:
+        """货币政策与利率（宏观板块③）。"""
+
+    @abstractmethod
+    def get_asset_performance(self) -> list[dict[str, Any]]:
+        """大类资产表现（宏观板块④）。"""
+
+    @abstractmethod
     def get_holdings_data(self, holdings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """获取持仓个股详情。"""
 
