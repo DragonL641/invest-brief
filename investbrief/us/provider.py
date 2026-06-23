@@ -14,6 +14,9 @@ from investbrief.core.provider import MarketProvider
 
 logger = logging.getLogger(__name__)
 
+# Federal funds target rate range — update manually on FOMC moves
+FED_FUNDS_TARGET = "5.25% - 5.50%"
+
 
 class USMarketProvider(MarketProvider):
     market_code = "us"
@@ -48,6 +51,41 @@ class USMarketProvider(MarketProvider):
                     "volume": self._format_volume(quote.get("volume")),
                 })
         return results
+
+    def get_monetary_policy(self) -> dict[str, Any]:
+        """③ 货币政策与利率（宏观板块）：美债收益率 + 联邦基金目标利率。
+
+        CN 10Y 与中美利差由 pipeline 层注入（US provider 不依赖 CN client），
+        故这里返回 None，留待 Plan 2b 合并。
+        """
+        result: dict[str, Any] = {
+            "us_10y_yield": None, "us_5y_yield": None,
+            "us_13w_yield": None, "fed_funds_rate": FED_FUNDS_TARGET,
+            "cn_10y_yield": None, "cn_us_spread": None,
+        }
+        for key, sym in (("us_10y_yield", "^TNX"), ("us_5y_yield", "^FVX"), ("us_13w_yield", "^IRX")):
+            try:
+                q = self.yf.get_quote(sym)
+                if q:
+                    result[key] = q.get("price")
+            except Exception as e:
+                logger.warning(f"US yield {sym} failed: {e}")
+        return result
+
+    def get_asset_performance(self) -> list[dict[str, Any]]:
+        """④ 大类资产表现：美股指数 + 美债 + 原油 + 美元指数 + 黄金。"""
+        assets = self.get_indices()
+        try:
+            gold = self.yf.get_quote("GC=F")
+            if gold:
+                assets.append({
+                    "name": "黄金(COMEX)",
+                    "point": gold.get("price"),
+                    "change": gold.get("change_percent"),
+                })
+        except Exception as e:
+            logger.warning(f"Gold quote failed: {e}")
+        return assets
 
     def _enrich_stock_detail(self, symbol: str, data: Dict[str, Any]) -> None:
         """Enrich a stock data dict with comprehensive detail fields.
