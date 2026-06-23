@@ -1,15 +1,15 @@
 # invest-brief
 
-个性化每日投资简报平台，支持美股和 A 股市场。通过 **Web Dashboard** 在线浏览 + **邮件推送** 定时发送。
+宏观经济日报应用：每个交易日自动抓取 **美股 + A 股** 宏观数据（利率、货币、大类资产、经济日历、新闻），由 Claude 生成核心观点与风险展望，合并渲染为一份双视角 HTML 简报并通过邮件（SMTP）发送。纯后端管道，无 Web 层。
 
 ## 功能
 
-- **美股** — 指数行情、持仓分析（分析师目标价/EPS/内部人交易/技术指标）、行业新闻摘要、国会交易追踪、经济日历
-- **A 股** — 指数行情、持仓分析（PE/ROE/机构调研/研报评级/技术指标）、**动态选股推荐**（基于资金流向+换手率+分析师评级的复合评分）、龙虎榜、板块行情
-- **Claude AI 摘要** — 自动生成市场总览、持仓诊断、操作建议
-- **Web Dashboard** — React 前端 + FastAPI 后端，支持 SSE 实时数据流、AI 聊天分析、用户偏好管理
+- **宏观双视角** — 同一封邮件内并列呈现 US（美债收益率/黄金/美股指数/美元）与 CN（LPR/M2/社融/国债/USDCNY）两侧宏观全景
+- **Claude AI 合成** — 自动生成 ① 核心观点（多点详述）与 ⑥ 风险提示与下周关注
+- **经济日历** — US（FOMC/CPI/NFP/PCE）、CN（LPR/PMI/CPI/PPI/M2）关键事件
+- **新闻聚合** — 多源聚合 + 时间/情绪/相关性/来源质量复合评分
 - **多语言** — 支持中文 (zh-CN) 和韩语 (ko-KR)
-- **定时调度** — cron 表达式配置，支持多市场独立调度
+- **定时调度** — cron 表达式配置，单封合并日报
 
 ## 快速开始
 
@@ -17,7 +17,6 @@
 
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/) 包管理器
-- Redis（Web Dashboard 需要）
 
 ### 本地运行
 
@@ -30,32 +29,33 @@ cp config.example.json config.json
 cp .env.example .env
 # 编辑 config.json 和 .env 填入实际配置
 
-# 3. 启动 Redis
-redis-server
+# 3. 立即生成并发送一封合并日报
+uv run run.py --now
 
-# 4. 启动 Web API
-uv run python run_web.py
-
-# 5. 启动前端（另一个终端）
-cd frontend && npm install && npm run dev
-
-# 6. 或者直接运行邮件管道
-uv run run.py --market us --now
+# 4. 或进入调度模式（按 cron 定时触发）
+uv run run.py
 ```
 
 ### 命令行参数
 
 ```bash
-uv run run.py --market <us|cn|all> [--now] [--dry-run] [--skip-summary] [--log-level LEVEL]
+uv run run.py [--now] [--dry-run] [--skip-summary] [--log-level LEVEL]
 ```
 
 | 参数 | 说明 |
 |------|------|
-| `--market` | 市场：us（美股）、cn（A 股）、all（全部）|
 | `--now` | 立即执行一次（默认进入调度模式）|
-| `--dry-run` | 生成报告但不发送邮件，输出 JSON |
-| `--skip-summary` | 跳过 Claude API 摘要生成 |
+| `--dry-run` | 构建合并宏观报告但不发邮件，输出 JSON 到 stdout |
+| `--skip-summary` | 跳过 Claude ①⑥（更快，仅结构）|
 | `--log-level` | 日志级别：DEBUG / INFO / WARNING / ERROR |
+| `--market {us,cn,all}` | **已废弃** — 报告始终为 US+CN 合并单封，参数仅为兼容保留 |
+
+### 测试
+
+```bash
+uv run pytest tests/                                 # 宏观 provider 测试
+uv run pytest tests/test_macro_providers.py -v
+```
 
 ## 配置说明
 
@@ -63,24 +63,16 @@ uv run run.py --market <us|cn|all> [--now] [--dry-run] [--skip-summary] [--log-l
 
 ```json
 {
-  "web": {
-    "host": "0.0.0.0",
-    "port": 8000,
-    "secret_key": "CHANGE_ME_TO_A_RANDOM_SECRET"
-  },
   "markets": {
     "us": {
       "enabled": true,
       "schedule": [
-        { "cron": "30 22 * * 1-5", "timezone": "Asia/Shanghai" },
-        { "cron": "0 5 * * 2-6", "timezone": "Asia/Shanghai" }
+        { "cron": "30 22 * * 1-5", "timezone": "Asia/Shanghai" }
       ]
     },
     "cn": {
       "enabled": true,
-      "max_recommendations": 3,
       "schedule": [
-        { "cron": "30 10 * * 1-5", "timezone": "Asia/Shanghai" },
         { "cron": "0 18 * * 1-5", "timezone": "Asia/Shanghai" }
       ]
     }
@@ -90,120 +82,87 @@ uv run run.py --market <us|cn|all> [--now] [--dry-run] [--skip-summary] [--log-l
     "smtp_server": "smtp.qq.com",
     "smtp_port": 465,
     "sender_email": "YOUR_EMAIL@qq.com",
-    "sender_name": "投资简报"
+    "sender_name": "宏观日报"
   },
   "recipients": [
     {
-      "id": 1,
       "email": "recipient@example.com",
-      "password": "bcrypt_hash_here",
       "name": "Recipient1",
       "active": true,
-      "language": "zh-CN",
-      "markets": {
-        "us": {
-          "industries": ["semiconductor_ai", "aerospace_defense"],
-          "holdings": [
-            {"symbol": "AMD", "name": "AMD"},
-            {"symbol": "NVDA", "name": "NVIDIA"}
-          ],
-          "news_count": 10
-        },
-        "cn": {
-          "industries": ["semiconductor", "new_energy"],
-          "holdings": [
-            {"symbol": "002371", "name": "北方华创"},
-            {"symbol": "300750", "name": "宁德时代"}
-          ],
-          "news_count": 10
-        }
-      }
+      "language": "zh-CN"
     }
   ]
 }
 ```
 
-**A 股行业可选值：** `semiconductor`（半导体）、`new_energy`（新能源）、`consumption`（消费/金融）、`ai_digital`（AI/数字经济）
-
-**美股行业可选值：** `semiconductor_ai`、`aerospace_defense`、`machinery`、`education`
+`recipients[]` 结构为 `{email, name, active, language}`，无 Web 相关字段。
 
 ### .env
 
 ```bash
 # 必填
-ANTHROPIC_API_KEY=           # Claude API Key（用于新闻摘要和投资建议）
-SMTP_PASSWORD=               # 邮箱 SMTP 授权码
+ANTHROPIC_API_KEY=                       # Claude API Key（核心观点 + 风险展望）
+SMTP_PASSWORD=                           # 邮箱 SMTP 授权码
 
-# 可选（增强美股数据）
-FINNHUB_KEY=                 # Finnhub API Key
-ALPHAVANTAGE_KEY=            # Alpha Vantage API Key
-TAVILY_KEY=                  # Tavily 新闻搜索 API Key
+# 可选（自定义 Claude API 端点与模型）
+ANTHROPIC_BASE_URL=                      # 自定义 Anthropic 兼容端点
+ANTHROPIC_DEFAULT_SONNET_MODEL=          # 默认 claude-sonnet-4-6；填你的 BASE_URL 支持的模型代号
 
-# 可选（自定义 Claude API 端点）
-ANTHROPIC_BASE_URL=
-
-# Redis（Web Dashboard 需要）
-REDIS_URL=redis://localhost:6379
+# 可选（增强美股数据与新闻）
+FINNHUB_KEY=                             # Finnhub API Key
+ALPHAVANTAGE_KEY=                        # Alpha Vantage API Key
+TAVILY_KEY=                              # Tavily 新闻搜索 API Key
 ```
+
+`ANTHROPIC_AUTH_TOKEN` 会自动别名到 `ANTHROPIC_API_KEY`。macOS 系统代理自动用于 yfinance；akshare（eastmoney）域名走 NO_PROXY。
 
 ## 架构
 
 ```
-run.py                          # 邮件管道入口：CLI、调度、Claude prompts、pipeline 编排
-run_web.py                      # Web API 入口：uvicorn 启动 FastAPI
+run.py                          # 唯一入口：CLI、cron 调度、pipeline 编排
 
 investbrief/
   core/
-    provider.py                 # MarketProvider ABC
-    charts.py                   # matplotlib 图表（base64 PNG）
-    models.py                   # Pydantic 验证模型
-    mailer.py                   # SMTP 邮件发送
-    guards.py                   # 数据验证守卫
+    provider.py                 # MarketProvider ABC（宏观方法）
+    llm.py                      # get_client() 缓存的 Anthropic 客户端 + default_model()
+    mailer.py                   # SMTP 邮件发送（带重试）
+    charts.py                   # matplotlib 图表（ETF 用，当前宏观管道未用）
+    guards.py / models.py       # 数据验证守卫；NewsSummaryResponse Pydantic 模型
   us/
-    provider.py                 # USMarketProvider（yfinance）
-    clients.py                  # yfinance / Finnhub / Alpha Vantage / Tavily
-    news.py                     # 美股新闻聚合
-    calendar.py                 # 美股经济日历
-    congress.py                 # 国会交易追踪
-    watchlist.py                # 行业 watchlist
-    industries.py               # GICS 行业定义
+    provider.py                 # USMarketProvider — yfinance 宏观（指数/收益率/黄金）
+    clients.py                  # YFinanceClient + Finnhub/Alpha Vantage/Tavily
+    news.py                     # 美股新闻聚合（带 fallback + 评分）
+    calendar.py                 # 美股经济日历（FOMC/CPI/NFP/PCE）
   cn/
-    provider.py                 # CNMarketProvider（AKShare）
-    client.py                   # AKShare 封装
+    provider.py                 # CNMarketProvider — akshare 宏观（指数/LPR/M2/社融/国债/USDCNY）
+    client.py                   # AKShareClient 封装（货币、ETF、指数估值）
     news.py                     # A 股新闻
-    calendar.py                 # A 股经济日历
-    watchlist.py                # 行业配置映射
-    industries.py               # 申万一级行业定义
-  web/
-    app.py                      # FastAPI 应用工厂
-    auth.py                     # JWT 认证
-    config.py                   # 配置读取 + 原子写入
-    deps.py                     # 依赖注入（Redis）
-    routers/                    # API 路由（auth, data, stocks, chat, preferences, email）
-    services/                   # 业务逻辑（data_fetcher, cache, ai_chat, email_sender）
-    models/                     # Pydantic 请求/响应模型
-  report.py                     # HTML 模板渲染、多语言翻译
-
-frontend/
-  src/
-    pages/                      # LoginPage, DashboardPage
-    components/                 # React 组件
-    api/                        # API 客户端
-    types/                      # TypeScript 类型定义
+    calendar.py                 # A 股经济日历（LPR/PMI/CPI/PPI/M2）
+  etf/                          # 独立保留的 ETF 分析包（analyzer/engine/indicators/rules.json）
+                                # ⚠ 未接入邮件 pipeline，待后续启用
+  report.py                     # HTML 模板渲染、宏观标题、多语言（via Claude）
 
 templates/
   email_base.html               # 邮件 HTML 模板
 ```
 
-**邮件 Pipeline 流程：** 加载配置 → 合并收件人 → 获取市场数据 → 获取新闻 → Claude 摘要 → 生成投资建议 → 渲染 HTML → 发送邮件
+**Pipeline 流程：** 加载配置 → 抓取 US 宏观 + CN 宏观 + 新闻 → Claude 生成 ① 核心观点 + ⑥ 风险展望 → `render_section`（US + CN）→ `render_template` 合并 HTML → `send_report` 发送单封邮件。`--dry-run` 时打印 JSON 而非发信。
 
-**A 股动态选股：** 行业成分股获取 → 资金流入排名 → 粗筛（PE/资金流向/换手率/涨幅复合评分）→ 精筛（分析师买入评级占比）→ Top N 推荐
+### 宏观数据来源（已验证）
+
+- **US 利率与资产：** yfinance `^TNX`(10Y) / `^FVX`(5Y) / `^IRX`(13W)；大类资产 `^GSPC` / `^IXIC` / `^DJI` / `^VIX` / `CL=F` / `DX-Y.NYB` / `GC=F`(黄金)。联邦基金目标利率为静态常量（FOMC 后手动更新）。
+- **CN 货币与固收：** akshare `macro_china_lpr`（LPR 1Y/5Y）、`macro_china_money_supply`（M2/M1 同比）、`macro_china_shrzgm`（社融）、`bond_china_yield`（CN 10Y，过滤「中债国债收益率曲线」）；汇率 yfinance `USDCNY=X`。
+- **中美利差** 在 pipeline 层计算（US 10Y − CN 10Y），不归属任一单独 provider。
+
+### 报告结构
+
+`templates/email_base.html`：页头（宏观日报标题）→ ① 核心观点（`.summary-box`，Claude）→ `{{market_sections}}`（US 段 + CN 段，各含 大类资产 / 货币政策 / 经济日历）→ ⑥ 风险提示与下周关注 → 新闻 → 页脚。
 
 ## 部署
 
-### Docker Compose（推荐）
+镜像已发布到 GitHub Container Registry，支持 amd64 和 arm64 架构。仅单个 `scheduler` 服务。
 
-镜像已发布到 GitHub Container Registry，支持 amd64 和 arm64 架构。
+### 生产部署（拉取 GHCR 镜像）
 
 ```bash
 # 1. 创建部署目录
@@ -219,24 +178,14 @@ EOF
 cat > .env << 'EOF'
 ANTHROPIC_API_KEY=your-key
 SMTP_PASSWORD=your-password
-REDIS_URL=redis://redis:6379
 EOF
 
-# 4. 启动（4 个服务：nginx + api + scheduler + redis）
+# 4. 启动（单个 scheduler 服务）
 docker compose -f docker-compose.prod.yml up -d
 
 # 5. 查看日志
 docker compose -f docker-compose.prod.yml logs -f
 ```
-
-**服务说明：**
-
-| 服务 | 镜像 | 说明 |
-|------|------|------|
-| nginx | `invest-brief-frontend` | React SPA + API 反向代理 |
-| api | `invest-brief-api` | FastAPI 后端 |
-| scheduler | `invest-brief` | 邮件定时任务 |
-| redis | `redis:7-alpine` | 缓存 + 会话存储 |
 
 **更新到最新版本：**
 
@@ -247,10 +196,10 @@ docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compo
 **手动触发一次邮件（不进入调度模式）：**
 
 ```bash
-docker compose -f docker-compose.prod.yml run --rm scheduler --market us --now
+docker compose -f docker-compose.prod.yml run --rm scheduler --now
 ```
 
-### 从源码构建（本地开发）
+### 本地开发（从源码构建）
 
 ```bash
 docker compose up --build -d
@@ -260,13 +209,11 @@ docker compose up --build -d
 
 | 组件 | 技术 |
 |------|------|
-| 后端 | Python 3.12 + FastAPI + uv |
-| 前端 | React 19 + TypeScript + Ant Design 6 + Vite |
+| 语言/包管理 | Python 3.12 + uv |
 | 美股数据 | yfinance, Finnhub, Alpha Vantage |
 | A 股数据 | AKShare |
 | 新闻 | Tavily Search |
 | AI | Claude API (Anthropic) |
-| 缓存 | Redis |
 | 图表 | matplotlib |
 | 邮件 | SMTP (QQ/Gmail/Outlook/163) |
 | 部署 | Docker + GitHub Actions + GHCR |
