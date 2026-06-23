@@ -25,8 +25,8 @@ def test_us_monetary_policy_structure():
     m = p.get_monetary_policy()
     assert m["us_10y_yield"] == 4.3
     assert "us_5y_yield" in m and m["us_5y_yield"] is None
+    assert "us_13w_yield" in m
     assert "fed_funds_rate" in m
-    assert "cn_10y_yield" in m and "cn_us_spread" in m
 
 
 def test_us_monetary_policy_resilient():
