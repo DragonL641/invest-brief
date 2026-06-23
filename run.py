@@ -680,21 +680,6 @@ def _run_single_market(market: str, args):
         max_recs = cn_config.get("max_recommendations", 3)
         market_data = provider.fetch_all(holdings, industries, max_recommendations=max_recs)
         logger.info(f"Got {len(market_data.get('holdings', []))} holdings, {len(market_data.get('indices', []))} indices")
-
-        # Write public data to Redis for web dashboard
-        try:
-            import redis as _redis
-            _r = _redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
-            import json as _json
-            _public_keys = (["indices", "economic_calendar", "premarket_movers", "earnings_calendar", "congressional_trades"]
-                            if market == "us" else
-                            ["indices", "economic_calendar", "dragon_tiger", "sector_performance"])
-            _public = {k: market_data.get(k, []) for k in _public_keys}
-            _r.setex(f"market:{market}:public", 14400, _json.dumps(_public, ensure_ascii=False, default=str))
-            _r.set(f"market:{market}:updated_at", __import__("time").strftime("%Y-%m-%dT%H:%M:%S%z"))
-            logger.info(f"Wrote public data to Redis for {market}")
-        except Exception as e:
-            logger.warning(f"Failed to write to Redis (web mode optional): {e}")
     except Exception as e:
         logger.warning(f"Market data fetch failed: {e}")
         market_data = {"indices": [], "holdings": [], "recommendations": []}
