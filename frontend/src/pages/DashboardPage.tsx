@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Skeleton, App } from "antd";
 import Header from "../components/Header";
@@ -16,10 +16,13 @@ import type { SectionDef } from "../components/SectionNav";
 import type { SectionState } from "../types/section";
 import { getMarketData, refreshMarket, refreshSection, streamMarketData } from "../api/data";
 import { useAuth } from "../hooks/useAuth";
+import ETFWatchlist from "../components/etf/ETFWatchlist";
+import ETFDetail from "../components/etf/ETFDetail";
 
 const SECTIONS: SectionDef[] = [
   { id: "overview", titleKey: "market.overview" },
   { id: "news", titleKey: "market.news" },
+  { id: "etf", titleKey: "etf.title" },
   { id: "watchlist", titleKey: "watchlist.title" },
   { id: "recommendations", titleKey: "recommendations.title" },
 ];
@@ -79,6 +82,7 @@ function SectionSkeleton() {
 
 export default function DashboardPage() {
   const [market, setMarket] = useState<"us" | "cn">("us");
+  const [etfDetailSymbol, setEtfDetailSymbol] = useState<string | null>(null);
   const [sectionsCache, setSectionsCache] = useState<Record<string, Record<string, SectionState>>>({});
   const [globalRefreshing, setGlobalRefreshing] = useState(false);
   const [refreshingSection, setRefreshingSection] = useState<string | null>(null);
@@ -91,7 +95,7 @@ export default function DashboardPage() {
   const { t } = useTranslation();
   const { message } = App.useApp();
 
-  const sections = sectionsCache[market] || {};
+  const sections = useMemo(() => sectionsCache[market] || {}, [sectionsCache, market]);
 
   const ALL_SECTION_KEYS = [
     "indices", "economic_calendar", "congressional_trades",
@@ -256,7 +260,7 @@ export default function DashboardPage() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [sections]);
+  }, []);
 
   const sectionRef = useCallback((id: string) => (el: HTMLElement | null) => {
     if (el) sectionRefs.current.set(id, el);
@@ -280,22 +284,51 @@ export default function DashboardPage() {
   const recommendations = sections.recommendations?.data || [];
   const calendar = sections.economic_calendar?.data || [];
   const earningsCalendar = sections.earnings_calendar?.data || [];
-  const earningsSymbols = new Set<string>(
-    earningsCalendar.filter((e: any) => e.days_away <= 7).map((e: any) => e.symbol)
+  const earningsSymbols = useMemo(
+    () => new Set<string>(
+      earningsCalendar.filter((e: any) => e.days_away <= 7).map((e: any) => e.symbol)
+    ),
+    [earningsCalendar]
   );
 
-  const latestUpdatedAt = Object.values(sections)
-    .map((s) => s.updatedAt)
-    .filter(Boolean)
-    .sort()
-    .pop();
+  const latestUpdatedAt = useMemo(
+    () => Object.values(sections)
+      .map((s) => s.updatedAt)
+      .filter(Boolean)
+      .sort()
+      .pop(),
+    [sections]
+  );
 
-  const visibleSections = SECTIONS.filter((s) => {
-    if (s.id === "news") return news.length > 0;
-    return true;
-  });
+  const visibleSections = useMemo(
+    () => SECTIONS.filter((s) => {
+      if (s.id === "news") return news.length > 0;
+      if (s.id === "etf") return market === "cn";
+      return true;
+    }),
+    [news.length, market]
+  );
 
-  const renderSectionContent = (
+  const mappedHoldings = useMemo(
+    () => holdings.map((h: any) => ({ ...h, earnings_approaching: earningsSymbols.has(h.symbol) })),
+    [holdings, earningsSymbols]
+  );
+
+  const mappedRecommendations = useMemo(
+    () => recommendations.map((r: any) => ({ ...r, earnings_approaching: earningsSymbols.has(r.symbol) })),
+    [recommendations, earningsSymbols]
+  );
+
+  const chatData = useMemo(
+    () => ({ indices, holdings, recommendations, news, economic_calendar: calendar, earnings_calendar: earningsCalendar }),
+    [indices, holdings, recommendations, news, calendar, earningsCalendar]
+  );
+
+  const handleRetrySection = useCallback((sectionName: string) => {
+    retrySection(market, sectionName);
+  }, [market]);
+
+  const renderSectionContent = useCallback((
     sectionName: string,
     content: React.ReactNode,
   ) => {
@@ -307,17 +340,22 @@ export default function DashboardPage() {
       return (
         <SectionErrorCard
           error={state.error!}
-          onRetry={() => retrySection(market, sectionName)}
+          onRetry={() => handleRetrySection(sectionName)}
           loading={refreshingSection === sectionName}
         />
       );
     }
     return content;
-  };
+  }, [sections, handleRetrySection, refreshingSection]);
+
+  const handleRefresh = useCallback(() => refreshData(market), [market]);
+  const handleFetchData = useCallback(() => fetchData(market), [market]);
+  const handleOpenPreferences = useCallback(() => setPrefsOpen(true), []);
+  const handleClosePreferences = useCallback(() => setPrefsOpen(false), []);
 
   return (
     <div style={{ minHeight: "100vh", background: "#000" }}>
-      <Header market={market} onMarketChange={setMarket} onRefresh={() => refreshData(market)} refreshing={globalRefreshing} updatedAt={formatUpdatedAt(latestUpdatedAt ?? undefined)} onOpenPreferences={() => setPrefsOpen(true)} />
+      <Header market={market} onMarketChange={setMarket} onRefresh={handleRefresh} refreshing={globalRefreshing} updatedAt={formatUpdatedAt(latestUpdatedAt ?? undefined)} onOpenPreferences={handleOpenPreferences} />
       <ProgressBar active={globalRefreshing} />
       <SectionNav sections={visibleSections} activeId={activeId} onNavigate={handleNavigate} />
       <main
@@ -330,6 +368,7 @@ export default function DashboardPage() {
           gap: 48,
         }}
       >
+        <>
         <section id="overview" ref={sectionRef("overview")}>
           {renderSectionContent("indices", (
             <>
@@ -352,19 +391,26 @@ export default function DashboardPage() {
             {renderSectionContent("news", <NewsList news={news} />)}
           </section>
         )}
+        {market === "cn" && (
+          <section id="etf" ref={sectionRef("etf")}>
+            <ETFWatchlist onViewDetail={setEtfDetailSymbol} />
+          </section>
+        )}
         <section id="watchlist" ref={sectionRef("watchlist")}>
           {renderSectionContent("holdings",
-            <WatchlistSection holdings={holdings.map((h: any) => ({ ...h, earnings_approaching: earningsSymbols.has(h.symbol) }))} market={market} onRefresh={() => fetchData(market)} />,
+            <WatchlistSection holdings={mappedHoldings} market={market} onRefresh={handleFetchData} />,
           )}
         </section>
         <section id="recommendations" ref={sectionRef("recommendations")}>
           {renderSectionContent("recommendations",
-            <RecommendationsSection recommendations={recommendations.map((r: any) => ({ ...r, earnings_approaching: earningsSymbols.has(r.symbol) }))} market={market} />,
+            <RecommendationsSection recommendations={mappedRecommendations} market={market} />,
           )}
         </section>
+        </>
       </main>
-      <PreferencesModal open={prefsOpen} onClose={() => setPrefsOpen(false)} />
-      <ChatWidget market={market} data={{ indices, holdings, recommendations, news, economic_calendar: calendar, earnings_calendar: earningsCalendar }} />
+      <PreferencesModal open={prefsOpen} onClose={handleClosePreferences} />
+      <ETFDetail symbol={etfDetailSymbol} onClose={() => setEtfDetailSymbol(null)} />
+      <ChatWidget market={market} data={chatData} />
     </div>
   );
 }

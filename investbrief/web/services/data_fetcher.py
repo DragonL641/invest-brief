@@ -8,8 +8,25 @@ from investbrief.web.services.cache import (
     get_section_cached, set_section_cached, invalidate_section,
     can_section_refresh, set_section_refresh_lock,
 )
+from investbrief.us.industries import US_INDUSTRIES_MIGRATION
+from investbrief.cn.industries import CN_INDUSTRIES_MIGRATION
 
 logger = logging.getLogger(__name__)
+
+_MIGRATION_MAP = {**US_INDUSTRIES_MIGRATION, **CN_INDUSTRIES_MIGRATION}
+
+
+def _migrate_industries(industries: list[str]) -> list[str]:
+    """Map old custom industry keys to new official keys."""
+    result = []
+    for key in industries:
+        if key in _MIGRATION_MAP:
+            mapped = _MIGRATION_MAP[key]
+            if mapped not in result:
+                result.append(mapped)
+        else:
+            result.append(key)
+    return result
 
 
 def _sanitize_floats(obj):
@@ -104,13 +121,15 @@ def _fetch_news(market: str, symbols: list[str], industries: list[str]) -> tuple
         return [], [{"section": "news", **_classify_error(e)}]
 
 
-def _translate_news(items: list[dict], language: str, market: str) -> list[dict]:
-    """Translate news title and summary via Claude API. Returns translated items."""
+def _summarize_news(items: list[dict], language: str, market: str) -> list[dict]:
+    """Translate and format news summaries via Claude API.
+
+    Always processes items to produce structured markdown bullet summaries.
+    Skips Claude call only if summaries are already in markdown list format.
+    """
     source_lang = "Chinese" if market == "cn" else "English"
     target_lang = {"zh-CN": "简体中文", "ko-KR": "한국어", "en": "English"}.get(language, language)
-
-    if source_lang == "Chinese" and language.startswith("zh"):
-        return items
+    need_translate = not (source_lang == "Chinese" and language.startswith("zh"))
 
     import os
     import json
@@ -124,10 +143,11 @@ def _translate_news(items: list[dict], language: str, market: str) -> list[dict]
             ensure_ascii=False,
         )
 
+        translate_part = f"将以下新闻从{source_lang}翻译为{target_lang}，并" if need_translate else ""
         prompt = (
-            f"将以下新闻从{source_lang}翻译为{target_lang}。"
+            f"{translate_part}将以下新闻摘要提炼为结构化要点。"
             f"返回 JSON 数组，每项含 title 和 summary 字段，顺序不变。"
-            f"summary 要求：提炼为 2-3 个要点，每点一行，用换行符分隔，不要编号或前缀符号。"
+            f"summary 要求：提炼为 2-3 个要点，用 Markdown 无序列表格式（每行以 \"- \" 开头），"
             f"每个要点简洁（不超过 40 字），避免冗长叙述。"
             f"只输出 JSON 数组，不要其他内容。\n\n{payload}"
         )
@@ -147,7 +167,7 @@ def _translate_news(items: list[dict], language: str, market: str) -> list[dict]
                     item["summary"] = translated[i]["summary"]
         return items
     except Exception as e:
-        logger.warning(f"News translation failed: {e}", exc_info=True)
+        logger.warning(f"News summarization failed: {e}", exc_info=True)
         return items
 
 
@@ -198,7 +218,7 @@ def _fetch_news_section(redis_client, market: str, language: str,
     try:
         news_items, news_errors = _fetch_news(market, symbols, industries)
         if news_items:
-            translated = _translate_news(news_items[:5], language, market)
+            translated = _summarize_news(news_items[:5], language, market)
             now = _time.strftime("%Y-%m-%dT%H:%M:%S%z")
             cache_data = {"data": _sanitize_floats(translated), "updated_at": now}
             news_cache_key = f"market:{market}:section:news:{language}"
@@ -222,7 +242,7 @@ def get_market_data(redis_client, market: str, user: dict) -> dict:
     uid = str(user["id"])
     market_cfg = user.get("markets", {}).get(market, {})
     holdings = market_cfg.get("holdings", [])
-    industries = market_cfg.get("industries", [])
+    industries = _migrate_industries(market_cfg.get("industries", []))
     holdings_symbols = [h["symbol"] if isinstance(h, dict) else h for h in holdings]
 
     section_kwargs = {
@@ -266,7 +286,7 @@ def fetch_single_section(redis_client, market: str, section_name: str, user: dic
 
     market_cfg = user.get("markets", {}).get(market, {})
     holdings = market_cfg.get("holdings", [])
-    industries = market_cfg.get("industries", [])
+    industries = _migrate_industries(market_cfg.get("industries", []))
     holdings_symbols = [h["symbol"] if isinstance(h, dict) else h for h in holdings]
 
     # For news, use dedicated path
@@ -313,8 +333,14 @@ def refresh_market(redis_client, market: str, user: dict) -> dict:
             invalidate_section(redis_client, market, name)
         for name in config["private"]:
             invalidate_section(redis_client, market, name, uid=uid)
-        for key in redis_client.scan_iter(f"market:{market}:section:news:*"):
-            invalidate(redis_client, key)
+        # Invalidate news caches for all known languages
+        for lang in ("zh-CN", "ko-KR", "en"):
+            invalidate(redis_client, f"market:{market}:section:news:{lang}")
+        # Invalidate analysis caches for all known sections and languages
+        all_section_names = list(config.get("public", {}).keys()) + list(config.get("private", {}).keys())
+        for lang in ("zh-CN", "ko-KR", "en"):
+            for sname in all_section_names:
+                invalidate(redis_client, f"market:{market}:analysis:{sname}:{lang}")
 
         return get_market_data(redis_client, market, user)
     except Exception:
@@ -348,10 +374,10 @@ def refresh_section(redis_client, market: str, section_name: str, user: dict) ->
     else:
         invalidate_section(redis_client, market, section_name, uid)
 
-    full = get_market_data(redis_client, market, user)
-    section_result = full.get("sections", {}).get(section_name, {
-        "data": None, "status": "error",
-        "error": {"reason": "unknown", "detail": "Section not found in response"},
-        "updated_at": None,
-    })
+    # Invalidate analysis cache when underlying data sections change
+    if section_name in ("indices", "economic_calendar"):
+        invalidate(redis_client, f"market:{market}:analysis:{section_name}:{user.get('language', 'zh-CN')}")
+
+    # Fetch only the single section, not all sections
+    section_result = fetch_single_section(redis_client, market, section_name, user)
     return {"section": section_name, **section_result}

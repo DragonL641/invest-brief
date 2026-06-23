@@ -6,6 +6,7 @@ from investbrief.web.auth import get_current_user
 from investbrief.web.deps import get_redis
 from investbrief.web.models.schemas import ChatRequest, SectionAnalysisRequest
 from investbrief.web.services import ai_chat
+from investbrief.web.services.cache import get_cached, set_cached
 from investbrief.web.services.data_fetcher import get_market_data
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,14 @@ def chat(req: ChatRequest, user: dict = Depends(get_current_user), redis=Depends
 
 
 @router.post("/section")
-def section_analysis(req: SectionAnalysisRequest, user: dict = Depends(get_current_user)):
-    result = ai_chat.analyze_section(req.section, req.market, req.data)
+def section_analysis(req: SectionAnalysisRequest, user: dict = Depends(get_current_user), redis=Depends(get_redis)):
+    language = user.get("language", "zh-CN")
+    cache_key = f"market:{req.market}:analysis:{req.section}:{language}"
+
+    cached = get_cached(redis, cache_key)
+    if cached is not None:
+        return {"analysis": cached["analysis"], "cached": True}
+
+    result = ai_chat.analyze_section(req.section, req.market, req.data, language=language)
+    set_cached(redis, cache_key, {"analysis": result}, ttl_seconds=1800)
     return {"analysis": result}

@@ -12,6 +12,7 @@
   "market.aiAnalysis.loading": "正在生成分析...",
   "market.aiAnalysis.generate": "生成分析",
   "market.aiAnalysis.error": "分析生成失败，请稍后重试",
+  "etf.title": "ETF 分析",
   "watchlist.title": "我的自选",
   "watchlist.add": "添加自选",
   "recommendations.title": "推荐关注",

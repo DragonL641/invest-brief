@@ -1,3 +1,4 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { WarningFilled, ReloadOutlined, LoadingOutlined } from "@ant-design/icons";
 import type { SectionError } from "../types/section";
@@ -8,7 +9,7 @@ interface Props {
   loading?: boolean;
 }
 
-export default function SectionErrorCard({ error, onRetry, loading }: Props) {
+function SectionErrorCard({ error, onRetry, loading }: Props) {
   const { t } = useTranslation();
 
   return (
@@ -53,3 +54,5 @@ export default function SectionErrorCard({ error, onRetry, loading }: Props) {
     </div>
   );
 }
+
+export default React.memo(SectionErrorCard);

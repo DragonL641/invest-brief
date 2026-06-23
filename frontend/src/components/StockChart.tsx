@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 interface StockChartProps {
@@ -19,10 +19,31 @@ function toTVSymbol(symbol: string): string {
 
 export default function StockChart({ symbol }: StockChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
   const { i18n } = useTranslation();
   const locale = TV_LOCALE[i18n.language?.split("-")[0]] ?? "zh";
 
+  // IntersectionObserver to lazy-load the TradingView widget
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Inject TradingView widget only when visible
+  useEffect(() => {
+    if (!isVisible) return;
     const el = containerRef.current;
     if (!el) return;
     el.textContent = "";
@@ -43,8 +64,8 @@ export default function StockChart({ symbol }: StockChartProps) {
       theme: "dark",
       style: "1",
       locale,
-      hide_top_toolbar: true,
-      hide_legend: true,
+      hide_top_toolbar: false,
+      hide_legend: false,
       save_image: false,
       allow_symbol_change: false,
     });
@@ -53,7 +74,7 @@ export default function StockChart({ symbol }: StockChartProps) {
     return () => {
       el.textContent = "";
     };
-  }, [symbol, locale]);
+  }, [isVisible, symbol, locale]);
 
   return (
     <div

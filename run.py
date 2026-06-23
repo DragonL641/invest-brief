@@ -67,6 +67,14 @@ if not os.environ.get("HTTPS_PROXY"):
     except Exception:
         pass
 
+# Bypass proxy for AKShare data sources (eastmoney)
+_no_proxy = os.environ.get("NO_PROXY", "")
+_eastmoney_domains = ".eastmoney.com,.push2.eastmoney.com,.push2his.eastmoney.com,.push2delay.eastmoney.com"
+if _no_proxy:
+    os.environ["NO_PROXY"] = f"{_no_proxy},{_eastmoney_domains}"
+else:
+    os.environ["NO_PROXY"] = _eastmoney_domains
+
 # Ensure ANTHROPIC_AUTH_TOKEN is available as ANTHROPIC_API_KEY for anthropic SDK
 if not os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("ANTHROPIC_AUTH_TOKEN"):
     os.environ["ANTHROPIC_API_KEY"] = os.environ["ANTHROPIC_AUTH_TOKEN"]
@@ -169,6 +177,11 @@ def _filter_recipients(recipients: list, market: str) -> list:
 
 def merge_recipient_settings(recipients: list, market: str) -> tuple:
     """Merge holdings and industries from all recipients for a given market."""
+    from investbrief.us.industries import US_INDUSTRIES_MIGRATION
+    from investbrief.cn.industries import CN_INDUSTRIES_MIGRATION
+
+    _migration = {**US_INDUSTRIES_MIGRATION, **CN_INDUSTRIES_MIGRATION}
+
     all_holdings = []
     seen_symbols = set()
     all_industries = set()
@@ -194,7 +207,9 @@ def merge_recipient_settings(recipients: list, market: str) -> tuple:
             if key and key not in seen_symbols:
                 seen_symbols.add(key)
                 all_holdings.append(h)
-        all_industries.update(industries)
+        # Migrate old industry keys to new official keys
+        migrated = [_migration.get(k, k) for k in industries]
+        all_industries.update(migrated)
 
     return all_holdings, list(all_industries)
 

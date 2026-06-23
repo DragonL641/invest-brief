@@ -70,17 +70,20 @@ class CNMarketProvider(MarketProvider):
         """获取持仓个股详情。并发拉取每只股票的多个数据源。"""
         symbols = [h["symbol"] for h in holdings]
 
-        # Batch fetch quotes to avoid repeated full-table scans
-        batch_quotes = self._batch_stock_quotes(symbols)
+        # Pre-fetch all heavy batch data in parallel
+        with ThreadPoolExecutor(max_workers=3) as pre_pool:
+            quote_future = pre_pool.submit(self._batch_stock_quotes, symbols)
+            research_future = pre_pool.submit(self.client.get_institutional_research_batch, symbols)
+            # Pre-warm insider trades cache
+            pre_pool.submit(self.client._get_all_insider_trades_df)
 
-        # Batch fetch institutional research to avoid per-symbol date iteration
-        try:
-            batch_research = self.client.get_institutional_research_batch(symbols)
-        except Exception:
-            batch_research = {}
+            batch_quotes = quote_future.result()
+            try:
+                batch_research = research_future.result()
+            except Exception:
+                batch_research = {}
 
-        results = []
-        for h in holdings:
+        def _process_holding(h: dict[str, Any]) -> dict[str, Any]:
             symbol = h["symbol"]
             data: dict[str, Any] = {"symbol": symbol, "name": h.get("name", symbol)}
 
@@ -95,22 +98,32 @@ class CNMarketProvider(MarketProvider):
                 data["pe"] = quote.get("pe")
                 data["turnover_rate"] = quote.get("turnover_rate")
 
-            # Fetch independent data sources concurrently
-            details = self._fetch_stock_details(symbol)
-
-            # Override inst_research with batch result
-            if symbol in batch_research:
-                details["inst_research"] = batch_research[symbol]
+            # Skip inst_research in _fetch_stock_details since batch result exists
+            details = self._fetch_stock_details(symbol, skip_keys={"inst_research"})
+            details["inst_research"] = batch_research.get(symbol, [])
 
             data.update(details)
+            return data
 
-            results.append(data)
-        return results
+        # Parallelize across holdings
+        results = [None] * len(holdings)
+        with ThreadPoolExecutor(max_workers=min(len(holdings), 4)) as pool:
+            futures = {pool.submit(_process_holding, h): i for i, h in enumerate(holdings)}
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    results[idx] = future.result()
+                except Exception as e:
+                    logger.warning(f"Holding fetch error ({holdings[idx]['symbol']}): {e}")
+                    results[idx] = {"symbol": holdings[idx]["symbol"], "name": holdings[idx].get("name", "")}
 
-    def _fetch_stock_details(self, symbol: str) -> dict[str, Any]:
+        return [r for r in results if r is not None]
+
+    def _fetch_stock_details(self, symbol: str, skip_keys: set[str] | None = None) -> dict[str, Any]:
         """并发拉取单只股票的多个独立数据源。"""
+        skip_keys = skip_keys or set()
         client = self.client
-        tasks = {
+        all_tasks = {
             "history": lambda: client.get_stock_history(symbol, days=180),
             "rating": lambda: client.get_analyst_rating_summary(symbol),
             "financial": lambda: client.get_financial_indicators(symbol),
@@ -119,6 +132,7 @@ class CNMarketProvider(MarketProvider):
             "reports": lambda: client.get_research_reports(symbol, limit=5),
             "fund_flow": lambda: client.get_stock_fund_flow(symbol),
         }
+        tasks = {k: v for k, v in all_tasks.items() if k not in skip_keys}
 
         results: dict[str, Any] = {}
         with ThreadPoolExecutor(max_workers=4) as pool:

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlusOutlined } from "@ant-design/icons";
 import { Modal, App } from "antd";
@@ -12,7 +12,7 @@ interface WatchlistSectionProps {
   onRefresh?: () => void;
 }
 
-export default function WatchlistSection({ holdings, market, onRefresh }: WatchlistSectionProps) {
+function WatchlistSection({ holdings, market, onRefresh }: WatchlistSectionProps) {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const [modalOpen, setModalOpen] = useState(false);
@@ -93,3 +93,5 @@ export default function WatchlistSection({ holdings, market, onRefresh }: Watchl
     </section>
   );
 }
+
+export default React.memo(WatchlistSection);

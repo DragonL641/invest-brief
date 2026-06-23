@@ -27,6 +27,14 @@ if not os.environ.get("HTTPS_PROXY"):
     except Exception:
         pass
 
+# Bypass proxy for AKShare data sources (eastmoney)
+_no_proxy = os.environ.get("NO_PROXY", "")
+_eastmoney_domains = ".eastmoney.com,.push2.eastmoney.com,.push2his.eastmoney.com,.push2delay.eastmoney.com"
+if _no_proxy:
+    os.environ["NO_PROXY"] = f"{_no_proxy},{_eastmoney_domains}"
+else:
+    os.environ["NO_PROXY"] = _eastmoney_domains
+
 
 def main():
     host = os.environ.get("WEB_HOST", "0.0.0.0")

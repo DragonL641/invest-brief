@@ -1,3 +1,4 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { Table } from "antd";
 
@@ -40,7 +41,7 @@ const EVENT_NAME_MAP: Record<string, string> = {
   "Durable Goods Orders": "event.durableGoods",
 };
 
-export default function EconomicCalendar({ calendar }: EconomicCalendarProps) {
+function EconomicCalendar({ calendar }: EconomicCalendarProps) {
   const { t } = useTranslation();
 
   if (!calendar || calendar.length === 0) return null;
@@ -107,3 +108,5 @@ export default function EconomicCalendar({ calendar }: EconomicCalendarProps) {
     </section>
   );
 }
+
+export default React.memo(EconomicCalendar);

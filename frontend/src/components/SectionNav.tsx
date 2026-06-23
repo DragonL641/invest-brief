@@ -1,3 +1,4 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
 
 export interface SectionDef {
@@ -11,7 +12,7 @@ interface SectionNavProps {
   onNavigate: (id: string) => void;
 }
 
-export default function SectionNav({ sections, activeId, onNavigate }: SectionNavProps) {
+function SectionNav({ sections, activeId, onNavigate }: SectionNavProps) {
   const { t } = useTranslation();
 
   return (
@@ -75,3 +76,5 @@ export default function SectionNav({ sections, activeId, onNavigate }: SectionNa
     </nav>
   );
 }
+
+export default React.memo(SectionNav);

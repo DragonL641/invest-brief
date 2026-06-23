@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import StockChart from "./StockChart";
@@ -71,7 +71,7 @@ function getBadges(stock: any, t: TFunction): { label: string; color: string }[]
 
 const CURRENCY: Record<string, string> = { us: "$", cn: "¥" };
 
-export default function StockCard({ stock, market = "us" }: StockCardProps) {
+function StockCard({ stock, market = "us" }: StockCardProps) {
   const { t } = useTranslation();
   const cur = CURRENCY[market] ?? "$";
   const [showAnalystModal, setShowAnalystModal] = useState(false);
@@ -322,3 +322,5 @@ export default function StockCard({ stock, market = "us" }: StockCardProps) {
     </div>
   );
 }
+
+export default React.memo(StockCard);

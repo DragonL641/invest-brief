@@ -15,9 +15,24 @@ from investbrief.web.services.cache import get_section_cached
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/data", tags=["data"])
 
-_pool = ThreadPoolExecutor(max_workers=4)
+_pool = ThreadPoolExecutor(max_workers=8)
 
 FETCH_TIMEOUT = 180
+
+# Per-section timeout: fast sections get less time, heavy sections get more
+_SECTION_TIMEOUTS = {
+    "indices": 30,
+    "economic_calendar": 60,
+    "news": 60,
+    "premarket_movers": 60,
+    "earnings_calendar": 60,
+    "congressional_trades": 60,
+    "dragon_tiger": 60,
+    "sector_performance": 60,
+    "holdings": 180,
+    "recommendations": 120,
+}
+_DEFAULT_SECTION_TIMEOUT = 60
 
 
 def _error_sections(market: str, reason: str = "timeout") -> dict:
@@ -68,44 +83,54 @@ def get_status(redis=Depends(get_redis)):
 
 
 async def _stream_sections(market: str, user: dict, redis):
-    """Async generator that yields SSE events for each section as it completes."""
+    """Async generator that yields SSE events as sections complete (parallel fetch)."""
     loop = asyncio.get_event_loop()
-    for section_name in _STREAM_ORDER:
-        cfg = SECTION_CONFIG.get(market, {})
-        is_valid = (
-            section_name in cfg.get("public", {})
-            or section_name in cfg.get("private", {})
-            or section_name == "news"
-        )
-        if not is_valid:
-            continue
-        try:
-            result = await asyncio.wait_for(
-                loop.run_in_executor(
-                    _pool, fetch_single_section, redis, market, section_name, user,
-                ),
-                timeout=FETCH_TIMEOUT,
+    cfg = SECTION_CONFIG.get(market, {})
+
+    section_names = [
+        s for s in _STREAM_ORDER
+        if s in cfg.get("public", {}) or s in cfg.get("private", {}) or s == "news"
+    ]
+
+    tasks: dict[str, asyncio.Task] = {}
+    for name in section_names:
+        timeout = _SECTION_TIMEOUTS.get(name, _DEFAULT_SECTION_TIMEOUT)
+        tasks[name] = loop.create_task(
+            asyncio.wait_for(
+                loop.run_in_executor(_pool, fetch_single_section, redis, market, name, user),
+                timeout=timeout,
             )
-            event = {"type": "section", "section": section_name, **result}
-        except asyncio.TimeoutError:
-            logger.warning(f"SSE section timeout: {market}/{section_name}")
-            event = {
-                "type": "section", "section": section_name,
-                "data": None, "status": "error",
-                "error": {"reason": "timeout", "detail": "", "section": section_name,
-                          "retryable": True, "suggestion_key": "error.suggestion.timeout"},
-                "updated_at": None,
-            }
-        except Exception as e:
-            logger.error(f"SSE section error: {market}/{section_name}: {e}")
-            event = {
-                "type": "section", "section": section_name,
-                "data": None, "status": "error",
-                "error": {"reason": "unknown", "detail": str(e)[:200], "section": section_name,
-                          "retryable": True, "suggestion_key": "error.suggestion.unknown"},
-                "updated_at": None,
-            }
-        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        )
+
+    name_by_task = {v: k for k, v in tasks.items()}
+    pending = set(tasks.values())
+
+    while pending:
+        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        for task in done:
+            section_name = name_by_task[task]
+            try:
+                result = task.result()
+                event = {"type": "section", "section": section_name, **result}
+            except asyncio.TimeoutError:
+                logger.warning(f"SSE section timeout: {market}/{section_name}")
+                event = {
+                    "type": "section", "section": section_name,
+                    "data": None, "status": "error",
+                    "error": {"reason": "timeout", "detail": "", "section": section_name,
+                              "retryable": True, "suggestion_key": "error.suggestion.timeout"},
+                    "updated_at": None,
+                }
+            except Exception as e:
+                logger.error(f"SSE section error: {market}/{section_name}: {e}")
+                event = {
+                    "type": "section", "section": section_name,
+                    "data": None, "status": "error",
+                    "error": {"reason": "unknown", "detail": str(e)[:200], "section": section_name,
+                              "retryable": True, "suggestion_key": "error.suggestion.unknown"},
+                    "updated_at": None,
+                }
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
     yield "data: {\"type\": \"done\"}\n\n"
 

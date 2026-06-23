@@ -1,3 +1,4 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import ReactMarkdown from "react-markdown";
@@ -35,7 +36,23 @@ function sentimentLabel(s: string, t: TFunction): string {
   return s;
 }
 
-export default function NewsList({ news }: NewsListProps) {
+const MD_SUMMARY_COMPONENTS = {
+  p: ({ children }: any) => <p style={{ margin: 0, fontSize: 13, color: "#8d969e" }}>{children}</p>,
+  ul: ({ children }: any) => <ul style={{ margin: "2px 0", paddingLeft: 16, listStyleType: "disc" }}>{children}</ul>,
+  ol: ({ children }: any) => <ol style={{ margin: "2px 0", paddingLeft: 16 }}>{children}</ol>,
+  li: ({ children }: any) => <li style={{ margin: "1px 0", fontSize: 13, color: "#8d969e", lineHeight: 1.6 }}>{children}</li>,
+  strong: ({ children }: any) => <strong style={{ color: "#b0b6be", fontSize: 13 }}>{children}</strong>,
+  em: ({ children }: any) => <em style={{ color: "#8d969e", fontSize: 13 }}>{children}</em>,
+  h1: () => null,
+  h2: () => null,
+  h3: () => null,
+  h4: () => null,
+  h5: () => null,
+  h6: () => null,
+  code: ({ children }: any) => <span style={{ fontSize: 12, color: "#8d969e" }}>{children}</span>,
+};
+
+function NewsList({ news }: NewsListProps) {
   const { t } = useTranslation();
 
   if (!news || news.length === 0) return null;
@@ -67,14 +84,7 @@ export default function NewsList({ news }: NewsListProps) {
 
               {item.summary && (
                 <div style={{ marginBottom: 8, color: "#8d969e", fontSize: 13, lineHeight: 1.6 }}>
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }) => <p style={{ margin: 0 }}>{children}</p>,
-                      ul: ({ children }) => <ul style={{ margin: "2px 0", paddingLeft: 16 }}>{children}</ul>,
-                      ol: ({ children }) => <ol style={{ margin: "2px 0", paddingLeft: 16 }}>{children}</ol>,
-                      li: ({ children }) => <li style={{ margin: "1px 0" }}>{children}</li>,
-                    }}
-                  >
+                  <ReactMarkdown components={MD_SUMMARY_COMPONENTS}>
                     {item.summary}
                   </ReactMarkdown>
                 </div>
@@ -131,3 +141,5 @@ export default function NewsList({ news }: NewsListProps) {
     </section>
   );
 }
+
+export default React.memo(NewsList);

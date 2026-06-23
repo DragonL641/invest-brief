@@ -1,3 +1,4 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
 import StockCard from "./StockCard";
 
@@ -6,7 +7,7 @@ interface RecommendationsSectionProps {
   market: string;
 }
 
-export default function RecommendationsSection({ recommendations, market }: RecommendationsSectionProps) {
+function RecommendationsSection({ recommendations, market }: RecommendationsSectionProps) {
   const { t } = useTranslation();
 
   return (
@@ -27,3 +28,5 @@ export default function RecommendationsSection({ recommendations, market }: Reco
     </section>
   );
 }
+
+export default React.memo(RecommendationsSection);

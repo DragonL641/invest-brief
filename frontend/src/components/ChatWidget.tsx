@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from "react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
 import { RobotOutlined, CloseOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import ChatPanel from "./ChatPanel";
@@ -39,7 +39,7 @@ interface ChatWidgetProps {
   data?: unknown;
 }
 
-export default function ChatWidget({ market }: ChatWidgetProps) {
+function ChatWidget({ market }: ChatWidgetProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [sessions, setSessions] = useState<Session[]>(loadSessions);
@@ -48,13 +48,20 @@ export default function ChatWidget({ market }: ChatWidgetProps) {
     return stored.length > 0 ? stored[stored.length - 1].id : generateId();
   });
   const streamingRef = useRef<Message | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestSessionsRef = useRef<Session[]>(sessions);
+  latestSessionsRef.current = sessions;
 
   const currentSession = sessions.find((s) => s.id === currentId);
   const messages = useMemo(() => currentSession?.messages || [], [currentSession]);
 
   // Cleanup expired sessions - initial state already loaded via useState(loadSessions)
 
-  const updateSession = useCallback((id: string, patch: Partial<Session>) => {
+  const flushToStorage = useCallback(() => {
+    saveSessions(latestSessionsRef.current);
+  }, []);
+
+  const updateSession = useCallback((id: string, patch: Partial<Session>, immediate = false) => {
     setSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === id);
       const updated = [...prev];
@@ -69,10 +76,22 @@ export default function ChatWidget({ market }: ChatWidgetProps) {
           ...patch,
         });
       }
-      saveSessions(updated);
+      latestSessionsRef.current = updated;
+
+      if (immediate) {
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+          debounceTimerRef.current = null;
+        }
+        saveSessions(updated);
+      } else {
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = setTimeout(flushToStorage, 500);
+      }
+
       return updated;
     });
-  }, []);
+  }, [flushToStorage]);
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -81,7 +100,7 @@ export default function ChatWidget({ market }: ChatWidgetProps) {
       const newMessages = [...messages, userMsg, aiMsg];
       const title = messages.length === 0 ? text.slice(0, 20) : currentSession?.title || text.slice(0, 20);
 
-      updateSession(currentId, { messages: newMessages, title });
+      updateSession(currentId, { messages: newMessages, title }, true);
 
       streamingRef.current = aiMsg;
       try {
@@ -92,12 +111,17 @@ export default function ChatWidget({ market }: ChatWidgetProps) {
             title,
           });
         }
+        // Flush final state immediately after streaming ends
+        updateSession(currentId, {
+          messages: [...newMessages.slice(0, -1), { ...streamingRef.current }],
+          title,
+        }, true);
       } catch {
         streamingRef.current.content += "\n" + t("chat.requestFailed");
         updateSession(currentId, {
           messages: [...newMessages.slice(0, -1), { ...streamingRef.current }],
           title,
-        });
+        }, true);
       }
     },
     [currentId, messages, currentSession, market, updateSession, t]
@@ -164,3 +188,5 @@ export default function ChatWidget({ market }: ChatWidgetProps) {
     </>
   );
 }
+
+export default React.memo(ChatWidget);

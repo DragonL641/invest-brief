@@ -1,3 +1,4 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { Dropdown, App } from "antd";
 import { StockOutlined, ReloadOutlined, LoadingOutlined, SendOutlined, SettingOutlined, LogoutOutlined, DownOutlined } from "@ant-design/icons";
@@ -27,7 +28,7 @@ const langPillStyle = (active: boolean): React.CSSProperties => ({
   transition: "background 0.2s",
 });
 
-export default function Header({ market, onMarketChange, onRefresh, refreshing, updatedAt, onOpenPreferences }: HeaderProps) {
+function Header({ market, onMarketChange, onRefresh, refreshing, updatedAt, onOpenPreferences }: HeaderProps) {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { message } = App.useApp();
@@ -201,3 +202,5 @@ export default function Header({ market, onMarketChange, onRefresh, refreshing, 
     </header>
   );
 }
+
+export default React.memo(Header);

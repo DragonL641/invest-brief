@@ -1,3 +1,4 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
 import InfoTooltip from "./InfoTooltip";
 
@@ -111,7 +112,7 @@ function IndexCard({ idx }: { idx: IndexData }) {
   );
 }
 
-export default function MarketOverview({ indices }: MarketOverviewProps) {
+function MarketOverview({ indices }: MarketOverviewProps) {
   const { t } = useTranslation();
 
   if (!indices || indices.length === 0) return null;
@@ -158,3 +159,5 @@ export default function MarketOverview({ indices }: MarketOverviewProps) {
     </div>
   );
 }
+
+export default React.memo(MarketOverview);

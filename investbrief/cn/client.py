@@ -2,6 +2,8 @@
 
 import logging
 import os
+import time
+import threading
 from typing import Any
 from datetime import datetime, timedelta
 
@@ -11,6 +13,32 @@ import akshare as ak
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+
+class _DataFrameCache:
+    """Thread-safe TTL cache for AKShare full-universe DataFrames."""
+
+    def __init__(self):
+        self._store: dict[str, tuple[float, pd.DataFrame]] = {}
+        self._lock = threading.Lock()
+
+    def get(self, key: str, ttl: int) -> pd.DataFrame | None:
+        with self._lock:
+            entry = self._store.get(key)
+            if entry is None:
+                return None
+            ts, df = entry
+            if time.monotonic() - ts > ttl:
+                del self._store[key]
+                return None
+            return df
+
+    def set(self, key: str, df: pd.DataFrame):
+        with self._lock:
+            self._store[key] = (time.monotonic(), df)
+
+
+_df_cache = _DataFrameCache()
 
 
 def _safe_float(val) -> float | None:
@@ -31,13 +59,20 @@ class AKShareClient:
 
     # ---- 指数 ----
 
-    def get_index_quote(self, symbol: str) -> dict[str, Any] | None:
-        """获取指数实时行情。symbol: 如 "000001"（上证指数）。
+    def _get_all_indices_df(self) -> pd.DataFrame | None:
+        """获取全量指数 DataFrame（带缓存，TTL 5 分钟）。"""
+        df = _df_cache.get("zh_index_spot", 300)
+        if df is not None:
+            return df
+        df = ak.stock_zh_index_spot_em()
+        if df is not None and not df.empty:
+            _df_cache.set("zh_index_spot", df)
+        return df
 
-        调用 stock_zh_index_spot_em() 拿到全部指数，按代码过滤。
-        """
+    def get_index_quote(self, symbol: str) -> dict[str, Any] | None:
+        """获取指数实时行情。symbol: 如 "000001"（上证指数）。"""
         try:
-            df = ak.stock_zh_index_spot_em()
+            df = self._get_all_indices_df()
             if df is None or df.empty:
                 return None
             row = df[df["代码"] == symbol]
@@ -60,7 +95,7 @@ class AKShareClient:
     def get_index_quotes(self, symbols: list[str]) -> list[dict[str, Any]]:
         """批量获取指数实时行情。"""
         try:
-            df = ak.stock_zh_index_spot_em()
+            df = self._get_all_indices_df()
             if df is None or df.empty:
                 return []
             results = []
@@ -85,14 +120,20 @@ class AKShareClient:
 
     # ---- 个股行情 ----
 
-    def get_stock_quote(self, symbol: str) -> dict[str, Any] | None:
-        """获取个股实时行情。symbol: 6位代码如 "600519"。
+    def _get_all_stocks_df(self) -> pd.DataFrame | None:
+        """获取全量 A 股 DataFrame（带缓存，TTL 5 分钟）。"""
+        df = _df_cache.get("zh_a_spot", 300)
+        if df is not None:
+            return df
+        df = ak.stock_zh_a_spot_em()
+        if df is not None and not df.empty:
+            _df_cache.set("zh_a_spot", df)
+        return df
 
-        注意：stock_zh_a_spot_em() 返回全量 A 股，调用较慢（约 1 分钟）。
-        如需批量查询，优先使用 get_stock_quotes()。
-        """
+    def get_stock_quote(self, symbol: str) -> dict[str, Any] | None:
+        """获取个股实时行情。symbol: 6位代码如 "600519"。"""
         try:
-            df = ak.stock_zh_a_spot_em()
+            df = self._get_all_stocks_df()
             if df is None or df.empty:
                 return None
             row = df[df["代码"] == symbol]
@@ -107,7 +148,7 @@ class AKShareClient:
     def get_stock_quotes(self, symbols: list[str]) -> list[dict[str, Any]]:
         """批量获取个股实时行情。"""
         try:
-            df = ak.stock_zh_a_spot_em()
+            df = self._get_all_stocks_df()
             if df is None or df.empty:
                 return []
             symbol_set = set(symbols)
@@ -308,14 +349,23 @@ class AKShareClient:
 
     # ---- 高管与股东变动 ----
 
+    def _get_all_insider_trades_df(self) -> pd.DataFrame | None:
+        """获取全量高管持股变动 DataFrame（带缓存，TTL 30 分钟）。"""
+        df = _df_cache.get("insider_trades", 1800)
+        if df is not None:
+            return df
+        df = ak.stock_ggcg_em(symbol="全部")
+        if df is not None and not df.empty:
+            _df_cache.set("insider_trades", df)
+        return df
+
     def get_insider_trades(self, symbol: str, days: int = 30) -> list[dict[str, Any]]:
         """获取高管持股变动（东方财富）。
 
         调用 stock_ggcg_em() 拿全量数据，按代码和日期过滤。
-        注意：该接口分页较多，耗时较长。
         """
         try:
-            df = ak.stock_ggcg_em(symbol="全部")
+            df = self._get_all_insider_trades_df()
             if df is None or df.empty:
                 return []
             cutoff = (datetime.now() - timedelta(days=days)).date()
@@ -408,7 +458,7 @@ class AKShareClient:
     # ---- 机构调研 ----
 
     def get_institutional_research_batch(
-        self, symbols: list[str], days: int = 30
+        self, symbols: list[str], days: int = 7
     ) -> dict[str, list[dict[str, Any]]]:
         """批量获取多只股票的机构调研统计，只遍历一次日期。"""
         symbol_set = set(symbols)
@@ -441,7 +491,7 @@ class AKShareClient:
         return all_results
 
     def get_institutional_research(
-        self, symbol: str, days: int = 30
+        self, symbol: str, days: int = 7
     ) -> list[dict[str, Any]]:
         """获取个股机构调研统计（东方财富）。
 
@@ -603,6 +653,224 @@ class AKShareClient:
         except Exception as e:
             logger.warning(f"AKShare get_all_fund_flow failed: {e}")
             return {}
+
+    # ---- ETF ----
+
+    def _get_all_etf_df(self) -> pd.DataFrame | None:
+        """获取全量 ETF DataFrame（带缓存，TTL 5 分钟）。"""
+        df = _df_cache.get("etf_spot", 300)
+        if df is not None:
+            return df
+        df = ak.fund_etf_spot_em()
+        if df is not None and not df.empty:
+            _df_cache.set("etf_spot", df)
+        return df
+
+    def get_etf_spot(self, symbol: str) -> dict[str, Any] | None:
+        """获取单只 ETF 实时行情。symbol: 6位代码如 "510300"。"""
+        try:
+            df = self._get_all_etf_df()
+            if df is None or df.empty:
+                return None
+            row = df[df["代码"] == symbol]
+            if row.empty:
+                return None
+            r = row.iloc[0]
+            return {
+                "symbol": symbol,
+                "name": str(r.get("名称", "")),
+                "price": self._safe_float(r.get("最新价")),
+                "change": self._safe_float(r.get("涨跌额")),
+                "change_pct": self._safe_float(r.get("涨跌幅")),
+                "open": self._safe_float(r.get("今开")),
+                "high": self._safe_float(r.get("最高")),
+                "low": self._safe_float(r.get("最低")),
+                "volume": self._safe_float(r.get("成交量")),
+                "amount": self._safe_float(r.get("成交额")),
+                "turnover_rate": self._safe_float(r.get("换手率")),
+                "pe": self._safe_float(r.get("市盈率-动态")),
+                "iopv": self._safe_float(r.get("IOPV实时估值")),
+                "premium_rate": self._safe_float(r.get("基金折价率")),
+                "main_net_flow": self._safe_float(r.get("主力净流入-净额")),
+                "main_net_pct": self._safe_float(r.get("主力净流入-净占比")),
+                "huge_net_flow": self._safe_float(r.get("超大单净流入-净额")),
+                "big_net_flow": self._safe_float(r.get("大单净流入-净额")),
+                "medium_net_flow": self._safe_float(r.get("中单净流入-净额")),
+                "small_net_flow": self._safe_float(r.get("小单净流入-净额")),
+                "shares_outstanding": self._safe_float(r.get("流通市值")),
+                "total_market_cap": self._safe_float(r.get("总市值")),
+            }
+        except Exception as e:
+            logger.warning(f"AKShare get_etf_spot failed for {symbol}: {e}")
+            return None
+
+    def get_etf_spot_batch(self, symbols: list[str]) -> list[dict[str, Any]]:
+        """批量获取 ETF 实时行情（一次调用，多次过滤）。"""
+        try:
+            df = self._get_all_etf_df()
+            if df is None or df.empty:
+                return []
+            symbol_set = set(symbols)
+            filtered = df[df["代码"].isin(symbol_set)]
+            results = []
+            for _, r in filtered.iterrows():
+                sym = str(r.get("代码", ""))
+                results.append({
+                    "symbol": sym,
+                    "name": str(r.get("名称", "")),
+                    "price": self._safe_float(r.get("最新价")),
+                    "change": self._safe_float(r.get("涨跌额")),
+                    "change_pct": self._safe_float(r.get("涨跌幅")),
+                    "turnover_rate": self._safe_float(r.get("换手率")),
+                    "iopv": self._safe_float(r.get("IOPV实时估值")),
+                    "premium_rate": self._safe_float(r.get("基金折价率")),
+                    "main_net_flow": self._safe_float(r.get("主力净流入-净额")),
+                    "main_net_pct": self._safe_float(r.get("主力净流入-净占比")),
+                    "amount": self._safe_float(r.get("成交额")),
+                    "total_market_cap": self._safe_float(r.get("总市值")),
+                })
+            return results
+        except Exception as e:
+            logger.warning(f"AKShare get_etf_spot_batch failed: {e}")
+            return []
+
+    def get_etf_hist(self, symbol: str, days: int = 120) -> pd.DataFrame | None:
+        """获取 ETF 历史日K线（前复权）。
+
+        优先用 fund_etf_hist_em 获取 OHLCV 数据。如失败，fallback 到
+        fund_etf_fund_info_em 的 NAV 数据构造简化版（close=nav, 无 high/low/volume）。
+        """
+        end_date = datetime.now().strftime("%Y%m%d")
+        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+        try:
+            df = ak.fund_etf_hist_em(
+                symbol=symbol,
+                period="daily",
+                start_date=start_date,
+                end_date=end_date,
+                adjust="qfq",
+            )
+            if df is not None and not df.empty:
+                df = df.rename(columns={
+                    "日期": "date", "开盘": "open", "收盘": "close",
+                    "最高": "high", "最低": "low",
+                    "成交量": "volume", "成交额": "amount",
+                    "振幅": "amplitude", "涨跌幅": "change_pct",
+                    "涨跌额": "change", "换手率": "turnover",
+                })
+                df["date"] = pd.to_datetime(df["date"])
+                df = df.set_index("date")
+                return df
+        except Exception as e:
+            logger.warning(f"AKShare get_etf_hist failed for {symbol}: {e}, falling back to NAV")
+        # Fallback: use NAV history
+        nav_df = self.get_etf_nav_history(symbol, days=days)
+        if nav_df is not None and not nav_df.empty:
+            result = nav_df.rename(columns={"nav": "close"}).copy()
+            result["open"] = result["close"]
+            result["high"] = result["close"]
+            result["low"] = result["close"]
+            result["volume"] = 0
+            result["amount"] = 0
+            result["change_pct"] = result["close"].pct_change() * 100
+            result["change"] = result["close"].diff()
+            return result[["open", "close", "high", "low", "volume", "amount", "change_pct", "change"]]
+        return None
+
+    def get_etf_nav_history(self, fund: str, days: int = 60) -> pd.DataFrame | None:
+        """获取 ETF 净值历史。fund: 基金代码如 "510300"。
+
+        返回 DataFrame: date, nav, acc_nav。
+        """
+        try:
+            end_date = datetime.now().strftime("%Y%m%d")
+            start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+            df = ak.fund_etf_fund_info_em(
+                fund=fund,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            if df is None or df.empty:
+                return None
+            df = df.rename(columns={
+                "净值日期": "date", "单位净值": "nav",
+                "累计净值": "acc_nav",
+            })
+            df["date"] = pd.to_datetime(df["date"])
+            df = df.set_index("date")
+            return df[["nav", "acc_nav"]]
+        except Exception as e:
+            logger.warning(f"AKShare get_etf_nav_history failed for {fund}: {e}")
+            return None
+
+    # ETF 跟踪指数 → 乐咕乐股指数名称映射
+    _ETF_INDEX_MAP: dict[str, str] = {
+        "510050": "上证50", "510300": "沪深300", "510500": "中证500",
+        "159915": "创业板50", "512100": "中证1000", "510880": "上证红利",
+        "159901": "深证100", "510180": "上证180",
+    }
+    _LG_INDEX_NAMES: list[str] = [
+        "上证50", "沪深300", "上证380", "创业板50", "中证500",
+        "上证180", "深证红利", "深证100", "中证1000", "上证红利",
+        "中证100", "中证800",
+    ]
+
+    def get_index_valuation(self, symbol: str, index_name: str | None = None) -> dict[str, Any] | None:
+        """获取指数估值数据（PE/PB 及历史百分位）。
+
+        symbol: ETF 代码或指数代码。index_name: 乐咕乐股指数名称（可选，不传则自动映射）。
+        """
+        if index_name is None:
+            index_name = self._ETF_INDEX_MAP.get(symbol)
+        if index_name is None or index_name not in self._LG_INDEX_NAMES:
+            logger.warning(f"No index mapping for ETF {symbol}")
+            return None
+        try:
+            df = ak.stock_index_pe_lg(symbol=index_name)
+            if df is None or df.empty:
+                return None
+            r = df.iloc[-1]
+            pe = self._safe_float(r.get("滚动市盈率"))
+            pe_static = self._safe_float(r.get("静态市盈率"))
+            # 计算历史百分位
+            pe_col = pd.to_numeric(df["滚动市盈率"], errors="coerce")
+            pe_pct = None
+            if pe is not None and pe_col.notna().sum() > 0:
+                pe_pct = round(float((pe_col.dropna() < pe).sum() / pe_col.dropna().shape[0] * 100), 1)
+            return {
+                "symbol": symbol,
+                "index_name": index_name,
+                "date": str(r.get("日期", "")),
+                "index_value": self._safe_float(r.get("指数")),
+                "pe_ttm": pe,
+                "pe_static": pe_static,
+                "pe_percentile": pe_pct,
+                "pe_median": round(float(pe_col.median()), 2) if pe_col.notna().sum() > 0 else None,
+            }
+        except Exception as e:
+            logger.warning(f"AKShare get_index_valuation failed for {symbol}: {e}")
+            return None
+
+    def search_etf(self, keyword: str) -> list[dict[str, Any]]:
+        """搜索 ETF（按代码或名称模糊匹配）。"""
+        try:
+            df = self._get_all_etf_df()
+            if df is None or df.empty:
+                return []
+            mask = df["代码"].str.contains(keyword, na=False) | df["名称"].str.contains(keyword, na=False)
+            filtered = df[mask].head(20)
+            results = []
+            for _, r in filtered.iterrows():
+                results.append({
+                    "symbol": str(r.get("代码", "")),
+                    "name": str(r.get("名称", "")),
+                    "price": self._safe_float(r.get("最新价")),
+                    "change_pct": self._safe_float(r.get("涨跌幅")),
+                })
+            return results
+        except Exception as e:
+            logger.warning(f"AKShare search_etf failed for {keyword}: {e}")
+            return []
 
     # ---- 工具方法 ----
 

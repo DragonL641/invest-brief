@@ -1,0 +1,211 @@
+{
+  "rules": [
+    {
+      "id": "ma_bullish_alignment",
+      "dimension": "技术面",
+      "name": "均线多头排列",
+      "description": "MA5 > MA10 > MA20，短期趋势向上",
+      "condition": "ma_alignment == 'bullish'",
+      "signal": "bullish",
+      "weight": 1.0
+    },
+    {
+      "id": "ma_bearish_alignment",
+      "dimension": "技术面",
+      "name": "均线空头排列",
+      "description": "MA5 < MA10 < MA20，短期趋势向下",
+      "condition": "ma_alignment == 'bearish'",
+      "signal": "bearish",
+      "weight": 1.0
+    },
+    {
+      "id": "ma5_cross_above_ma20",
+      "dimension": "技术面",
+      "name": "MA5上穿MA20",
+      "description": "短期均线上穿中期均线，金叉信号",
+      "condition": "ma5_prev is not None and ma20_prev is not None and ma5_prev < ma20_prev and ma5 >= ma20",
+      "signal": "bullish",
+      "weight": 1.2
+    },
+    {
+      "id": "ma5_cross_below_ma20",
+      "dimension": "技术面",
+      "name": "MA5下穿MA20",
+      "description": "短期均线下穿中期均线，死叉信号",
+      "condition": "ma5_prev is not None and ma20_prev is not None and ma5_prev > ma20_prev and ma5 <= ma20",
+      "signal": "bearish",
+      "weight": 1.2
+    },
+    {
+      "id": "macd_golden_cross",
+      "dimension": "技术面",
+      "name": "MACD金叉",
+      "description": "DIF上穿DEA，短期动能转强",
+      "condition": "macd_cross == 'golden'",
+      "signal": "bullish",
+      "weight": 1.0
+    },
+    {
+      "id": "macd_death_cross",
+      "dimension": "技术面",
+      "name": "MACD死叉",
+      "description": "DIF下穿DEA，短期动能转弱",
+      "condition": "macd_cross == 'death'",
+      "signal": "bearish",
+      "weight": 1.0
+    },
+    {
+      "id": "rsi_overbought",
+      "dimension": "技术面",
+      "name": "RSI超买",
+      "description": "RSI超过70，短期涨幅过大，注意回调风险",
+      "condition": "rsi is not None and rsi > 70",
+      "signal": "warning",
+      "weight": 0.8
+    },
+    {
+      "id": "rsi_oversold",
+      "dimension": "技术面",
+      "name": "RSI超卖",
+      "description": "RSI低于30，短期跌幅过大，可能反弹",
+      "condition": "rsi is not None and rsi < 30",
+      "signal": "warning",
+      "weight": 0.8
+    },
+    {
+      "id": "new_20d_high",
+      "dimension": "趋势面",
+      "name": "创20日新高",
+      "description": "价格突破近20日最高点，上行动力强",
+      "condition": "new_high_20d == True",
+      "signal": "bullish",
+      "weight": 0.8
+    },
+    {
+      "id": "new_20d_low",
+      "dimension": "趋势面",
+      "name": "创20日新低",
+      "description": "价格跌破近20日最低点，下行压力较大",
+      "condition": "new_low_20d == True",
+      "signal": "bearish",
+      "weight": 0.8
+    },
+    {
+      "id": "return_5d_up",
+      "dimension": "趋势面",
+      "name": "近5日上涨",
+      "description": "近5日累计涨幅为正",
+      "condition": "return_5d is not None and return_5d > 0",
+      "signal": "bullish",
+      "weight": 0.5
+    },
+    {
+      "id": "return_5d_down",
+      "dimension": "趋势面",
+      "name": "近5日下跌",
+      "description": "近5日累计跌幅为负",
+      "condition": "return_5d is not None and return_5d < 0",
+      "signal": "bearish",
+      "weight": 0.5
+    },
+    {
+      "id": "return_20d_up",
+      "dimension": "趋势面",
+      "name": "近20日上涨",
+      "description": "近20日累计涨幅为正，中期趋势向好",
+      "condition": "return_20d is not None and return_20d > 3",
+      "signal": "bullish",
+      "weight": 0.7
+    },
+    {
+      "id": "return_20d_down",
+      "dimension": "趋势面",
+      "name": "近20日下跌",
+      "description": "近20日累计跌幅超过3%，中期趋势偏弱",
+      "condition": "return_20d is not None and return_20d < -3",
+      "signal": "bearish",
+      "weight": 0.7
+    },
+    {
+      "id": "volume_amplified",
+      "dimension": "趋势面",
+      "name": "放量",
+      "description": "成交量超过20日均值1.5倍，市场参与度提升",
+      "condition": "volume_ratio is not None and volume_ratio > 1.5",
+      "signal": "bullish",
+      "weight": 0.5
+    },
+    {
+      "id": "volume_shrunk",
+      "dimension": "趋势面",
+      "name": "缩量",
+      "description": "成交量低于20日均值0.5倍，市场观望情绪浓",
+      "condition": "volume_ratio is not None and volume_ratio < 0.5",
+      "signal": "neutral",
+      "weight": 0.3
+    },
+    {
+      "id": "main_net_inflow",
+      "dimension": "资金面",
+      "name": "主力净流入",
+      "description": "主力资金当日净流入，机构看多",
+      "condition": "main_net_flow is not None and main_net_flow > 0",
+      "signal": "bullish",
+      "weight": 0.8
+    },
+    {
+      "id": "main_net_outflow",
+      "dimension": "资金面",
+      "name": "主力净流出",
+      "description": "主力资金当日净流出，机构看空",
+      "condition": "main_net_flow is not None and main_net_flow < 0",
+      "signal": "bearish",
+      "weight": 0.8
+    },
+    {
+      "id": "premium_high",
+      "dimension": "资金面",
+      "name": "溢价偏高",
+      "description": "溢价率超过1.5%，买入成本高于净值，溢价回落风险",
+      "condition": "premium_rate is not None and premium_rate > 1.5",
+      "signal": "warning",
+      "weight": 0.9
+    },
+    {
+      "id": "premium_discount",
+      "dimension": "资金面",
+      "name": "折价交易",
+      "description": "溢价率为负（折价），买入价格低于净值",
+      "condition": "premium_rate is not None and premium_rate < -0.5",
+      "signal": "bullish",
+      "weight": 0.6
+    },
+    {
+      "id": "pe_undervalued",
+      "dimension": "估值面",
+      "name": "估值偏低",
+      "description": "PE百分位低于20%，处于历史低估值区间",
+      "condition": "pe_percentile is not None and pe_percentile < 20",
+      "signal": "bullish",
+      "weight": 1.0
+    },
+    {
+      "id": "pe_overvalued",
+      "dimension": "估值面",
+      "name": "估值偏高",
+      "description": "PE百分位高于80%，处于历史高估值区间",
+      "condition": "pe_percentile is not None and pe_percentile > 80",
+      "signal": "bearish",
+      "weight": 1.0
+    },
+    {
+      "id": "pe_fair",
+      "dimension": "估值面",
+      "name": "估值合理",
+      "description": "PE百分位在20%-80%之间，估值处于正常区间",
+      "condition": "pe_percentile is not None and 20 <= pe_percentile <= 80",
+      "signal": "neutral",
+      "weight": 0.3
+    }
+  ]
+}

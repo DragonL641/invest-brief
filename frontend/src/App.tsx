@@ -1,8 +1,10 @@
+import React, { Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { App as AntApp } from "antd";
+import { App as AntApp, Spin } from "antd";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
-import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/DashboardPage";
+
+const LoginPage = React.lazy(() => import("./pages/LoginPage"));
+const DashboardPage = React.lazy(() => import("./pages/DashboardPage"));
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -14,11 +16,13 @@ export default function App() {
   return (
     <AntApp>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+        <Suspense fallback={<div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: "#000" }}><Spin size="large" /></div>}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </AntApp>
   );

@@ -12,6 +12,7 @@
   "market.aiAnalysis.loading": "분석 생성 중...",
   "market.aiAnalysis.generate": "분석 생성",
   "market.aiAnalysis.error": "분석 생성 실패, 잠시 후 재시도하세요",
+  "etf.title": "ETF 분석",
   "watchlist.title": "관심종목",
   "watchlist.add": "추가",
   "recommendations.title": "추천 종목",
