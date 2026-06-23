@@ -364,43 +364,18 @@ class USMarketProvider(MarketProvider):
     # ==================== Rendering ====================
 
     def render_section(self, data: Dict[str, Any], config: Dict[str, Any], *,
-                       guidance: Dict[str, str] | None = None) -> str:
-        """Render US market section."""
-        guidance = guidance or {}
+                       macro_summary: str | None = None) -> str:
+        """Render US market macro section.
 
-        # Build earnings days mapping for stock annotations
-        earnings_symbols = {}
-        for e in data.get("earnings_calendar", []):
-            earnings_symbols[e["symbol"]] = e["days_away"]
-
-        indices_html = self._render_indices_table(data.get("indices", []), config)
-        holdings_html = self._render_holdings(
-            data.get("holdings", []), config, earnings_symbols=earnings_symbols
-        )
-        recommendations_html = self._render_recommendations(
-            data.get("recommendations", []), config
-        )
-
-        # Pre-market movers (conditional)
-        premarket = data.get("premarket_movers", [])
-        premarket_html = self._render_premarket(premarket, config) if premarket else ""
-
-        # Earnings calendar (conditional)
-        earnings_cal = data.get("earnings_calendar", [])
-        earnings_cal_html = self._render_earnings_calendar(earnings_cal) if earnings_cal else ""
-
-        # Economic calendar (conditional)
-        econ_cal = data.get("economic_calendar", [])
-        econ_cal_html = self._render_economic_calendar(econ_cal) if econ_cal else ""
-
-        # Congressional trades (conditional)
-        congress = data.get("congressional_trades", [])
-        congress_html = self._render_congressional_trades(congress) if congress else ""
-
-        # Section guidance snippets
-        overview_tip = self._guidance_html(guidance.get("market_overview"))
-        holdings_tip = self._guidance_html(guidance.get("holdings"))
-        recs_tip = self._guidance_html(guidance.get("recommendations"))
+        Macro view: ② economic calendar, ③ monetary policy, ④ asset performance.
+        ① core view and ⑥ risk are injected at the pipeline/template layer.
+        `macro_summary` is reserved for future use (core-view summary), unused now.
+        """
+        assets = data.get("asset_performance") or data.get("indices") or []
+        indices_html = self._render_indices_table(assets, config)
+        monetary_html = self._render_monetary_policy(data.get("monetary_policy", {}), config)
+        econ = data.get("economic_calendar", [])
+        econ_html = self._render_economic_calendar(econ) if econ else ""
 
         return f'''
     <div class="section">
@@ -409,33 +384,40 @@ class USMarketProvider(MarketProvider):
       </div>
 
       <div class="card">
-        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">📊 市场总览</div>
+        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">📊 大类资产</div>
         <div class="card-body">
           {indices_html}
         </div>
       </div>
-      {overview_tip}
-      {premarket_html}
-      <div class="card">
-        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">💼 持仓股票</div>
-        <div class="card-body">
-          {holdings_html}
-        </div>
-      </div>
-      {holdings_tip}
-      {earnings_cal_html}
-      {econ_cal_html}
-      {congress_html}
-      <div class="card">
-        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">⭐ 推荐关注</div>
-        <div class="card-body">
-          {recommendations_html}
-        </div>
-      </div>
-      {recs_tip}
+      {monetary_html}
+      {econ_html}
     </div>'''
 
     # ==================== Render Helpers ====================
+
+    def _render_monetary_policy(self, monetary: dict, config: dict) -> str:
+        """③ 货币政策与利率：美债收益率 + 联邦基金目标利率。"""
+        if not monetary:
+            return ""
+        pairs = [
+            ("美债10Y收益率", monetary.get("us_10y_yield"), "%"),
+            ("美债5Y", monetary.get("us_5y_yield"), "%"),
+            ("美债13周", monetary.get("us_13w_yield"), "%"),
+            ("联邦基金目标", monetary.get("fed_funds_rate"), ""),
+        ]
+        rows = [
+            f'<div class="metric"><span class="label">{label}:</span> {val}{suffix}</div>'
+            for label, val, suffix in pairs if val is not None
+        ]
+        if not rows:
+            return ""
+        return (
+            '<div class="card"><div class="card-header" style="padding:12px 15px;background:#f8f9fa;'
+            'border-bottom:1px solid #e9ecef;font-weight:600;">🏦 货币政策与利率</div>'
+            '<div class="card-body" style="padding:15px;">'
+            '<div class="metrics-row" style="display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:#555;">'
+            f'{"".join(rows)}</div></div></div>'
+        )
 
     def _render_premarket(self, movers: List[Dict], config: Dict) -> str:
         if not movers:

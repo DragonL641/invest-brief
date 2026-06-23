@@ -375,33 +375,18 @@ class CNMarketProvider(MarketProvider):
     # ==================== Rendering ====================
 
     def render_section(self, data: dict[str, Any], config: dict[str, Any], *,
-                       guidance: dict[str, str] | None = None) -> str:
-        """渲染 A 股市场 HTML 区块。"""
-        guidance = guidance or {}
+                       macro_summary: str | None = None) -> str:
+        """渲染 A 股市场宏观区块。
 
-        indices_html = self._render_indices_table(data.get("indices", []), config)
-        holdings_html = self._render_holdings(data.get("holdings", []), config)
-
-        # Dragon tiger (A-share specific)
-        dt = data.get("dragon_tiger", [])
-        dt_html = self._render_dragon_tiger(dt, config) if dt else ""
-
-        # Economic calendar
+        Macro view: ② economic calendar, ③ monetary policy, ④ asset performance.
+        ① core view and ⑥ risk are injected at the pipeline/template layer.
+        `macro_summary` is reserved for future use (core-view summary), unused now.
+        """
+        assets = data.get("asset_performance") or data.get("indices") or []
+        indices_html = self._render_indices_table(assets, config)
+        monetary_html = self._render_monetary_policy(data.get("monetary_policy", {}), config)
         econ = data.get("economic_calendar", [])
         econ_html = self._render_economic_calendar(econ) if econ else ""
-
-        # Industry sector performance
-        sector = data.get("sector_performance", [])
-        sector_html = self._render_sector_performance(sector) if sector else ""
-
-        recommendations_html = self._render_recommendations(
-            data.get("recommendations", []), config
-        )
-
-        # Section guidance snippets
-        overview_tip = self._guidance_html(guidance.get("market_overview"))
-        holdings_tip = self._guidance_html(guidance.get("holdings"))
-        recs_tip = self._guidance_html(guidance.get("recommendations"))
 
         return f'''
     <div class="section">
@@ -410,32 +395,42 @@ class CNMarketProvider(MarketProvider):
       </div>
 
       <div class="card">
-        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">📊 市场总览</div>
+        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">📊 大类资产</div>
         <div class="card-body">
           {indices_html}
         </div>
       </div>
-      {overview_tip}
-      {sector_html}
-      <div class="card">
-        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">💼 持仓股票</div>
-        <div class="card-body">
-          {holdings_html}
-        </div>
-      </div>
-      {holdings_tip}
-      {dt_html}
+      {monetary_html}
       {econ_html}
-      <div class="card">
-        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">⭐ 推荐关注</div>
-        <div class="card-body">
-          {recommendations_html}
-        </div>
-      </div>
-      {recs_tip}
     </div>'''
 
     # ==================== Render Helpers ====================
+
+    def _render_monetary_policy(self, monetary: dict, config: dict) -> str:
+        """③ 货币政策与利率：LPR / M2 / M1 / 社融 / 中国10Y国债。"""
+        if not monetary:
+            return ""
+        pairs = [
+            ("LPR1Y", monetary.get("lpr_1y"), "%"),
+            ("LPR5Y", monetary.get("lpr_5y"), "%"),
+            ("M2同比", monetary.get("m2_yoy"), "%"),
+            ("M1同比", monetary.get("m1_yoy"), "%"),
+            ("社融增量", monetary.get("social_financing"), "亿元"),
+            ("中国10Y国债", monetary.get("cn_10y_yield"), "%"),
+        ]
+        rows = [
+            f'<div class="metric"><span class="label">{label}:</span> {val}{suffix}</div>'
+            for label, val, suffix in pairs if val is not None
+        ]
+        if not rows:
+            return ""
+        return (
+            '<div class="card"><div class="card-header" style="padding:12px 15px;background:#f8f9fa;'
+            'border-bottom:1px solid #e9ecef;font-weight:600;">🏦 货币政策与利率</div>'
+            '<div class="card-body" style="padding:15px;">'
+            '<div class="metrics-row" style="display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:#555;">'
+            f'{"".join(rows)}</div></div></div>'
+        )
 
     def _render_indices_table(
         self, indices: list[dict], config: dict
