@@ -8,9 +8,7 @@ dependencies = [
     "requests",
     "anthropic",
     "python-dotenv",
-    "matplotlib",
     "croniter",
-    "pydantic",
     "akshare",
 ]
 
@@ -19,7 +17,6 @@ invest-brief = "run:main"
 
 [dependency-groups]
 dev = [
-    "playwright>=1.59.0",
     "pytest>=9.1.1",
 ]
 

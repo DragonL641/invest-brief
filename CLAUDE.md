@@ -33,6 +33,7 @@ docker compose -f docker-compose.prod.yml up -d  # Prod: pull GHCR image
 ## Configuration
 
 - `config.json` (gitignored) — `markets` (cron schedules), `email_service` (SMTP), `recipients[]`. Copy from `config.example.json`.
+- **Schedule:** the scheduler honors the FIRST cron entry of the FIRST enabled market (us preferred). Since the macro pipeline always merges US+CN, keep one schedule entry per market — only the first enabled market's cron actually triggers runs.
 - `recipients[]` shape: `{email, name, active, language}`. No web fields (no id/password/markets.holdings).
 - `.env` (gitignored) — `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_DEFAULT_SONNET_MODEL` (defaults to `claude-sonnet-4-6`; set to a model code your `ANTHROPIC_BASE_URL` supports), `SMTP_PASSWORD`, and news keys (`FINNHUB_KEY`, `ALPHAVANTAGE_KEY`, `TAVILY_KEY`).
 - `ANTHROPIC_AUTH_TOKEN` auto-aliases to `ANTHROPIC_API_KEY`.
@@ -46,7 +47,7 @@ docker compose -f docker-compose.prod.yml up -d  # Prod: pull GHCR image
 
 Pipeline: `load config` → fetch US macro (`USMarketProvider`) + CN macro (`CNMarketProvider`) + news → Claude generates ① core view (detailed multi-point) + ⑥ risk → `render_section` (US + CN) → `render_template` → `send_report` (one email). On `--dry-run`, prints JSON instead of sending.
 
-Key `run.py` functions: `_run_macro_report`, `generate_macro_summary` / `generate_risk_outlook` (Claude, via `core.llm.get_client`), `_serialize_macro_context`, `fetch_news`, `build_global_metrics`, `send_report`, `_run_scheduled_market` (single cron thread → `_run_macro_report`).
+Key `run.py` functions: `_run_macro_report`, `generate_macro_summary` / `generate_risk_outlook` (Claude, via `core.llm.get_client`), `_serialize_macro_context`, `fetch_news`, `send_report`, `run_scheduler` / `_run_scheduled_macro` (single cron thread → `_run_macro_report`).
 
 ### Providers
 
@@ -57,8 +58,6 @@ Key `run.py` functions: `_run_macro_report`, `generate_macro_summary` / `generat
 | `core/` | `provider.py` | `MarketProvider` ABC (macro methods) |
 | `core/` | `llm.py` | `get_client()` cached Anthropic client + `default_model()` |
 | `core/` | `mailer.py` | `EmailSender` — SMTP with retry |
-| `core/` | `charts.py` | matplotlib charts (used by ETF, not macro pipeline currently) |
-| `core/` | `guards.py` / `models.py` | validation guards; `NewsSummaryResponse` pydantic model |
 | `us/` | `provider.py` | `USMarketProvider` — yfinance macro (indices, yields, gold) |
 | `us/` | `clients.py` | `YFinanceClient` + Finnhub/Alpha Vantage/Tavily clients |
 | `us/` | `news.py` | `DataProvider` — unified news with fallback and scoring |
@@ -68,14 +67,14 @@ Key `run.py` functions: `_run_macro_report`, `generate_macro_summary` / `generat
 | `cn/` | `news.py` | A-share news via AKShare |
 | `cn/` | `calendar.py` | A-share economic calendar (LPR/PMI/CPI/PPI/M2) |
 | `etf/` | — | **Retained ETF analysis package** (analyzer/engine/indicators/rules.json); not wired into pipeline |
-| `report.py` | — | HTML template rendering (`render_template`), macro title, multi-language via Claude |
+| `report.py` | — | Template-rendering library: `load_template` / `render_template` / `translate_html` (multi-language via Claude) |
 
 ### Macro data sources (verified)
 
 - US rates: yfinance `^TNX`(10Y), `^FVX`(5Y), `^IRX`(13W); broad assets: `^GSPC`/`^IXIC`/`^DJI`/`^VIX`/`CL=F`/`DX-Y.NYB`/`GC=F`(gold). Fed funds target = static constant (update on FOMC).
 - CN monetary: akshare `macro_china_lpr` (LPR1Y/5Y), `macro_china_money_supply` (M2/M1 YoY), `macro_china_shrzgm` (社融), `bond_china_yield` (CN 10Y, filter 中债国债收益率曲线); FX: yfinance `USDCNY=X`.
 - **akshare frames are inconsistently ordered** — always sort by date/month column descending for latest, never rely on position.
-- CN-US yield spread is computed at the pipeline layer (US 10Y − CN 10Y), not in either provider alone.
+- CN-US yield spread is inferred by Claude from US 10Y and CN 10Y (both passed through separately by the pipeline; no explicit subtraction is computed).
 
 ### Report structure (email)
 

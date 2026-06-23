@@ -1,17 +1,16 @@
 {
+  "_schedule_note": "Scheduler honors the FIRST cron of the FIRST enabled market (us preferred). Macro pipeline always merges US+CN, so only one schedule entry is needed.",
   "markets": {
     "us": {
       "enabled": true,
       "schedule": [
-        { "cron": "30 22 * * 1-5", "timezone": "Asia/Shanghai" },
-        { "cron": "0 5 * * 2-6", "timezone": "Asia/Shanghai" }
+        { "cron": "30 22 * * 1-5", "timezone": "Asia/Shanghai" }
       ]
     },
     "cn": {
       "enabled": true,
       "schedule": [
-        { "cron": "30 10 * * 1-5", "timezone": "Asia/Shanghai" },
-        { "cron": "0 18 * * 1-5", "timezone": "Asia/Shanghai" }
+        { "cron": "30 10 * * 1-5", "timezone": "Asia/Shanghai" }
       ]
     }
   },

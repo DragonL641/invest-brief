@@ -5,7 +5,6 @@
 #   "requests",
 #   "anthropic",
 #   "python-dotenv",
-#   "matplotlib",
 #   "croniter",
 #   "akshare",
 # ]
@@ -155,21 +154,6 @@ def fetch_news(config, tickers, max_news_count, industries, market="us"):
 
 
 # ============================================================================
-# Global metrics
-# ============================================================================
-
-def build_global_metrics(indices):
-    metrics = []
-    for idx in indices:
-        metrics.append({
-            "label": idx["name"],
-            "value": f"{idx['change'] or 0:+.2f}%",
-            "change": idx["change"],
-        })
-    return metrics
-
-
-# ============================================================================
 # Macro report prompts (merged US+CN)
 # ============================================================================
 
@@ -300,7 +284,7 @@ def send_report(report_data: dict, config: dict, recipients: list):
 
         logger.info(f"Processing: {name} ({email}) - Language: {language}")
 
-        html = render_template(template, report_data, language, r.get("settings", {}))
+        html = render_template(template, report_data, language)
 
         if language != "zh-CN":
             html = translate_html(html, language)
@@ -384,7 +368,6 @@ def _run_macro_report(args):
         "risk_outlook": risk_outlook,
         "market_section_html": us_html + cn_html,
         "news": news,
-        "global_metrics": build_global_metrics(us_data.get("asset_performance", [])[:4]),
     }
 
     if getattr(args, "dry_run", False):
@@ -400,7 +383,7 @@ def _run_macro_report(args):
         preview_dir = Path(__file__).parent / "reports"
         preview_dir.mkdir(exist_ok=True)
         template = load_template()
-        preview_html = render_template(template, report_data, "zh-CN", {})
+        preview_html = render_template(template, report_data, "zh-CN")
         preview_path = preview_dir / "preview_macro.html"
         preview_path.write_text(preview_html, encoding="utf-8")
         logger.info(f"Preview saved to {preview_path}")

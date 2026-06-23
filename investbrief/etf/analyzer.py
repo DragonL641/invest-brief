@@ -3,7 +3,6 @@
 组合数据获取 → 指标计算 → 规则匹配 → AI 综合研判，返回完整分析结果。
 """
 
-import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed

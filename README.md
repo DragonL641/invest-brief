@@ -126,8 +126,6 @@ investbrief/
     provider.py                 # MarketProvider ABC（宏观方法）
     llm.py                      # get_client() 缓存的 Anthropic 客户端 + default_model()
     mailer.py                   # SMTP 邮件发送（带重试）
-    charts.py                   # matplotlib 图表（ETF 用，当前宏观管道未用）
-    guards.py / models.py       # 数据验证守卫；NewsSummaryResponse Pydantic 模型
   us/
     provider.py                 # USMarketProvider — yfinance 宏观（指数/收益率/黄金）
     clients.py                  # YFinanceClient + Finnhub/Alpha Vantage/Tavily
@@ -152,7 +150,7 @@ templates/
 
 - **US 利率与资产：** yfinance `^TNX`(10Y) / `^FVX`(5Y) / `^IRX`(13W)；大类资产 `^GSPC` / `^IXIC` / `^DJI` / `^VIX` / `CL=F` / `DX-Y.NYB` / `GC=F`(黄金)。联邦基金目标利率为静态常量（FOMC 后手动更新）。
 - **CN 货币与固收：** akshare `macro_china_lpr`（LPR 1Y/5Y）、`macro_china_money_supply`（M2/M1 同比）、`macro_china_shrzgm`（社融）、`bond_china_yield`（CN 10Y，过滤「中债国债收益率曲线」）；汇率 yfinance `USDCNY=X`。
-- **中美利差** 在 pipeline 层计算（US 10Y − CN 10Y），不归属任一单独 provider。
+- **中美利差** 由 Claude 基于 US 10Y 与 CN 10Y 数据研判（pipeline 分别透传两项收益率，不做显式减法计算）。
 
 ### 报告结构
 
