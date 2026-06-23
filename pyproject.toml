@@ -12,12 +12,6 @@ dependencies = [
     "croniter",
     "pydantic",
     "akshare",
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.32.0",
-    "redis>=5.0.0",
-    "PyJWT>=2.8.0",
-    "bcrypt>=4.0.0",
-    "filelock>=3.12.0",
 ]
 
 [project.scripts]
