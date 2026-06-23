@@ -1,9 +1,4 @@
 {
-  "web": {
-    "host": "0.0.0.0",
-    "port": 8000,
-    "secret_key": "CHANGE_ME_TO_A_RANDOM_SECRET"
-  },
   "markets": {
     "us": {
       "enabled": true,
@@ -30,9 +25,7 @@
   },
   "recipients": [
     {
-      "id": 1,
       "email": "recipient@example.com",
-      "password": "hashed_password_here",
       "name": "Recipient1",
       "active": true,
       "language": "zh-CN",
