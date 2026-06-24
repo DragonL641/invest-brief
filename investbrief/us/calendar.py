@@ -46,13 +46,6 @@ PERIODIC_EVENTS = [
         "month_offset": 0,
         "day": 26,
     },
-    {
-        "name": "零售销售",
-        "importance": "medium",
-        "rule": "monthly_offset",
-        "month_offset": 0,
-        "day": 15,
-    },
 ]
 
 
@@ -128,24 +121,59 @@ def get_upcoming_events(days_ahead: int = 21) -> List[Dict[str, Any]]:
 
 
 def get_upcoming_events_with_yfinance(days_ahead: int = 21) -> List[Dict[str, Any]]:
-    """Get upcoming economic events, trying yfinance first, falling back to hardcoded rules."""
+    """获取未来重大经济事件，聚合为大类（CPI/NFP/PCE/FOMC/GDP）。
+
+    yfinance 经济日历返回细粒度指标系列（如 CPI 拆成同比/环比/Core 多条），
+    这里按关键词聚合成大类、每类取最近一条；并用规则版（含 FOMC 硬编码）
+    作为兜底与补充。
+    """
+    base = get_upcoming_events(days_ahead)  # 规则版：FOMC 硬编码 + CPI/NFP/PCE 估算
     try:
         from .clients import YFinanceClient
         client = YFinanceClient()
         if not client.enabled:
-            return get_upcoming_events(days_ahead)
+            return base
 
         now = datetime.now()
         start = now.strftime("%Y-%m-%d")
         end = (now + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
-
         events = client.get_economic_calendar(start=start, end=end, limit=30)
-        if events:
-            filtered = [e for e in events if -1 <= e["days_away"] <= days_ahead]
-            if filtered:
-                logger.info(f"Got {len(filtered)} economic events from yfinance")
-                return filtered
-    except Exception as e:
-        logger.warning(f"yfinance economic calendar failed, falling back: {e}")
+        if not events:
+            return base
 
-    return get_upcoming_events(days_ahead)
+        categories = [
+            ("CPI（消费者价格指数）", ("cpi",)),
+            ("非农就业报告（NFP）", ("non farm", "nonfarm", "employment situation", "unemployment rate")),
+            ("PCE 物价指数", ("pce", "personal consumption")),
+            ("FOMC 议息会议", ("fomc", "federal funds", "interest rate decision")),
+            ("GDP", ("gdp", "gross domestic")),
+        ]
+
+        def _cat(name: str):
+            low = name.lower()
+            for label, kws in categories:
+                if any(k in low for k in kws):
+                    return label
+            return None
+
+        by_cat: dict = {}
+        for e in events:
+            if not (-1 <= e["days_away"] <= days_ahead):
+                continue
+            cat = _cat(e.get("name", ""))
+            if not cat:
+                continue
+            cur = by_cat.get(cat)
+            if cur is None or e["days_away"] < cur["days_away"]:
+                by_cat[cat] = {**e, "name": cat, "importance": "high"}
+
+        if by_cat:
+            merged = {e["name"]: e for e in base}  # 规则版兜底（FOMC 硬编码 + NFP/PCE 估算）
+            merged.update(by_cat)  # yfinance 实际日期覆盖同名大类
+            result = sorted(merged.values(), key=lambda x: x["days_away"])
+            logger.info(f"Got {len(result)} major economic events (aggregated)")
+            return result
+    except Exception as e:
+        logger.warning(f"yfinance economic calendar failed, using rules: {e}")
+
+    return base
