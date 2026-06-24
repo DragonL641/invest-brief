@@ -157,16 +157,18 @@ def fetch_news(config, tickers, max_news_count, industries, market="us"):
 # Macro report prompts (merged US+CN)
 # ============================================================================
 
-MACRO_SUMMARY_PROMPT = """你是一位资深宏观经济分析师，为投资者撰写每日中美宏观市场简报。
+MACRO_BRIEF_PROMPT = """你是资深宏观经济分析师，为投资者撰写每日中美宏观市场简报。
 
-基于提供的中美宏观数据，输出纯 HTML（<p> 与 <strong>，不要 markdown、不要列表标记），分 4 段：
-1. 宏观环境：中美经济数据信号（CPI/PMI/就业等）、增长与通胀走向
-2. 货币政策：美联储 vs 中国央行立场、美债收益率、中美利差含义
-3. 大类资产：美股/A股/债市/汇率/商品走势逻辑与轮动
-4. 风险与机会：最需关注的事件、潜在拐点
-要求：每段 2-3 句，关键数字用 <strong>，总字数 400-600，只用提供的数据不编造，第一段首句给整体方向（偏多/偏空/中性）。"""
+基于提供的中美宏观数据，输出纯 JSON（不要 markdown 代码块标记），包含两个字段：
+- "summary"：核心观点，纯 HTML（仅 <p>、<strong>，不要 markdown/列表标记），分 4 段：
+  1. 宏观环境：中美经济数据信号（CPI/PMI/就业等）、增长与通胀走向
+  2. 货币政策：美联储 vs 中国央行立场、美债收益率、中美利差含义
+  3. 大类资产：美股/A股/债市/汇率/商品走势逻辑与轮动
+  4. 风险与机会：最需关注的事件、潜在拐点
+  每段 2-3 句，关键数字用 <strong>，总字数 400-600，第一段首句给整体方向（偏多/偏空/中性）。
+- "risk"：未来一周风险事件与关注点，纯 HTML（<p> 或 <ul><li>），150字以内，关键事件用 <strong>。
 
-RISK_OUTLOOK_PROMPT = """基于以下中美经济日历与宏观数据，列出未来一周需关注的风险事件与关注点。输出 HTML（<p> 或 <ul><li>），150字以内，中文，关键事件用 <strong>。"""
+只用提供的数据，不编造数字。严格按 JSON 输出，形如 {"summary": "...", "risk": "..."}。"""
 
 
 # ============================================================================
@@ -215,46 +217,42 @@ def _serialize_macro_context(us_data: dict, cn_data: dict, news: list) -> str:
     return "\n".join(lines)
 
 
-def generate_macro_summary(us_data: dict, cn_data: dict, news: list) -> str:
-    """Generate the ① macro core-view summary (merged US+CN) via Claude."""
-    try:
-        from investbrief.core.llm import get_client, default_model
+def generate_macro_brief(us_data: dict, cn_data: dict, news: list, max_retries: int = 2) -> tuple[str, str]:
+    """一次 Claude 调用同时生成 ①核心观点 + ⑥风险（JSON 输出），带重试。
 
-        client = get_client()
-        context = _serialize_macro_context(us_data, cn_data, news)
+    失败重试 max_retries 次；最终仍失败则返回兜底占位（pipeline 不崩）。
+    """
+    import re as _re
+    from investbrief.core.llm import get_client, default_model
 
-        response = client.messages.create(
-            model=default_model(),
-            max_tokens=2048,
-            temperature=0.3,
-            system=MACRO_SUMMARY_PROMPT,
-            messages=[{"role": "user", "content": context}],
-        )
-        return response.content[0].text.strip()
-    except Exception as e:
-        logger.warning(f"Macro summary generation failed: {e}")
-        return "<p>宏观研判生成失败，请查看下方数据。</p>"
+    client = get_client()
+    context = _serialize_macro_context(us_data, cn_data, news)
+    fallback_summary = "<p>宏观研判生成失败，请查看下方数据。</p>"
+    fallback_risk = "<p>风险研判生成失败。</p>"
 
-
-def generate_risk_outlook(us_data: dict, cn_data: dict) -> str:
-    """Generate the ⑥ risk & outlook block (merged US+CN) via Claude."""
-    try:
-        from investbrief.core.llm import get_client, default_model
-
-        client = get_client()
-        context = _serialize_macro_context(us_data, cn_data, [])
-
-        response = client.messages.create(
-            model=default_model(),
-            max_tokens=512,
-            temperature=0.3,
-            system=RISK_OUTLOOK_PROMPT,
-            messages=[{"role": "user", "content": context}],
-        )
-        return response.content[0].text.strip()
-    except Exception as e:
-        logger.warning(f"Risk outlook generation failed: {e}")
-        return "<p>风险研判生成失败。</p>"
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.messages.create(
+                model=default_model(),
+                max_tokens=2560,
+                temperature=0.3,
+                system=MACRO_BRIEF_PROMPT,
+                messages=[{"role": "user", "content": context}],
+            )
+            text = response.content[0].text.strip()
+            text = _re.sub(r"^\s*```(?:json)?\s*\n?", "", text)
+            text = _re.sub(r"\n?\s*```\s*$", "", text)
+            data = json.loads(text)
+            summary = (data.get("summary") or "").strip() or fallback_summary
+            risk = (data.get("risk") or "").strip() or fallback_risk
+            logger.info(f"Generated macro brief (attempt {attempt + 1})")
+            return summary, risk
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning(f"Macro brief attempt {attempt + 1} failed, retrying: {e}")
+            else:
+                logger.warning(f"Macro brief failed after {max_retries + 1} attempts: {e}")
+    return fallback_summary, fallback_risk
 
 
 # ============================================================================
@@ -343,16 +341,14 @@ def _run_macro_report(args):
     except Exception as e:
         logger.warning(f"News fetch failed: {e}")
 
-    # Claude ①⑥
+    # Claude ①⑥（一次调用同时生成核心观点 + 风险）
     if skip_summary:
-        logger.info("Skipping Claude summary (--skip-summary)")
+        logger.info("Skipping Claude brief (--skip-summary)")
         macro_summary = "<p>（已跳过 AI 研判）</p>"
         risk_outlook = "<p>—</p>"
     else:
-        logger.info("Generating macro summary via Claude (①)")
-        macro_summary = generate_macro_summary(us_data, cn_data, news)
-        logger.info("Generating risk outlook via Claude (⑥)")
-        risk_outlook = generate_risk_outlook(us_data, cn_data)
+        logger.info("Generating macro brief via Claude (①⑥)")
+        macro_summary, risk_outlook = generate_macro_brief(us_data, cn_data, news)
 
     # Render sections
     us_html = us.render_section(us_data, render_config)

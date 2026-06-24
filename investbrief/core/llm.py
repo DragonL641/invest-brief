@@ -19,5 +19,14 @@ def get_client() -> anthropic.Anthropic:
 
 
 def default_model() -> str:
-    """默认对话模型，可由环境变量覆盖。"""
-    return os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
+    """默认对话模型，可由环境变量覆盖。
+
+    默认 claude-sonnet-4-5-20250929：GLM 等 Anthropic 兼容端点通常支持该代码，
+    而 claude-sonnet-4-6 多不被兼容端点识别。env 仍可覆盖，但会过滤掉带 [1m]
+    等 context 标记的值（Claude Code 运行时会把自己的模型 ID 泄露进该 env，
+    如 glm-5.2[1m]，这类 ID 不被兼容端点识别）。
+    """
+    env_model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL")
+    if env_model and "[1m]" not in env_model:
+        return env_model
+    return "claude-sonnet-4-5-20250929"
