@@ -239,6 +239,9 @@ def render_template(template, data, language):
     market_html = data.get('market_section_html', '')
     html = html.replace('{{market_sections}}', market_html)
 
+    # Research views (sell-side) - pre-rendered section HTML, or empty
+    html = html.replace('{{research_views}}', data.get('research_views') or '')
+
     # News - hard cap at 5 items
     news = data.get('news', data.get('global_news', []))
     news_count = 5

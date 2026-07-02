@@ -256,6 +256,76 @@ def generate_macro_brief(us_data: dict, cn_data: dict, news: list, max_retries: 
 
 
 # ============================================================================
+# Research views (sell-side market commentary)
+# ============================================================================
+
+RESEARCH_VIEWS_PROMPT = """你是资深市场分析师。基于提供的「顶级卖方机构近 7 天市场观点」原始条目，为投资者写一段 HTML 摘要。
+
+输出要求：
+- 纯 HTML 片段，只用 <p>、<strong>、<br>（不要 <h1>-<h6>、<ul>/<li>、代码块标记）。
+- 按三个小节组织，每节以 <strong>小节标题</strong><br> 起头：
+  1. 🇺🇸 美股
+  2. 🇨🇳 A股·中国
+  3. 🌍 全球其他
+- 只列「有条目」的小节；某市场本周无条目，整节省略。
+- 每个机构名用 <strong>加粗</strong>；同一市场内多家机构观点合并成 2-4 句流畅叙述，不要逐条罗列。
+- 每个观点后用括号注明（来源域名 + 日期）。
+- 只用提供的数据，不编造观点、数字或机构。
+- 若所有市场均无条目，输出 <p>本周暂无明显卖方机构观点。</p>。"""
+
+
+def _serialize_research_views(items: list) -> str:
+    """Compact text context from research-view items for Claude."""
+    from urllib.parse import urlparse
+    lines = []
+    for it in items:
+        markets = ",".join(it.get("markets") or []) or "全球其他"
+        firms = ",".join(it.get("firms") or [])
+        domain = urlparse(it.get("url", "")).netloc.replace("www.", "")
+        lines.append(
+            f"- [{markets}] {firms} | {it.get('title', '')} | "
+            f"{it.get('date', '')} | {domain} | {it.get('snippet', '')}"
+        )
+    return "\n".join(lines)
+
+
+def generate_research_views(items: list, max_retries: int = 2) -> str:
+    """Synthesize research-view items into an HTML fragment via Claude, with retry.
+
+    Returns inner HTML (caller wraps in the section). Empty/failure → placeholder.
+    """
+    import re as _re
+    from investbrief.core.llm import get_client, default_model
+
+    if not items:
+        return ""
+    client = get_client()
+    context = _serialize_research_views(items)
+    fallback = "<p>卖方机构观点生成失败。</p>"
+
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.messages.create(
+                model=default_model(),
+                max_tokens=1500,
+                temperature=0.3,
+                system=RESEARCH_VIEWS_PROMPT,
+                messages=[{"role": "user", "content": context}],
+            )
+            text = response.content[0].text.strip()
+            text = _re.sub(r"^\s*```(?:html)?\s*\n?", "", text)
+            text = _re.sub(r"\n?\s*```\s*$", "", text)
+            logger.info(f"Generated research views (attempt {attempt + 1})")
+            return text or fallback
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning(f"Research views attempt {attempt + 1} failed, retrying: {e}")
+            else:
+                logger.warning(f"Research views failed after {max_retries + 1} attempts: {e}")
+    return fallback
+
+
+# ============================================================================
 # Send report
 # ============================================================================
 
@@ -350,6 +420,25 @@ def _run_macro_report(args):
         logger.info("Generating macro brief via Claude (①⑥)")
         macro_summary, risk_outlook = generate_macro_brief(us_data, cn_data, news)
 
+    # Research views (sell-side market commentary) — Tavily fetch + Claude synthesis
+    research_views_html = ""
+    if not skip_summary:
+        try:
+            from investbrief.research.views import fetch_research_views
+            research_items = fetch_research_views()
+            logger.info(f"Fetched {len(research_items)} research-view items")
+            if research_items:
+                inner = generate_research_views(research_items)
+                if inner:
+                    research_views_html = (
+                        '<div class="section">'
+                        '<h2 style="margin:0 0 15px 0;font-size:18px;color:#2c3e50;">🏦 卖方机构观点</h2>'
+                        f'<div class="summary-box">{inner}</div>'
+                        '</div>'
+                    )
+        except Exception as e:
+            logger.warning(f"Research views failed: {e}")
+
     # Render sections
     us_html = us.render_section(us_data, render_config)
     cn_html = cn.render_section(cn_data, render_config)
@@ -363,6 +452,7 @@ def _run_macro_report(args):
         "macro_summary": macro_summary,
         "risk_outlook": risk_outlook,
         "market_section_html": us_html + cn_html,
+        "research_views": research_views_html,
         "news": news,
     }
 

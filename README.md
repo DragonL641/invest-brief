@@ -152,6 +152,19 @@ templates/
 - **CN 货币与固收：** akshare `macro_china_lpr`（LPR 1Y/5Y）、`macro_china_money_supply`（M2/M1 同比）、`macro_china_shrzgm`（社融）、`bond_china_yield`（CN 10Y，过滤「中债国债收益率曲线」）；汇率 yfinance `USDCNY=X`。
 - **中美利差** 由 Claude 基于 US 10Y 与 CN 10Y 数据研判（pipeline 分别透传两项收益率，不做显式减法计算）。
 
+### 机构评级来源（已验证）
+
+> 评级是**结构化数据**（买入/持有/卖出 + 目标价），由数据商按个股聚合后以字段返回；与"机构的宏观/行业观点"（非结构化研报正文）是两类不同数据。本节只覆盖评级。
+
+- **US 个股评级**（`investbrief/us/clients.py`）：
+  - **Finnhub** `stock/recommendation`（共识分布 strongBuy/buy/hold/sell/strongSell）+ `stock/price-target`（分析师目标价）。
+  - **yfinance** `upgrades_downgrades`（**带 `Firm` 字段、可区分到具体投行**）、`recommendations`（共识分布）、`analyst_price_targets`（目标价）。
+  - 覆盖**全部主流投行，含 JPMorgan / Morgan Stanley**（如 AAPL 历史中两家各有数十条记录）。
+- **CN 个股评级**（`investbrief/cn/client.py`，`get_research_reports` / `get_analyst_rating_summary`）：
+  - **akshare** `stock_research_report_em(symbol)`（底层为东方财富 reportapi）→ 返回 `机构`+`东财评级`+日期，再聚合成评级分布。
+  - ⚠ **仅覆盖二线券商**（实测：贵州茅台 759 篇研报，机构为东吴 / 国金 / 华鑫 / 西南 / 东莞 / 民生 / 太平洋 / 中银 / 国信 / 群益等）。
+  - ⚠ **头部券商中信证券 / 华泰证券 / 申万宏源 / 中金 / 国泰君安 / 招商等不在免费流** —— 它们将研报与评级数据一并封锁在 Wind / Choice / 同花顺 iFinD 等付费终端。免费渠道对这几家**评级与观点均不可得**。
+
 ### 报告结构
 
 `templates/email_base.html`：页头（宏观日报标题）→ ① 核心观点（`.summary-box`，Claude）→ `{{market_sections}}`（US 段 + CN 段，各含 大类资产 / 货币政策 / 经济日历）→ ⑥ 风险提示与下周关注 → 新闻 → 页脚。
