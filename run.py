@@ -376,6 +376,15 @@ def _run_macro_report(args):
     logger.info("=" * 60)
     logger.info("invest-brief - Macro report pipeline (US+CN merged)")
 
+    if getattr(args, "update", False):
+        logger.info("Update-only mode: refreshing macro data, no render/send")
+        us = _create_provider("us")
+        cn = _create_provider("cn")
+        us.refresh()
+        cn.refresh()
+        logger.info("Update-only complete")
+        return
+
     config = load_config()
     recipients = [r for r in config.get("recipients", []) if r.get("active", True)]
     if not recipients:
@@ -389,6 +398,9 @@ def _run_macro_report(args):
     logger.info("Fetching macro data (US + CN)")
     us = _create_provider("us")
     cn = _create_provider("cn")
+    # P1: 增量取数落盘（失败不阻塞，get_* 回退库内最新值）
+    us.refresh()
+    cn.refresh()
     from investbrief.us.calendar import get_upcoming_events_with_yfinance
     from investbrief.cn.calendar import get_upcoming_events as get_cn_events
     us_data = {
@@ -592,6 +604,8 @@ def main():
     parser.add_argument("--now", action="store_true", help="Run once immediately (default: scheduler mode)")
     parser.add_argument("--dry-run", action="store_true", help="Build report, output to stdout, do not send email")
     parser.add_argument("--skip-summary", action="store_true", help="Skip Claude API summary, use placeholder")
+    parser.add_argument("--update", action="store_true",
+                        help="Only refresh macro data into SQLite, no render/email")
     parser.add_argument("--log-level", default="INFO", help="Log level (DEBUG, INFO, WARNING, ERROR)")
     args = parser.parse_args()
 
@@ -608,7 +622,7 @@ def main():
         ],
     )
 
-    if args.now or args.dry_run:
+    if args.now or args.dry_run or args.update:
         run_once(args)
     else:
         # Scheduler mode

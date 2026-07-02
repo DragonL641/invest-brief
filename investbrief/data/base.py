@@ -24,6 +24,10 @@ class BaseData(ABC):
     @property
     def conn(self) -> sqlite3.Connection:
         if self._conn is None:
+            import os
+            parent = os.path.dirname(self.db_path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
             self._conn = sqlite3.connect(self.db_path)
         return self._conn
 
