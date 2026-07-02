@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from investbrief.config import DB_PATH
 from investbrief.data.cn_data import CNData
 from investbrief.data.us_data import USData
+from investbrief.data.gold_data import GoldData
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,7 +28,7 @@ logger = logging.getLogger("backfill")
 
 def main():
     parser = argparse.ArgumentParser(description="Backfill macro SQLite with full history")
-    parser.add_argument("--market", choices=["cn", "us", "all"], default="all")
+    parser.add_argument("--market", choices=["cn", "us", "gold", "all"], default="all")
     args = parser.parse_args()
 
     logger.info(f"DB_PATH = {DB_PATH}")
@@ -42,6 +43,18 @@ def main():
             logger.info(f"{m} backfill done")
         except Exception as e:
             logger.error(f"{m} backfill failed: {e}")
+        finally:
+            ds.close()
+
+    # Gold (separate data class, not a cn/us market)
+    if args.market in ("all", "gold"):
+        ds = GoldData()
+        try:
+            logger.info("Backfilling gold (update_all)...")
+            ds.update_all()
+            logger.info("gold backfill done")
+        except Exception as e:
+            logger.error(f"gold backfill failed: {e}")
         finally:
             ds.close()
 
