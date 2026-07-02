@@ -1,8 +1,9 @@
-"""一次性全历史回填：拉取 CN/US 指数日线 + 宏观序列进 SQLite。
+"""一次性全历史回填：拉取 CN/US 指数日线 + 宏观序列 + 黄金进 SQLite。
 
 用法：
-    uv run python scripts/backfill_macro_data.py        # 回填 CN+US
+    uv run python scripts/backfill_macro_data.py             # 回填 CN+US+Gold
     uv run python scripts/backfill_macro_data.py --market cn
+    uv run python scripts/backfill_macro_data.py --market gold
 
 首次部署执行一次（约 10-30 分钟，取决于网络）。之后日常管线靠增量。
 """
@@ -34,7 +35,8 @@ def main():
     logger.info(f"DB_PATH = {DB_PATH}")
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
 
-    markets = ["cn", "us"] if args.market == "all" else [args.market]
+    # cn/us loop handles only cn/us; gold has its own step below (separate data class)
+    markets = ["cn", "us"] if args.market == "all" else ([args.market] if args.market in ("cn", "us") else [])
     for m in markets:
         ds = CNData() if m == "cn" else USData()
         try:
