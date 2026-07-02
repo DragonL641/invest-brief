@@ -6,4 +6,5 @@ services:
       - ./.env:/app/.env:ro
       - ./logs:/app/logs
       - ./reports:/app/reports
+      - ./data:/app/data
     restart: unless-stopped

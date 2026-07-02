@@ -12,3 +12,6 @@ logs/
 node_modules/
 /package.json
 /package-lock.json
+
+# P1: macro SQLite (stateful data layer)
+data/macro_data.db
