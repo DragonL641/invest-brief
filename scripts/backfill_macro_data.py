@@ -1,0 +1,52 @@
+"""一次性全历史回填：拉取 CN/US 指数日线 + 宏观序列进 SQLite。
+
+用法：
+    uv run python scripts/backfill_macro_data.py        # 回填 CN+US
+    uv run python scripts/backfill_macro_data.py --market cn
+
+首次部署执行一次（约 10-30 分钟，取决于网络）。之后日常管线靠增量。
+"""
+import argparse
+import logging
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from investbrief.config import DB_PATH
+from investbrief.data.cn_data import CNData
+from investbrief.data.us_data import USData
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+logger = logging.getLogger("backfill")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Backfill macro SQLite with full history")
+    parser.add_argument("--market", choices=["cn", "us", "all"], default="all")
+    args = parser.parse_args()
+
+    logger.info(f"DB_PATH = {DB_PATH}")
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+
+    markets = ["cn", "us"] if args.market == "all" else [args.market]
+    for m in markets:
+        ds = CNData() if m == "cn" else USData()
+        try:
+            logger.info(f"Backfilling {m} (update_all)...")
+            ds.update_all()
+            logger.info(f"{m} backfill done")
+        except Exception as e:
+            logger.error(f"{m} backfill failed: {e}")
+        finally:
+            ds.close()
+
+    logger.info("Backfill complete")
+
+
+if __name__ == "__main__":
+    main()
