@@ -14,6 +14,7 @@ from investbrief.risk.indicators.technical import TechnicalIndicator
 from investbrief.risk.indicators.liquidity import LiquidityIndicator
 from investbrief.risk.indicators.sentiment import SentimentIndicator
 from investbrief.risk.indicators.macro import MacroIndicator
+from investbrief.risk.indicators.gold import GoldIndicator
 from investbrief.risk.calc_utils import percentile_rank
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class RiskModel:
         self._liquidity = LiquidityIndicator(data_source)
         self._sentiment = SentimentIndicator(data_source)
         self._macro = MacroIndicator(data_source)
-        # P3: self._gold = GoldIndicator(data_source)  ← 黄金指标留 P3（GoldData/GoldIndicator/GOLD_PRICE_CNY）
+        self._gold = GoldIndicator(data_source)
 
     def calculate_score(self, market: str, date: str | None = None) -> dict:
         """Calculate full risk assessment for a market on a given date.
@@ -39,10 +40,8 @@ class RiskModel:
         """
         # Gold market uses only GoldIndicator; cn/us use the five stock indicators
         if market == "gold":
-            raise NotImplementedError(
-                "Gold market requires P3 (GoldIndicator/GoldData/GOLD_PRICE_CNY). "
-                "P2 supports cn/us only."
-            )
+            indicators_config = GOLD_ALL_INDICATORS
+            all_results = dict(self._gold.calculate("gold", date))
         else:
             indicators_config = CN_ALL_INDICATORS if market == "cn" else US_ALL_INDICATORS
             all_results = {}

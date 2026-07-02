@@ -68,12 +68,3 @@ def test_calculate_score_real_db(market, cls):
     print(f"[{market}] indicators with value ({len(scored)}/{len(inds)}): "
           + ", ".join(f"{k}={v.get('score')}" for k, v in list(scored.items())[:8]))
 
-
-def test_gold_raises_until_p3():
-    """P2 不支持 gold，应明确报错（P3 解除）。"""
-    ds = CNData()
-    try:
-        with pytest.raises(NotImplementedError, match="P3"):
-            RiskModel(ds).calculate_score("gold")
-    finally:
-        ds.close()
