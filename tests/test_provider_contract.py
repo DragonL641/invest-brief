@@ -61,6 +61,20 @@ def test_us_asset_performance_includes_gold(us_provider):
         assert {"name", "point", "change"} <= set(a.keys())
 
 
+def test_us_provider_resilient_to_refresh_failure(us_provider, caplog):
+    """refresh() 失败时不抛异常，get_* 仍返回库内已存值（韧性降级契约）。"""
+    def _boom(*a, **k):
+        raise RuntimeError("network down")
+    us_provider.data.update_incremental = _boom
+    with caplog.at_level("WARNING"):
+        us_provider.refresh()  # 必须吞掉异常，不得上抛
+    assert any("falling back to stored values" in r.message for r in caplog.records)
+    # refresh 失败后，get_indices 仍读出预灌的库存值
+    items = us_provider.get_indices()
+    spx = next(i for i in items if i["name"] == "S&P 500")
+    assert abs(spx["point"] - 101.0) < 1e-6
+
+
 @pytest.fixture
 def cn_provider():
     with tempfile.TemporaryDirectory() as d:
