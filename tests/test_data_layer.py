@@ -102,7 +102,11 @@ def test_cn_monetary_writes_lpr_m2_social_financing(monkeypatch, db):
         ])
 
     def fake_shrzgm():
-        return pd.DataFrame([{"月份": "2026年06月份", "社会融资规模增量": 50000.0}])
+        # 实测 akshare macro_china_shrzgm 月份为 "YYYYMM"（非 "YYYY年MM月份"）
+        return pd.DataFrame([
+            {"月份": "202605", "社会融资规模增量": 48000.0},
+            {"月份": "202606", "社会融资规模增量": 50000.0},
+        ])
 
     monkeypatch.setattr(cn_mod.ak, "macro_china_lpr", fake_lpr)
     monkeypatch.setattr(cn_mod.ak, "macro_china_money_supply", fake_money)
@@ -126,6 +130,12 @@ def test_cn_monetary_writes_lpr_m2_social_financing(monkeypatch, db):
     assert db.latest_macro("M2_YOY", "cn") == 8.5
     assert db.latest_macro("M1_YOY", "cn") == 5.0
     assert db.latest_macro("SOCIAL_FIN", "cn") == 50000.0
+    # 社融日期必须为 ISO 格式（回归：shrzgm 月份为 "YYYYMM"，曾误产 "202606-01"）
+    social_date = db.query(
+        "SELECT date FROM macro_data WHERE indicator='SOCIAL_FIN' AND country='cn' "
+        "ORDER BY date DESC LIMIT 1"
+    ).iloc[0]["date"]
+    assert social_date == "2026-06-01"
     # full history persisted (2 rows for LPR1Y and M2_YOY)
     n_lpr = db.query("SELECT COUNT(*) AS n FROM macro_data WHERE indicator='LPR1Y' AND country='cn'").iloc[0]["n"]
     n_m2 = db.query("SELECT COUNT(*) AS n FROM macro_data WHERE indicator='M2_YOY' AND country='cn'").iloc[0]["n"]

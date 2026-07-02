@@ -183,8 +183,9 @@ class CNData(BaseData):
             if df is None or df.empty:
                 return
             df = df.copy()
-            df["_m"] = (df["月份"].astype(str).str.replace("年", "-", regex=False)
-                        .str.replace("月份", "", regex=False))
+            # shrzgm 月份 = "YYYYMM"（如 "201501"，实测 akshare 无年/月份后缀）；归一为 "YYYY-MM"
+            df["_m"] = pd.to_datetime(df["月份"].astype(str), format="%Y%m", errors="coerce").dt.strftime("%Y-%m")
+            df = df.dropna(subset=["_m"])
             rows = []
             for _, row in df.iterrows():
                 v = row.get("社会融资规模增量")
