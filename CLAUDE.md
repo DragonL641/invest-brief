@@ -17,11 +17,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 uv run run.py --dry-run                  # Build merged macro report, output JSON to stdout, no email
 uv run run.py --dry-run --skip-summary   # Skip Claude ①⑥ (faster, structure-only)
 uv run run.py --now                      # Run once: build + send email
+uv run run.py --update                   # Refresh macro data into SQLite only, no render/email
 uv run run.py                            # Scheduler mode (cron-based, single merged report)
 
+# Data backfill (first deploy only, ~10-30 min)
+uv run python scripts/backfill_macro_data.py        # Full-history backfill (CN+US)
+uv run python scripts/backfill_macro_data.py --market cn
+
 # Tests
-uv run pytest tests/                     # macro provider tests
-uv run pytest tests/test_macro_providers.py -v
+uv run pytest tests/                                # all tests
+uv run pytest tests/test_data_layer.py -v           # data layer (BaseData/CNData/USData)
+uv run pytest tests/test_provider_contract.py -v    # provider return-shape contracts
 
 # Docker
 docker compose up --build                # Local: build scheduler from source
@@ -47,7 +53,17 @@ docker compose -f docker-compose.prod.yml up -d  # Prod: pull GHCR image
 
 Pipeline: `load config` → fetch US macro (`USMarketProvider`) + CN macro (`CNMarketProvider`) + news → Claude generates ① core view (detailed multi-point) + ⑥ risk → `render_section` (US + CN) → `render_template` → `send_report` (one email). On `--dry-run`, prints JSON instead of sending.
 
-Key `run.py` functions: `_run_macro_report`, `generate_macro_summary` / `generate_risk_outlook` (Claude, via `core.llm.get_client`), `_serialize_macro_context`, `fetch_news`, `send_report`, `run_scheduler` / `_run_scheduled_macro` (single cron thread → `_run_macro_report`).
+Key `run.py` functions: `_run_macro_report`, `generate_macro_brief` (Claude ①⑥, via `core.llm.get_client`), `_serialize_macro_context`, `fetch_news`, `send_report`, `run_scheduler` / `_run_scheduled_macro` (single cron thread → `_run_macro_report`).
+
+### Data Layer (stateful, P1)
+
+`investbrief/data/` — SQLite-backed macro data layer (ported from StockCycleRiskDetector). The single source of truth for index/macro time series; providers no longer fetch live.
+
+- `base.py` — `BaseData`: schema (`cn_index_daily` / `us_index_daily` / `macro_data` / `sentiment_data` / `update_log`), `upsert_df` / `query` / `merge_sentiment_row` / `latest_bars(table, code, n)` / `latest_macro(indicator, country)` / `_retry_api`.
+- `cn_data.py` — `CNData`: 5 A-share indices (`INDEX_CODES`) + LPR/M2/M1/社融/CN10Y/USDCNY (akshare + yfinance).
+- `us_data.py` — `USData`: 11 symbols (`INDEX_SYMBOLS`: `^GSPC`/`^IXIC`/`^DJI`/`^VIX`/`^TNX`/`^FVX`/`^IRX`/`HYG`/`CL=F`/`DX-Y.NYB`/`GC=F`) + CPI/GDP.
+
+DB at `data/macro_data.db` (gitignored; parent dir auto-created by `BaseData.conn`). Flow: provider `refresh()` → `data.update_incremental()` (per-method try/except, resilient), then `get_*` read latest bars/values. **Refresh failure → fall back to stored latest** (pipeline never blocks on one API; this is a resilience gain over the pre-P1 live-fetch path). First deploy: `scripts/backfill_macro_data.py`; daily补数: `uv run run.py --update`. Constants in `investbrief/config.py` (`DB_PATH`, `API_RETRY_*`, `US_GDP_BASE_*`).
 
 ### Providers
 
@@ -58,6 +74,7 @@ Key `run.py` functions: `_run_macro_report`, `generate_macro_summary` / `generat
 | `core/` | `provider.py` | `MarketProvider` ABC (macro methods) |
 | `core/` | `llm.py` | `get_client()` cached Anthropic client + `default_model()` |
 | `core/` | `mailer.py` | `EmailSender` — SMTP with retry |
+| `data/` | `base.py`/`cn_data.py`/`us_data.py` | **Stateful SQLite data layer** (P1) — providers read index/macro series from here; see Data Layer above |
 | `us/` | `provider.py` | `USMarketProvider` — yfinance macro (indices, yields, gold) |
 | `us/` | `clients.py` | `YFinanceClient` + Finnhub/Alpha Vantage/Tavily clients |
 | `us/` | `news.py` | `DataProvider` — unified news with fallback and scoring |
@@ -100,7 +117,7 @@ Key `run.py` functions: `_run_macro_report`, `generate_macro_summary` / `generat
 ## Deployment
 
 ### Local (`docker-compose.yml`)
-Single `scheduler` service, builds from `Dockerfile.scheduler`. Mounts config.json/.env (ro), logs/, reports/.
+Single `scheduler` service, builds from `Dockerfile.scheduler`. Mounts config.json/.env (ro), logs/, reports/, data/ (stateful SQLite, P1).
 
 ### Prod (`docker-compose.prod.yml`)
 Pulls `ghcr.io/dragonl641/invest-brief:latest`. Same mounts.
