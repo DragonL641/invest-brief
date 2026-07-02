@@ -8,7 +8,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from investbrief.data import cn_data as cn_mod
 from investbrief.data.base import BaseData
+from investbrief.data.cn_data import CNData
 
 
 @pytest.fixture
@@ -75,3 +77,49 @@ def test_latest_macro_returns_latest_value(db):
 
 def test_latest_macro_missing_returns_none(db):
     assert db.latest_macro("NOPE", "cn") is None
+
+
+def test_cn_index_codes_cover_five_indices():
+    """CNData 必须覆盖 invest-brief 的 5 个 A 股指数。"""
+    assert set(CNData.INDEX_CODES) == {
+        "sh000001", "sz399001", "sz399006", "sh000300", "sh000688",
+    }
+
+
+def test_cn_monetary_writes_lpr_m2_social_financing(monkeypatch, db):
+    """LPR/M2/M1/社融 必须落 macro_data（投资简报货币板块需要）。"""
+    def fake_lpr():
+        return pd.DataFrame([{"TRADE_DATE": "2026-07-20", "LPR1Y": 3.1, "LPR5Y": 3.6}])
+
+    def fake_money():
+        return pd.DataFrame([{
+            "月份": "2026年06月份",
+            "货币和准货币(M2)-同比增长": 8.5,
+            "货币(M1)-同比增长": 5.0,
+        }])
+
+    def fake_shrzgm():
+        return pd.DataFrame([{"月份": "2026年06月份", "社会融资规模增量": 50000.0}])
+
+    monkeypatch.setattr(cn_mod.ak, "macro_china_lpr", fake_lpr)
+    monkeypatch.setattr(cn_mod.ak, "macro_china_money_supply", fake_money)
+    monkeypatch.setattr(cn_mod.ak, "macro_china_shrzgm", fake_shrzgm)
+
+    # Stub out the other network methods so update_macro only exercises LPR/M2/社融.
+    class _CN(CNData):
+        def update_all(self): pass
+        def update_incremental(self): pass
+        def _update_gdp(self): pass
+        def _update_cpi(self): pass
+        def _update_treasury_yield(self): pass
+        def _update_usdcny(self): pass
+
+    c = _CN(db_path=db.db_path)
+    c.update_macro()
+    c.close()
+
+    assert db.latest_macro("LPR1Y", "cn") == 3.1
+    assert db.latest_macro("LPR5Y", "cn") == 3.6
+    assert db.latest_macro("M2_YOY", "cn") == 8.5
+    assert db.latest_macro("M1_YOY", "cn") == 5.0
+    assert db.latest_macro("SOCIAL_FIN", "cn") == 50000.0
