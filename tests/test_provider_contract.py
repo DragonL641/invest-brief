@@ -59,3 +59,57 @@ def test_us_asset_performance_includes_gold(us_provider):
     assert "黄金(COMEX)" in names
     for a in ap:
         assert {"name", "point", "change"} <= set(a.keys())
+
+
+@pytest.fixture
+def cn_provider():
+    with tempfile.TemporaryDirectory() as d:
+        db_path = str(Path(d) / "t.db")
+        data = CNData(db_path=db_path)
+        idx = pd.DataFrame([
+            {"code": "sh000001", "date": "2026-06-30", "open": 1, "high": 1, "low": 1, "close": 3000.0, "volume": 1, "amount": None},
+            {"code": "sh000001", "date": "2026-07-01", "open": 1, "high": 1, "low": 1, "close": 3030.0, "volume": 2, "amount": None},
+        ])
+        data.upsert_df("cn_index_daily", idx)
+        macro = pd.DataFrame([
+            {"indicator": "LPR1Y", "country": "cn", "date": "2026-07-20", "value": 3.1},
+            {"indicator": "LPR5Y", "country": "cn", "date": "2026-07-20", "value": 3.6},
+            {"indicator": "M2_YOY", "country": "cn", "date": "2026-06-01", "value": 8.5},
+            {"indicator": "M1_YOY", "country": "cn", "date": "2026-06-01", "value": 5.0},
+            {"indicator": "SOCIAL_FIN", "country": "cn", "date": "2026-06", "value": 50000.0},
+            {"indicator": "10Y_TREASURY", "country": "cn", "date": "2026-07-01", "value": 2.3},
+            {"indicator": "USDCNY", "country": "global", "date": "2026-06-30", "value": 7.20},
+            {"indicator": "USDCNY", "country": "global", "date": "2026-07-01", "value": 7.25},
+        ])
+        data.upsert_df("macro_data", macro)
+        p = CNMarketProvider(data=data)
+        yield p
+        data.close()
+
+
+def test_cn_indices_contract_keys(cn_provider):
+    items = cn_provider.get_indices()
+    assert items
+    expected = {"name", "symbol", "point", "change", "change_amt", "amount"}
+    for it in items:
+        assert expected <= set(it.keys())
+    sh = next(i for i in items if i["symbol"] == "000001")
+    assert abs(sh["point"] - 3030.0) < 1e-6
+    assert abs(sh["change"] - 1.0) < 1e-3  # 3030 vs 3000 → 1%
+
+
+def test_cn_monetary_contract_keys(cn_provider):
+    mp = cn_provider.get_monetary_policy()
+    assert set(mp.keys()) == {"lpr_1y", "lpr_5y", "m2_yoy", "m1_yoy",
+                              "social_financing", "cn_10y_yield"}
+    assert mp["lpr_1y"] == 3.1
+    assert mp["cn_10y_yield"] == 2.3
+
+
+def test_cn_asset_performance_includes_usdcny(cn_provider):
+    ap = cn_provider.get_asset_performance()
+    names = [a["name"] for a in ap]
+    assert "人民币汇率(USDCNY)" in names
+    fx = next(a for a in ap if a["name"] == "人民币汇率(USDCNY)")
+    assert abs(fx["point"] - 7.25) < 1e-6
+    assert abs(fx["change"] - round((7.25 - 7.20) / 7.20 * 100, 2)) < 1e-3

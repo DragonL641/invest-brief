@@ -7,10 +7,21 @@ Provides macro data: indices, monetary policy, asset performance, economic calen
 import logging
 from typing import Any
 
+import pandas as pd
+
 from investbrief.core.provider import MarketProvider
-from investbrief.cn.client import AKShareClient
+from investbrief.data.cn_data import CNData
 
 logger = logging.getLogger(__name__)
+
+# 渲染名称 → (cn_index_daily.code, 展示用 6 位 symbol)
+_INDEX_SYMBOLS = {
+    "上证指数": ("sh000001", "000001"),
+    "深证成指": ("sz399001", "399001"),
+    "创业板指": ("sz399006", "399006"),
+    "沪深300":  ("sh000300", "000300"),
+    "科创50":  ("sh000688", "000688"),
+}
 
 
 class CNMarketProvider(MarketProvider):
@@ -19,63 +30,74 @@ class CNMarketProvider(MarketProvider):
     currency = "¥"
     flag = "🇨🇳"
 
-    INDEX_SYMBOLS = {
-        "上证指数": "000001",
-        "深证成指": "399001",
-        "创业板指": "399006",
-        "沪深300": "000300",
-        "科创50": "000688",
-    }
+    def __init__(self, data: "CNData | None" = None):
+        self.data = data if data is not None else CNData()
 
-    def __init__(self):
-        self.client = AKShareClient()
+    def refresh(self):
+        """增量取数落盘。失败不抛异常——get_* 方法会回退到库内最新值。"""
+        try:
+            self.data.update_incremental()
+        except Exception as e:
+            logger.warning(f"CN data refresh failed, falling back to stored values: {e}")
 
-    # ==================== Data Methods ====================
+    def _index_bars(self, code: str):
+        """从 cn_index_daily 最新两 bar 算 (point, change%, change_amt, amount)；无数据返回 None。"""
+        bars = self.data.latest_bars("cn_index_daily", code, n=2)
+        if bars.empty:
+            return None
+        latest = bars.iloc[0]
+        point = float(latest["close"])
+        change_amt = 0.0
+        change = 0.0
+        if len(bars) > 1:
+            prev = float(bars.iloc[1]["close"])
+            change_amt = point - prev
+            change = (change_amt / prev * 100) if prev else 0.0
+        amt = latest.get("amount")
+        amount = float(amt) if pd.notna(amt) else None
+        return point, change, change_amt, amount
 
     def get_indices(self) -> list[dict[str, Any]]:
-        """获取 A 股主要指数行情。"""
-        symbols = list(self.INDEX_SYMBOLS.values())
-        names = {s: n for n, s in self.INDEX_SYMBOLS.items()}
-        quotes = self.client.get_index_quotes(symbols)
         results = []
-        for q in quotes:
-            sym = q["symbol"]
-            if sym in names:
-                results.append({
-                    "name": names[sym],
-                    "symbol": sym,
-                    "point": q["price"],
-                    "change": q.get("change_pct"),
-                    "change_amt": q.get("change"),
-                    "amount": q.get("amount"),
-                })
+        for name, (code, sym) in _INDEX_SYMBOLS.items():
+            got = self._index_bars(code)
+            if got is None:
+                continue
+            point, change, change_amt, amount = got
+            results.append({
+                "name": name, "symbol": sym,
+                "point": point, "change": change,
+                "change_amt": change_amt, "amount": amount,
+            })
         return results
 
     def get_monetary_policy(self) -> dict[str, Any]:
-        """③ 货币政策与利率：LPR / M2 / M1 / 社融 / 中国10Y国债。"""
-        try:
-            return self.client.get_cn_monetary_policy()
-        except Exception as e:
-            logger.warning(f"CN monetary policy failed: {e}")
-            return {}
+        return {
+            "lpr_1y": self.data.latest_macro("LPR1Y", "cn"),
+            "lpr_5y": self.data.latest_macro("LPR5Y", "cn"),
+            "m2_yoy": self.data.latest_macro("M2_YOY", "cn"),
+            "m1_yoy": self.data.latest_macro("M1_YOY", "cn"),
+            "social_financing": self.data.latest_macro("SOCIAL_FIN", "cn"),
+            "cn_10y_yield": self.data.latest_macro("10Y_TREASURY", "cn"),
+        }
 
     def get_asset_performance(self) -> list[dict[str, Any]]:
-        """④ 大类资产表现：A 股指数 + 人民币汇率。"""
         assets = self.get_indices()
-        try:
-            fx = self.client.get_fx_rate_usdcny()
-            if fx:
-                assets.append({
-                    "name": "人民币汇率(USDCNY)",
-                    "point": fx.get("price"),
-                    "change": fx.get("change_pct"),
-                })
-        except Exception as e:
-            logger.warning(f"CN fx rate failed: {e}")
+        # USDCNY 存于 macro_data（无 code 列，不走 latest_bars），按日期取最近两期算 change
+        fx_rows = self.data.query(
+            "SELECT date, value FROM macro_data WHERE indicator='USDCNY' AND country='global' "
+            "ORDER BY date DESC LIMIT 2"
+        )
+        if not fx_rows.empty:
+            point = float(fx_rows.iloc[0]["value"])
+            change = 0.0
+            if len(fx_rows) > 1:
+                prev = float(fx_rows.iloc[1]["value"])
+                change = round((point - prev) / prev * 100, 2) if prev else 0.0
+            assets.append({"name": "人民币汇率(USDCNY)", "point": point, "change": change})
         return assets
 
     def fetch_all(self) -> dict[str, Any]:
-        """获取 A 股宏观数据。"""
         from investbrief.cn.calendar import get_upcoming_events
         return {
             "monetary_policy": self.get_monetary_policy(),
