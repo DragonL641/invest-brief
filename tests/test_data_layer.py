@@ -87,16 +87,18 @@ def test_cn_index_codes_cover_five_indices():
 
 
 def test_cn_monetary_writes_lpr_m2_social_financing(monkeypatch, db):
-    """LPR/M2/M1/社融 必须落 macro_data（投资简报货币板块需要）。"""
+    """LPR/M2/M1/社融 必须落 macro_data 且保留全历史。"""
     def fake_lpr():
-        return pd.DataFrame([{"TRADE_DATE": "2026-07-20", "LPR1Y": 3.1, "LPR5Y": 3.6}])
+        return pd.DataFrame([
+            {"TRADE_DATE": "2026-06-20", "LPR1Y": 3.1, "LPR5Y": 3.6},
+            {"TRADE_DATE": "2026-07-20", "LPR1Y": 3.1, "LPR5Y": 3.6},
+        ])
 
     def fake_money():
-        return pd.DataFrame([{
-            "月份": "2026年06月份",
-            "货币和准货币(M2)-同比增长": 8.5,
-            "货币(M1)-同比增长": 5.0,
-        }])
+        return pd.DataFrame([
+            {"月份": "2026年05月份", "货币和准货币(M2)-同比增长": 8.4, "货币(M1)-同比增长": 4.8},
+            {"月份": "2026年06月份", "货币和准货币(M2)-同比增长": 8.5, "货币(M1)-同比增长": 5.0},
+        ])
 
     def fake_shrzgm():
         return pd.DataFrame([{"月份": "2026年06月份", "社会融资规模增量": 50000.0}])
@@ -105,7 +107,6 @@ def test_cn_monetary_writes_lpr_m2_social_financing(monkeypatch, db):
     monkeypatch.setattr(cn_mod.ak, "macro_china_money_supply", fake_money)
     monkeypatch.setattr(cn_mod.ak, "macro_china_shrzgm", fake_shrzgm)
 
-    # Stub out the other network methods so update_macro only exercises LPR/M2/社融.
     class _CN(CNData):
         def update_all(self): pass
         def update_incremental(self): pass
@@ -118,8 +119,14 @@ def test_cn_monetary_writes_lpr_m2_social_financing(monkeypatch, db):
     c.update_macro()
     c.close()
 
+    # latest values
     assert db.latest_macro("LPR1Y", "cn") == 3.1
     assert db.latest_macro("LPR5Y", "cn") == 3.6
     assert db.latest_macro("M2_YOY", "cn") == 8.5
     assert db.latest_macro("M1_YOY", "cn") == 5.0
     assert db.latest_macro("SOCIAL_FIN", "cn") == 50000.0
+    # full history persisted (2 rows for LPR1Y and M2_YOY)
+    n_lpr = db.query("SELECT COUNT(*) AS n FROM macro_data WHERE indicator='LPR1Y' AND country='cn'").iloc[0]["n"]
+    n_m2 = db.query("SELECT COUNT(*) AS n FROM macro_data WHERE indicator='M2_YOY' AND country='cn'").iloc[0]["n"]
+    assert n_lpr == 2
+    assert n_m2 == 2

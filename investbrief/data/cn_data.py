@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 class CNData(BaseData):
     """A-share market data acquisition and storage."""
 
+    # invest-brief 需要的 5 个 A 股指数（覆盖原 sh000001 单一来源）
+    INDEX_CODES = ["sh000001", "sz399001", "sz399006", "sh000300", "sh000688"]
+
     def update_all(self):
         """Full download of all A-share data."""
         logger.info("Starting A-share full data download")
@@ -26,9 +29,6 @@ class CNData(BaseData):
         self.update_macro()
         self.update_sentiment()
         logger.info("A-share incremental update complete")
-
-    # invest-brief 需要的 5 个 A 股指数（覆盖原 sh000001 单一来源）
-    INDEX_CODES = ["sh000001", "sz399001", "sz399006", "sh000300", "sh000688"]
 
     def update_index_daily(self):
         """Fetch daily OHLCV for the 5 A-share indices invest-brief renders."""
@@ -140,16 +140,18 @@ class CNData(BaseData):
             df = self._retry_api(lambda: ak.macro_china_lpr())
             if df is None or df.empty:
                 return
-            latest = df.sort_values("TRADE_DATE", ascending=False).iloc[0]
-            date_str = str(latest.get("TRADE_DATE", datetime.now().strftime("%Y-%m-%d")))[:10]
+            df = df.copy()
+            df["date"] = df["TRADE_DATE"].astype(str).str[:10]
             rows = []
-            for ind, col in (("LPR1Y", "LPR1Y"), ("LPR5Y", "LPR5Y")):
-                v = latest.get(col)
-                if pd.notna(v):
-                    rows.append({"indicator": ind, "country": "cn", "date": date_str, "value": float(v)})
+            for _, row in df.iterrows():
+                d = row["date"]
+                for ind, col in (("LPR1Y", "LPR1Y"), ("LPR5Y", "LPR5Y")):
+                    v = row.get(col)
+                    if pd.notna(v):
+                        rows.append({"indicator": ind, "country": "cn", "date": d, "value": float(v)})
             if rows:
                 self.upsert_df("macro_data", pd.DataFrame(rows))
-                self.set_update_date("macro_data_lpr_cn", date_str)
+                self.set_update_date("macro_data_lpr_cn", df["date"].max())
         except Exception as e:
             logger.error(f"Failed to update CN LPR: {e}")
 
@@ -161,17 +163,17 @@ class CNData(BaseData):
             df = df.copy()
             df["_m"] = (df["月份"].astype(str).str.replace("年", "-", regex=False)
                         .str.replace("月份", "", regex=False))
-            latest = df.sort_values("_m", ascending=False).iloc[0]
-            date_str = str(latest["_m"]) + "-01"
             rows = []
-            for ind, col in (("M2_YOY", "货币和准货币(M2)-同比增长"),
-                             ("M1_YOY", "货币(M1)-同比增长")):
-                v = latest.get(col)
-                if pd.notna(v):
-                    rows.append({"indicator": ind, "country": "cn", "date": date_str, "value": float(v)})
+            for _, row in df.iterrows():
+                d = f"{row['_m']}-01"
+                for ind, col in (("M2_YOY", "货币和准货币(M2)-同比增长"),
+                                 ("M1_YOY", "货币(M1)-同比增长")):
+                    v = row.get(col)
+                    if pd.notna(v):
+                        rows.append({"indicator": ind, "country": "cn", "date": d, "value": float(v)})
             if rows:
                 self.upsert_df("macro_data", pd.DataFrame(rows))
-                self.set_update_date("macro_data_money_cn", date_str)
+                self.set_update_date("macro_data_money_cn", df["_m"].max())
         except Exception as e:
             logger.error(f"Failed to update CN money supply: {e}")
 
@@ -180,15 +182,18 @@ class CNData(BaseData):
             df = self._retry_api(lambda: ak.macro_china_shrzgm())
             if df is None or df.empty:
                 return
-            latest = df.sort_values("月份", ascending=False).iloc[0]
-            v = latest.get("社会融资规模增量")
-            if pd.notna(v):
-                date_str = str(latest["月份"])[:7]
-                self.upsert_df("macro_data", pd.DataFrame([{
-                    "indicator": "SOCIAL_FIN", "country": "cn",
-                    "date": date_str, "value": float(v),
-                }]))
-                self.set_update_date("macro_data_social_cn", date_str)
+            df = df.copy()
+            df["_m"] = (df["月份"].astype(str).str.replace("年", "-", regex=False)
+                        .str.replace("月份", "", regex=False))
+            rows = []
+            for _, row in df.iterrows():
+                v = row.get("社会融资规模增量")
+                if pd.notna(v):
+                    rows.append({"indicator": "SOCIAL_FIN", "country": "cn",
+                                 "date": f"{row['_m']}-01", "value": float(v)})
+            if rows:
+                self.upsert_df("macro_data", pd.DataFrame(rows))
+                self.set_update_date("macro_data_social_cn", df["_m"].max())
         except Exception as e:
             logger.error(f"Failed to update CN 社融: {e}")
 
