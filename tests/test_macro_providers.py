@@ -1,52 +1,15 @@
-"""宏观 provider 单测：US/CN monetary_policy & asset_performance。
+"""宏观 provider 单测：CN monetary_policy & asset_performance。
 
-用 MagicMock 替换底层 client（yfinance / AKShare），保证测试无网络、确定性、快速。
-验证两类行为：
-1. 结构 — 返回正确 key / name。
-2. 韧性 — 底层抛异常时不崩溃，返回降级空结构。
+US provider 的契约测试见 tests/test_provider_contract.py（P1 起 US provider
+改为读 SQLite 数据层，不再 mock yfinance client；旧的 yfinance-mock 用例已废弃）。
+
+CN provider 仍使用 AKShareClient（P1 Task 6 将同样改为数据层）；此处用
+MagicMock 替换底层 client，保证无网络、确定性。
 """
 
 from unittest.mock import MagicMock
 
 from investbrief.cn.provider import CNMarketProvider
-from investbrief.us.provider import USMarketProvider
-
-
-# ---------------------------------------------------------------------------
-# US provider — self.yf
-# ---------------------------------------------------------------------------
-
-def test_us_monetary_policy_structure():
-    p = USMarketProvider()
-    p.yf = MagicMock()
-    p.yf.get_quote.side_effect = lambda s: (
-        {"price": 4.3, "change_percent": 0.1} if s == "^TNX" else None
-    )
-    m = p.get_monetary_policy()
-    assert m["us_10y_yield"] == 4.3
-    assert "us_5y_yield" in m and m["us_5y_yield"] is None
-    assert "us_13w_yield" in m
-    assert "fed_funds_rate" in m
-
-
-def test_us_monetary_policy_resilient():
-    p = USMarketProvider()
-    p.yf = MagicMock()
-    p.yf.get_quote.side_effect = RuntimeError("boom")
-    m = p.get_monetary_policy()
-    assert isinstance(m, dict)
-    assert m["us_10y_yield"] is None
-
-
-def test_us_asset_performance_has_gold():
-    p = USMarketProvider()
-    p.yf = MagicMock()
-    p.yf.get_quote.side_effect = lambda s: (
-        {"price": 4100.0, "change_percent": -0.5} if s == "GC=F" else None
-    )
-    assets = p.get_asset_performance()
-    names = [a["name"] for a in assets]
-    assert "黄金(COMEX)" in names
 
 
 # ---------------------------------------------------------------------------
