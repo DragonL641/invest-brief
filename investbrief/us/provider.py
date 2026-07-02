@@ -7,13 +7,26 @@ Provides macro data: indices, monetary policy, asset performance, economic calen
 import logging
 from typing import Dict, List, Any
 
-from .clients import YFinanceClient
+import pandas as pd
+
 from investbrief.core.provider import MarketProvider
+from investbrief.data.us_data import USData
 
 logger = logging.getLogger(__name__)
 
 # Federal funds target rate range — update manually on FOMC moves
 FED_FUNDS_TARGET = "5.25% - 5.50%"
+
+# 渲染名称 → us_index_daily.code
+_INDEX_SYMBOLS = {
+    "S&P 500": "^GSPC",
+    "NASDAQ": "^IXIC",
+    "Dow Jones": "^DJI",
+    "VIX": "^VIX",
+    "10Y国债": "^TNX",
+    "WTI原油": "CL=F",
+    "美元指数": "DX-Y.NYB",
+}
 
 
 class USMarketProvider(MarketProvider):
@@ -22,66 +35,67 @@ class USMarketProvider(MarketProvider):
     flag = "🇺🇸"
     currency = "$"
 
-    def __init__(self):
-        self.yf = YFinanceClient()
+    def __init__(self, data: "USData | None" = None):
+        self.data = data if data is not None else USData()
+
+    def refresh(self):
+        """增量取数落盘。失败不抛异常——get_* 方法会回退到库内最新值。"""
+        try:
+            self.data.update_incremental()
+        except Exception as e:
+            logger.warning(f"US data refresh failed, falling back to stored values: {e}")
 
     # ==================== Data Methods ====================
 
+    def _bar_point_change(self, code: str) -> tuple[float | None, float, float | None]:
+        """从 us_index_daily 最新两 bar 算 (point, change%, volume)。"""
+        bars = self.data.latest_bars("us_index_daily", code, n=2)
+        if bars.empty:
+            return None, 0.0, None
+        latest = bars.iloc[0]
+        point = float(latest["close"])
+        volume = latest.get("volume")
+        volume = float(volume) if pd.notna(volume) else None
+        if len(bars) > 1:
+            prev = float(bars.iloc[1]["close"])
+            change = ((point - prev) / prev * 100) if prev else 0.0
+        else:
+            change = 0.0
+        return point, change, volume
+
     def get_indices(self) -> List[Dict[str, Any]]:
-        """Get US market indices."""
-        index_symbols = {
-            "S&P 500": "^GSPC",
-            "NASDAQ": "^IXIC",
-            "Dow Jones": "^DJI",
-            "VIX": "^VIX",
-            "10Y国债": "^TNX",
-            "WTI原油": "CL=F",
-            "美元指数": "DX-Y.NYB",
-        }
         results = []
-        for name, symbol in index_symbols.items():
-            quote = self.yf.get_quote(symbol)
-            if quote:
-                results.append({
-                    "name": name,
-                    "point": quote["price"],
-                    "change": quote["change_percent"],
-                    "volume": self._format_volume(quote.get("volume")),
-                })
+        for name, code in _INDEX_SYMBOLS.items():
+            point, change, volume = self._bar_point_change(code)
+            if point is None:
+                continue
+            results.append({
+                "name": name,
+                "point": point,
+                "change": change,
+                "volume": self._format_volume(volume) if volume else "-",
+            })
         return results
 
     def get_monetary_policy(self) -> dict[str, Any]:
-        """③ 货币政策与利率（宏观板块）：美债收益率 + 联邦基金目标利率。"""
         result: dict[str, Any] = {
             "us_10y_yield": None, "us_5y_yield": None,
             "us_13w_yield": None, "fed_funds_rate": FED_FUNDS_TARGET,
         }
-        for key, sym in (("us_10y_yield", "^TNX"), ("us_5y_yield", "^FVX"), ("us_13w_yield", "^IRX")):
-            try:
-                q = self.yf.get_quote(sym)
-                if q:
-                    result[key] = q.get("price")
-            except Exception as e:
-                logger.warning(f"US yield {sym} failed: {e}")
+        for key, code in (("us_10y_yield", "^TNX"), ("us_5y_yield", "^FVX"), ("us_13w_yield", "^IRX")):
+            point, _, _ = self._bar_point_change(code)
+            if point is not None:
+                result[key] = point
         return result
 
     def get_asset_performance(self) -> list[dict[str, Any]]:
-        """④ 大类资产表现：美股指数 + 美债 + 原油 + 美元指数 + 黄金。"""
         assets = self.get_indices()
-        try:
-            gold = self.yf.get_quote("GC=F")
-            if gold:
-                assets.append({
-                    "name": "黄金(COMEX)",
-                    "point": gold.get("price"),
-                    "change": gold.get("change_percent"),
-                })
-        except Exception as e:
-            logger.warning(f"Gold quote failed: {e}")
+        point, change, _ = self._bar_point_change("GC=F")
+        if point is not None:
+            assets.append({"name": "黄金(COMEX)", "point": point, "change": change})
         return assets
 
     def fetch_all(self) -> dict[str, Any]:
-        """获取美股宏观数据。"""
         from investbrief.us.calendar import get_upcoming_events_with_yfinance
         return {
             "monetary_policy": self.get_monetary_policy(),
