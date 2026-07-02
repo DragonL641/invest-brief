@@ -11,6 +11,7 @@ import pytest
 from investbrief.data import cn_data as cn_mod
 from investbrief.data.base import BaseData
 from investbrief.data.cn_data import CNData
+from investbrief.data.us_data import USData
 
 
 @pytest.fixture
@@ -130,3 +131,11 @@ def test_cn_monetary_writes_lpr_m2_social_financing(monkeypatch, db):
     n_m2 = db.query("SELECT COUNT(*) AS n FROM macro_data WHERE indicator='M2_YOY' AND country='cn'").iloc[0]["n"]
     assert n_lpr == 2
     assert n_m2 == 2
+
+
+def test_us_index_symbols_cover_investbrief_surface():
+    """USData 必须覆盖 invest-brief 渲染的全部美股符号。"""
+    assert set(USData.INDEX_SYMBOLS) == {
+        "^GSPC", "^IXIC", "^DJI", "^VIX", "^TNX", "^FVX", "^IRX",
+        "HYG", "CL=F", "DX-Y.NYB", "GC=F",
+    }
