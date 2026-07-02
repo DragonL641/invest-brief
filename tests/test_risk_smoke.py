@@ -10,6 +10,7 @@ import pytest
 
 from investbrief.config import DB_PATH
 from investbrief.data.cn_data import CNData
+from investbrief.data.gold_data import GoldData
 from investbrief.data.us_data import USData
 from investbrief.risk.models import RiskModel
 
@@ -29,7 +30,7 @@ def _db_has_data() -> bool:
 pytestmark = pytest.mark.skipif(not _db_has_data(), reason="needs P1-populated data/macro_data.db")
 
 
-@pytest.mark.parametrize("market, cls", [("cn", CNData), ("us", USData)])
+@pytest.mark.parametrize("market, cls", [("cn", CNData), ("us", USData), ("gold", GoldData)])
 def test_calculate_score_real_db(market, cls):
     """calculate_score 端到端：结构正确 + 分数在 0-100 + 维度非全 5.0（确实在算）。"""
     ds = cls()
