@@ -109,7 +109,7 @@ DB at `data/macro_data.db` (gitignored; parent dir auto-created by `BaseData.con
 ## CI/CD
 
 ### PR Check (`.github/workflows/pr-check.yml`)
-`pull_request` to main → backend only: `uv sync --frozen --no-dev`.
+`pull_request` to main → `uv sync --frozen` (lockfile consistency) + `uv run pytest tests/ -q`.
 
 ### Docker Publish (`.github/workflows/docker-publish.yml`)
 `push` to main → builds ONE multi-arch (amd64+arm64) image: `ghcr.io/dragonl641/invest-brief` (scheduler). Trivy scan + SARIF.

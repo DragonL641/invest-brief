@@ -53,8 +53,8 @@ uv run run.py [--now] [--dry-run] [--skip-summary] [--log-level LEVEL]
 ### 测试
 
 ```bash
-uv run pytest tests/                                 # 宏观 provider 测试
-uv run pytest tests/test_macro_providers.py -v
+uv run pytest tests/                                 # 全部测试
+uv run pytest tests/ -v                              # verbose
 ```
 
 ## 配置说明

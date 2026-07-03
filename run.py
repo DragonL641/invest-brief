@@ -44,8 +44,8 @@ CONFIG_FILE = PROJECT_DIR / "config.json"
 
 load_dotenv(ENV_FILE, override=False)
 
-# Auto-detect system proxy for yfinance / requests (macOS system proxy)
-if not os.environ.get("HTTPS_PROXY"):
+# Auto-detect system proxy for yfinance / requests (macOS only — networksetup is macOS-specific)
+if sys.platform == "darwin" and not os.environ.get("HTTPS_PROXY"):
     import subprocess
     try:
         r = subprocess.run(
@@ -506,7 +506,7 @@ def _run_macro_report(args):
 
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
     report_data = {
-        "subject": f"【宏观经济日报】{now.year}年{now.month}月{now.day}日",
+        "subject": f"【宏观经济日报】{now.strftime('%Y年%m月%d日')}",
         "data_time": now.strftime("%Y-%m-%d %H:%M"),
         "date": now.strftime("%Y-%m-%d"),
         "market": "all",
