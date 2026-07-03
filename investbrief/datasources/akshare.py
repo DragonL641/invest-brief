@@ -1,11 +1,10 @@
 """A股数据客户端，基于 AKShare。"""
-
 import logging
 import os
-import time
 import threading
-from typing import Any
+import time
 from datetime import datetime, timedelta
+from typing import Any
 
 os.environ["TQDM_DISABLE"] = "1"
 

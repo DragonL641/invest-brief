@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from .client import AKShareClient
+from investbrief.datasources.akshare import AKShareClient
 
 logger = logging.getLogger(__name__)
 

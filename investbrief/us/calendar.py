@@ -129,7 +129,7 @@ def get_upcoming_events_with_yfinance(days_ahead: int = 21) -> List[Dict[str, An
     """
     base = get_upcoming_events(days_ahead)  # 规则版：FOMC 硬编码 + CPI/NFP/PCE 估算
     try:
-        from .clients import YFinanceClient
+        from investbrief.datasources.yfinance import YFinanceClient
         client = YFinanceClient()
         if not client.enabled:
             return base

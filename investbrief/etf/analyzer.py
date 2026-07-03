@@ -8,7 +8,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
 
-from investbrief.cn.client import AKShareClient
+from investbrief.datasources.akshare import AKShareClient
 from investbrief.etf.indicators import compute_indicators
 from investbrief.etf.engine import RuleEngine, RuleResult
 

@@ -11,8 +11,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
 from typing import Any, Callable
 
-from investbrief.cn.client import AKShareClient
-from investbrief.us.clients import FinnhubClient, YFinanceClient
+from investbrief.datasources.akshare import AKShareClient
+from investbrief.datasources.finnhub import FinnhubClient
+from investbrief.datasources.yfinance import YFinanceClient
 from investbrief.etf.analyzer import ETFAnalyzer, ETFAnalysisResult
 from investbrief.etf.indicators import compute_indicators
 

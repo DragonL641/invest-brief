@@ -10,12 +10,10 @@ import logging
 from typing import Optional, Dict, List, Any
 from datetime import datetime
 
-from .clients import (
-    FinnhubClient,
-    AlphaVantageClient,
-    TavilyClient,
-    get_available_apis
-)
+from investbrief.datasources.finnhub import FinnhubClient
+from investbrief.datasources.alphavantage import AlphaVantageClient
+from investbrief.datasources.tavily import TavilyClient
+from investbrief.datasources import get_available_apis
 
 logger = logging.getLogger(__name__)
 
