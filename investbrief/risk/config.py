@@ -23,6 +23,8 @@ COMMON_INDICATORS = {
         "thresholds": {"cn": 0.15, "us": 0.15},
         "low_thresholds": {"cn": 0.0, "us": 0.0},
         "description": "(收盘价 - MA50) / MA50",
+        "scale": 100,
+        "unit": "%",
     },
     "volume_shrinkage": {
         "name": "成交量萎缩度",
@@ -32,6 +34,8 @@ COMMON_INDICATORS = {
         "low_thresholds": {"cn": 0.7, "us": 0.7},
         "invert": True,
         "description": "5日均量 / 30日均量",
+        "scale": 100,
+        "unit": "%",
     },
 }
 
@@ -45,6 +49,8 @@ CN_INDICATORS = {
         "low_thresholds": {"cn": 5.0},
         "invert": True,
         "description": "(1/沪深300PE) - 10Y国债, 高=股便宜=低风险",
+        "scale": 1,
+        "unit": "%",
     },
     "zz500_erp": {
         "name": "中证500 ERP",
@@ -54,6 +60,8 @@ CN_INDICATORS = {
         "low_thresholds": {"cn": 3.0},
         "invert": True,
         "description": "(1/中证500PE) - 10Y国债, 中小盘成长ERP",
+        "scale": 1,
+        "unit": "%",
     },
     "structural_divergence": {
         "name": "结构分化(等权/加权PE)",
@@ -62,6 +70,8 @@ CN_INDICATORS = {
         "thresholds": {"cn": 2.5},
         "low_thresholds": {"cn": 1.5},
         "description": "沪深300等权PE/加权PE, 高=少数股泡沫(抱团/小盘疯)",
+        "scale": 1,
+        "unit": "倍",
     },
     "margin_growth": {
         "name": "融资余额增速",
@@ -70,6 +80,8 @@ CN_INDICATORS = {
         "thresholds": {"cn": 0.15},
         "low_thresholds": {"cn": 0.0},
         "description": "4周融资余额增速, 杠杆加速度(管2015杠杆顶)",
+        "scale": 1,
+        "unit": "%",
     },
     "margin_level": {
         "name": "融资余额水平",
@@ -78,6 +90,8 @@ CN_INDICATORS = {
         "thresholds": {"cn": 20000},
         "low_thresholds": {"cn": 5000},
         "description": "融资余额绝对值分位, 杠杆水平(管2021抱团顶)",
+        "scale": 1,
+        "unit": "亿",
     },
 }
 
@@ -90,6 +104,8 @@ US_INDICATORS = {
         "thresholds": {"us": 28},
         "low_thresholds": {"us": 15},
         "description": "美股SPY trailing PE",
+        "scale": 1,
+        "unit": "",
     },
     "sp500_erp": {
         "name": "标普500 ERP",
@@ -99,6 +115,8 @@ US_INDICATORS = {
         "low_thresholds": {"us": 5.0},
         "invert": True,
         "description": "(1/标普500PE) - 10Y国债, 高=股便宜=低风险(与A股ERP同口径)",
+        "scale": 1,
+        "unit": "%",
     },
     "credit_spread": {
         "name": "信用利差",
@@ -107,6 +125,8 @@ US_INDICATORS = {
         "thresholds": {"us": 0.05},  # 5% HYG underperformance
         "low_thresholds": {"us": -0.02},
         "description": "HYG价格相对国债的偏离",
+        "scale": 100,
+        "unit": "%",
     },
     "yield_curve_inversion": {
         "name": "收益率曲线倒挂",
@@ -115,6 +135,8 @@ US_INDICATORS = {
         "thresholds": {"us": 0.5},  # 50bp spread widening after inversion
         "low_thresholds": {"us": -0.5},  # inverted = negative spread
         "description": "10年期 - 3个月期利差",
+        "scale": 1,
+        "unit": "%",
     },
     "vix": {
         "name": "VIX恐慌指数",
@@ -123,6 +145,8 @@ US_INDICATORS = {
         "thresholds": {"us": 30},
         "low_thresholds": {"us": 12},
         "description": "VIX收盘值",
+        "scale": 1,
+        "unit": "",
     },
 }
 
@@ -135,6 +159,8 @@ GOLD_INDICATORS = {
         "thresholds": {"gold": 15.0},
         "low_thresholds": {"gold": 5.0},
         "description": "全部黄金价值/全球GDP(UP主方法: 全球GDP分母不受单国放水干扰, 均值~9%)",
+        "scale": 1,
+        "unit": "%",
     },
     "gold_real_price": {
         "name": "实际金价 z-score",
@@ -143,6 +169,8 @@ GOLD_INDICATORS = {
         "thresholds": {"gold": 2.0},
         "low_thresholds": {"gold": -2.0},
         "description": "金价/CPI 实际金价的历史 z-score",
+        "scale": 1,
+        "unit": "σ",
     },
     "gold_ma200_deviation": {
         "name": "金价MA200偏离度",
@@ -151,6 +179,8 @@ GOLD_INDICATORS = {
         "thresholds": {"gold": 0.30},
         "low_thresholds": {"gold": 0.0},
         "description": "(金价 - MA200) / MA200",
+        "scale": 100,
+        "unit": "%",
     },
 }
 GOLD_ALL_INDICATORS = GOLD_INDICATORS

@@ -8,6 +8,42 @@
 """
 from __future__ import annotations
 
+from investbrief.risk.config import (
+    CN_ALL_INDICATORS,
+    US_ALL_INDICATORS,
+    GOLD_ALL_INDICATORS,
+)
+
+
+# === Indicator metadata: key → {name, scale, unit} ===
+_INDICATOR_META = {}
+for _d in (CN_ALL_INDICATORS, US_ALL_INDICATORS, GOLD_ALL_INDICATORS):
+    for _k, _v in _d.items():
+        _INDICATOR_META[_k] = {
+            "name": _v.get("name", _k),
+            "scale": _v.get("scale", 1.0),
+            "unit": _v.get("unit", ""),
+        }
+
+
+def _fmt_value(value, scale: float, unit: str) -> str:
+    """原始值 × scale，2 位小数 + 单位。"""
+    try:
+        return f"{float(value) * scale:.2f}{unit}"
+    except (TypeError, ValueError):
+        return "-"
+
+
+def _fmt_num(x) -> str:
+    """数字格式化: 整数无小数点, 否则最多 2 位小数 (去尾零)。"""
+    try:
+        f = float(x)
+    except (TypeError, ValueError):
+        return "-"
+    if f == int(f):
+        return str(int(f))
+    return f"{f:.2f}".rstrip("0").rstrip(".")
+
 
 def _risk_color(score: float) -> str:
     """风险分 (0-100) → 颜色。高=危险=红, 低=安全=绿。"""
@@ -22,18 +58,11 @@ def _risk_color(score: float) -> str:
     return "#16a085"  # 低位 dark green
 
 
-def _fmt_score(score: float) -> str:
-    """格式化分数: 整数去掉小数点。"""
-    if score == int(score):
-        return str(int(score))
-    return f"{score:.1f}"
-
-
 def render_risk_card(score_data: dict) -> str:
     """渲染紧凑内联风险子卡片 HTML 片段。
 
     嵌入 market section (cn/us) 底部或 gold section 内部。
-    显示: 📈 周期风险 标签 + 大号彩色分数 + 状态·操作 + 维度 mini-bar + 指标 chips。
+    显示: 📈 周期风险 标签 + 大号彩色分数 + 状态·操作 + 维度 mini-bar + 指标详情行。
     跳过缺失/空维度 (gold 只有 估值/技术)。指标仅渲染 value 非 None 的。
     空/None 输入返回 ''。
     """
@@ -44,7 +73,7 @@ def render_risk_card(score_data: dict) -> str:
         return ""
 
     color = _risk_color(float(total_score))
-    score_str = _fmt_score(float(total_score))
+    score_str = _fmt_num(total_score)
     state = score_data.get("state") or ""
     action = score_data.get("action") or ""
 
@@ -66,11 +95,11 @@ def render_risk_card(score_data: dict) -> str:
             'background:#e9ecef;border-radius:3px;vertical-align:middle;overflow:hidden;">'
             f'<span style="display:block;width:{dim_pct:.0f}%;height:100%;'
             f'background:{dim_color};"></span></span>'
-            f'<span style="margin-left:5px;color:{dim_color};font-weight:600;">{_fmt_score(dim_score_f)}</span>'
+            f'<span style="margin-left:5px;color:{dim_color};font-weight:600;">{_fmt_num(dim_score_f)}</span>'
             '</div>'
         )
 
-    # 指标 chips (仅 value 非 None)
+    # 指标详情行 (仅 value 非 None): 名称 · 原始值 → 风险分/10 (· scoring)
     indicators_html = ""
     for key, ind in (score_data.get("indicators") or {}).items():
         if not isinstance(ind, dict) or ind.get("value") is None:
@@ -81,16 +110,27 @@ def render_risk_card(score_data: dict) -> str:
         except (TypeError, ValueError):
             ind_score_f = None
         ind_color = _risk_color(ind_score_f * 10) if ind_score_f is not None else "#7f8c8d"
-        score_txt = _fmt_score(ind_score_f) if ind_score_f is not None else "-"
+        meta = _INDICATOR_META.get(key, {"name": key, "scale": 1.0, "unit": ""})
+        name = meta["name"]
+        val_str = _fmt_value(ind.get("value"), meta["scale"], meta["unit"])
+        score_txt = _fmt_num(ind_score_f) if ind_score_f is not None else "-"
+        scoring = ind.get("scoring")
+        scoring_html = (
+            f'<span style="color:#95a5a6;font-weight:400;"> · {scoring}</span>'
+            if scoring
+            else ""
+        )
         indicators_html += (
-            f'<span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 6px;'
-            f'background:#ffffff;border:1px solid #e9ecef;border-radius:3px;'
-            f'font-size:11px;color:#555;">{key} '
-            f'<b style="color:{ind_color};">{score_txt}</b></span>'
+            '<div style="margin-bottom:4px;font-size:12px;color:#555;line-height:1.4;">'
+            f'<span style="display:inline-block;width:96px;vertical-align:top;color:#34495e;">{name}</span>'
+            f'<span style="display:inline-block;width:80px;vertical-align:top;">{val_str}</span>'
+            f'<span style="vertical-align:top;">→ <b style="color:{ind_color};">{score_txt}/10</b>{scoring_html}</span>'
+            '</div>'
         )
     indicators_block = (
         f'<div style="margin-top:6px;">{indicators_html}</div>'
-        if indicators_html else ""
+        if indicators_html
+        else ""
     )
 
     return (
