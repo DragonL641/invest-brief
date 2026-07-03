@@ -1,4 +1,4 @@
-"""风险模型配置（移植自 StockCycleRiskDetector/config.py）。DB_PATH/retry 在 investbrief/config.py。"""
+"""风险模型配置（移植自 StockCycleRiskDetector/config.py）。DB_PATH/retry 在 investbrief/core/config.py。"""
 
 # === Market State Mapping ===
 # Each entry: (score_min, score_max, state, crash_prob, expected_return, action)

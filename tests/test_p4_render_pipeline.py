@@ -1,6 +1,6 @@
 """P4 渲染管线：真实 DB → 三市场风险卡 → market_section_html 含全部卡片。"""
 import os
-from investbrief.config import DB_PATH
+from investbrief.core.config import DB_PATH
 import pytest
 from investbrief.data.us_data import USData
 from investbrief.data.cn_data import CNData

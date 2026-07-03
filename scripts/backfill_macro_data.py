@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from investbrief.config import DB_PATH
+from investbrief.core.config import DB_PATH
 from investbrief.data.cn_data import CNData
 from investbrief.data.us_data import USData
 from investbrief.data.gold_data import GoldData

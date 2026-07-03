@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from run import _validate_config
+from investbrief.core.config import validate_config
 from investbrief.holdings.analyzer import HoldingsAnalyzer, HoldingResult, _ratio
 from investbrief.holdings.brief import _fallback, generate_holdings_brief
 from investbrief.holdings.renderer import render_holdings_section
@@ -33,11 +33,11 @@ def _mock_analyzer() -> HoldingsAnalyzer:
 # ==================== 配置校验 ====================
 
 def test_config_no_holdings_ok():
-    _validate_config(dict(BASE_CFG))
+    validate_config(dict(BASE_CFG))
 
 
 def test_config_valid_holdings():
-    _validate_config({**BASE_CFG, "recipients": [{"email": "a@b.c", "holdings": [
+    validate_config({**BASE_CFG, "recipients": [{"email": "a@b.c", "holdings": [
         {"symbol": "AAPL", "market": "us", "type": "stock"},
         {"symbol": "510300", "market": "cn", "type": "etf"},
         {"symbol": "000001", "market": "cn", "type": "fund"},
@@ -46,26 +46,26 @@ def test_config_valid_holdings():
 
 def test_config_rejects_us_etf():
     with pytest.raises(ValueError, match="US market only supports type=stock"):
-        _validate_config({**BASE_CFG, "recipients": [{"email": "a@b.c", "holdings": [
+        validate_config({**BASE_CFG, "recipients": [{"email": "a@b.c", "holdings": [
             {"symbol": "SPY", "market": "us", "type": "etf"}]}]})
 
 
 def test_config_rejects_us_fund():
     # us+fund 先被 us-stock-only 规则拦截（fund-non-cn 规则在后，作防御深度）
     with pytest.raises(ValueError, match="US market only supports type=stock"):
-        _validate_config({**BASE_CFG, "recipients": [{"email": "a@b.c", "holdings": [
+        validate_config({**BASE_CFG, "recipients": [{"email": "a@b.c", "holdings": [
             {"symbol": "X", "market": "us", "type": "fund"}]}]})
 
 
 def test_config_rejects_bad_market():
     with pytest.raises(ValueError, match="holding market"):
-        _validate_config({**BASE_CFG, "recipients": [{"email": "a@b.c", "holdings": [
+        validate_config({**BASE_CFG, "recipients": [{"email": "a@b.c", "holdings": [
             {"symbol": "X", "market": "de", "type": "stock"}]}]})
 
 
 def test_config_rejects_missing_field():
     with pytest.raises(ValueError, match="missing 'type'"):
-        _validate_config({**BASE_CFG, "recipients": [{"email": "a@b.c", "holdings": [
+        validate_config({**BASE_CFG, "recipients": [{"email": "a@b.c", "holdings": [
             {"symbol": "X", "market": "cn"}]}]})
 
 

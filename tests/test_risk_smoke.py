@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from investbrief.config import DB_PATH
+from investbrief.core.config import DB_PATH
 from investbrief.data.cn_data import CNData
 from investbrief.data.gold_data import GoldData
 from investbrief.data.us_data import USData

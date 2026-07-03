@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from investbrief.config import DB_PATH
+from investbrief.core.config import DB_PATH
 import logging
 logger = logging.getLogger(__name__)
 
@@ -204,7 +204,7 @@ class BaseData(ABC):
     def _retry_api(self, fn):
         """Call API function with retries on failure."""
         import time
-        from investbrief.config import API_RETRY_COUNT, API_RETRY_DELAY
+        from investbrief.core.config import API_RETRY_COUNT, API_RETRY_DELAY
 
         for attempt in range(API_RETRY_COUNT):
             try:

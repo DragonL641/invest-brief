@@ -8,7 +8,7 @@ import urllib.request
 import yfinance as yf
 
 from investbrief.data.base import BaseData
-from investbrief.config import US_GDP_BASE_YEAR, US_GDP_BASE_VALUE
+from investbrief.core.config import US_GDP_BASE_YEAR, US_GDP_BASE_VALUE
 import logging
 
 logger = logging.getLogger(__name__)
