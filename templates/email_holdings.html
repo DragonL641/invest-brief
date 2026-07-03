@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: {{font_family}}; background: #f5f5f5; margin: 0; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #8e44ad, #c39bf3); color: #fff; padding: 30px 20px; text-align: center; }
+    .header h1 { margin: 0 0 10px 0; font-size: 28px; }
+    .header p { margin: 0; opacity: 0.9; font-size: 14px; }
+    .section { padding: 20px; border-bottom: 1px solid #eee; }
+    .section:last-child { border-bottom: none; }
+    .section h2 { margin: 0 0 15px 0; font-size: 18px; color: #2c3e50; }
+    .stock-up { color: {{color_up}}; font-weight: bold; }
+    .stock-down { color: {{color_down}}; font-weight: bold; }
+    .stock-neutral { color: #7f8c8d; }
+    .card { background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin: 10px 0; border: 1px solid #e9ecef; }
+    .card-header { padding: 12px 15px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; font-weight: 600; overflow: hidden; }
+    .card-body { padding: 15px; }
+    .stock-detail { background: #f8f9fa; border-radius: 8px; padding: 12px; margin: 8px 0; }
+    .stock-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .stock-name { font-weight: 600; font-size: 15px; color: #7f8c8d; }
+    .stock-price { font-size: 18px; font-weight: bold; }
+    .metrics-row { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; color: #555; margin: 6px 0; }
+    .metrics-row .metric { background: #fff; padding: 4px 8px; border-radius: 4px; border: 1px solid #eee; }
+    .metrics-row .label { color: #999; margin-right: 4px; }
+    .analyst-section { background: #e8f4f8; border-radius: 6px; padding: 10px; margin: 8px 0; border-left: 3px solid #17a2b8; }
+    .analyst-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+    .analyst-label { color: #7f8c8d; font-size: 13px; margin-bottom: 5px; }
+    .rating-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 6px 0; background: #eee; }
+    .rating-bar .buy { background: {{color_up}}; }
+    .rating-bar .hold { background: #f39c12; }
+    .rating-bar .sell { background: {{color_down}}; }
+    .rating-labels { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: #666; }
+    .upgrade-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 12px; border-bottom: 1px solid #d8e8ee; }
+    .upgrade-item:last-child { border-bottom: none; }
+    .upgrade-firm { font-weight: 500; color: #2c3e50; }
+    .upgrade-grade { color: #555; }
+    .upgrade-date { color: #999; font-size: 11px; }
+    .fundamental-section { background: #eafaf1; border-radius: 6px; padding: 10px; margin: 8px 0; border-left: 3px solid #27ae60; }
+    .institution-section { background: #f3f0ff; border-radius: 6px; padding: 10px; margin: 8px 0; border-left: 3px solid #8e44ad; }
+    .summary-box { background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 8px; padding: 20px; margin-top: 10px; font-size: 14px; line-height: 1.6; color: #2c3e50; }
+    .summary-box p { margin: 0 0 10px 0; }
+    .summary-box strong { color: #2c3e50; }
+    .no-data { text-align: center; color: #999; padding: 20px; font-size: 14px; }
+    .footer { padding: 20px; text-align: center; color: #6c757d; font-size: 12px; background: #f8f9fa; }
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+      .header h1 { font-size: 22px; }
+      .section { padding: 15px; }
+      .stock-detail-header { flex-direction: column; align-items: flex-start; }
+      .upgrade-item { flex-direction: column; align-items: flex-start; }
+      .card-header span { float: none !important; display: block; margin-top: 4px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>{{title}}</h1>
+      <p>{{date}} | {{data_time_label}}: {{data_time}}</p>
+    </div>
+
+    <!-- 持仓组合研判（Claude） -->
+    <div class="section">
+      <h2>🎯 持仓组合研判</h2>
+      <div class="summary-box">{{holdings_summary}}</div>
+    </div>
+
+    <!-- 持仓标的卡片（renderer 生成） -->
+    <div class="section">
+      <h2>📋 标的明细</h2>
+      {{holdings_sections}}
+    </div>
+
+    <div class="footer">
+      <p>{{disclaimer}}</p>
+      <p style="margin:10px 0 0 0;">{{generated_by}} | {{generated_at}}</p>
+    </div>
+  </div>
+</body>
+</html>

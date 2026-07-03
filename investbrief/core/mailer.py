@@ -167,42 +167,6 @@ class EmailSender:
 
         raise Exception(f"Failed to send email after {self.max_retries} attempts: {last_error}")
 
-    def send_batch(self, recipients, subject, html_contents):
-        """
-        Send emails to multiple recipients
-
-        Args:
-            recipients: List of recipient dicts with 'email' and 'name'
-            subject: Email subject
-            html_contents: Dict mapping recipient email to HTML content
-
-        Returns:
-            dict: Results with 'success' and 'failed' lists
-        """
-        results = {
-            'success': [],
-            'failed': []
-        }
-
-        for recipient in recipients:
-            email = recipient['email']
-            name = recipient.get('name', '')
-
-            try:
-                html = html_contents.get(email, html_contents.get('default', ''))
-                self.send(email, subject, html)
-                results['success'].append({'email': email, 'name': name})
-
-            except Exception as e:
-                logger.error(f"Failed to send to {email}: {e}")
-                results['failed'].append({
-                    'email': email,
-                    'name': name,
-                    'error': str(e)
-                })
-
-        return results
-
 
 def test_connection(config_path=None):
     """

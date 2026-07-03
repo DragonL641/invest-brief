@@ -27,10 +27,6 @@ jobs:
         include:
           - dockerfile: Dockerfile.scheduler
             image: invest-brief
-          - dockerfile: Dockerfile.api
-            image: invest-brief-api
-          - dockerfile: frontend/Dockerfile
-            image: invest-brief-frontend
 
     steps:
       - name: Checkout repository

@@ -5,7 +5,6 @@
 #   "requests",
 #   "anthropic",
 #   "python-dotenv",
-#   "matplotlib",
 #   "croniter",
 #   "akshare",
 # ]
@@ -45,8 +44,8 @@ CONFIG_FILE = PROJECT_DIR / "config.json"
 
 load_dotenv(ENV_FILE, override=False)
 
-# Auto-detect system proxy for yfinance / requests (macOS system proxy)
-if not os.environ.get("HTTPS_PROXY"):
+# Auto-detect system proxy for yfinance / requests (macOS only — networksetup is macOS-specific)
+if sys.platform == "darwin" and not os.environ.get("HTTPS_PROXY"):
     import subprocess
     try:
         r = subprocess.run(
@@ -86,41 +85,6 @@ _shutdown = False
 
 NEWS_LIMIT = 5
 
-# ============================================================================
-# Market-aware system prompts
-# ============================================================================
-
-SYSTEM_PROMPTS = {
-    "us": """你是一位经验丰富的美股投资组合经理，为高净值客户撰写每日市场简报。语气专业但不刻板，像一个值得信赖的投资顾问在说话。
-
-要求：
-1. 输出纯 HTML 段落（<p>标签），不包含任何 markdown
-2. 使用中文撰写
-3. 内容结构（每段 2-3 句话）：
-   - 宏观环境：大盘走势 + 宏观指标（国债/原油/美元）传递的信号
-   - 持仓诊断：个股涨跌原因分析，结合分析师评级变动、技术指标（RSI/MACD）、财报数据给出判断
-   - 事件驱动：重要新闻对持仓的实质影响，即将到来的财报/经济事件需要注意什么
-   - 操作建议：基于以上分析，给出明确的 hold/buy/sell 观点，附理由
-4. 总字数 300-500 字
-5. 只使用提供的数据，不要编造数字
-6. 关键数字用 <strong> 标签，关键判断用 <strong> 标签
-7. 不要使用列表或标题，只用段落""",
-    "cn": """你是一位经验丰富的A股投资分析师，为高净值客户撰写每日市场简报。语气专业但不刻板，像一个值得信赖的投资顾问在说话。
-
-要求：
-1. 输出纯 HTML 段落（<p>标签），不包含任何 markdown
-2. 使用中文撰写
-3. 内容结构（每段 2-3 句话）：
-   - 大盘分析：主要指数走势、成交量、资金流向
-   - 持仓诊断：个股涨跌原因分析，结合技术指标给出判断
-   - 政策与事件：重要政策动向、行业新闻对持仓的影响
-   - 操作建议：基于以上分析，给出明确的持有/加仓/减仓观点，附理由
-4. 总字数 300-500 字
-5. 只使用提供的数据，不要编造数字
-6. 关键数字用 <strong> 标签，关键判断用 <strong> 标签
-7. 不要使用列表或标题，只用段落""",
-}
-
 
 def _handle_signal(signum, frame):
     global _shutdown
@@ -140,6 +104,10 @@ def load_config() -> dict:
     return config
 
 
+_VALID_HOLDING_MARKETS = {"us", "cn"}
+_VALID_HOLDING_TYPES = {"stock", "etf", "fund"}
+
+
 def _validate_config(config: dict):
     """Validate required config fields with clear error messages."""
     if "email_service" not in config:
@@ -151,67 +119,66 @@ def _validate_config(config: dict):
     if "recipients" not in config or not config["recipients"]:
         raise ValueError("config.json missing or empty 'recipients' list")
 
+    # Recipients must each have a non-empty email; optional holdings validated if present
+    for r in config["recipients"]:
+        if not isinstance(r, dict) or not r.get("email"):
+            raise ValueError(f"config.json recipient missing 'email': {r}")
+        _validate_holdings(r.get("holdings"), r["email"])
 
-# ============================================================================
-# Recipient helpers
-# ============================================================================
-
-def _filter_recipients(recipients: list, market: str) -> list:
-    """Return active recipients that have holdings or industries for the given market."""
-    result = []
-    for r in recipients:
-        if not r.get("active", True):
+    # Validate cron expressions for every enabled market
+    markets_cfg = config.get("markets", {})
+    for market, cfg in markets_cfg.items():
+        if not isinstance(cfg, dict) or not cfg.get("enabled", False):
             continue
-        settings = r.get("settings", {})
-        markets = r.get("markets", {})
-        # Support both old-style "settings" and new-style "markets"
-        if markets:
-            market_cfg = markets.get(market, {})
-            if market_cfg.get("holdings") or market_cfg.get("industries"):
-                result.append(r)
-        elif market == "us" and (settings.get("holdings") or settings.get("industries")):
-            # Fallback: old config with no "markets" key, treat as US-only
-            result.append(r)
-    return result
+        raw = cfg.get("schedule")
+        crons = []
+        if isinstance(raw, list):
+            crons = [s.get("cron") for s in raw if isinstance(s, dict)]
+        elif isinstance(raw, dict):
+            crons = [raw.get("cron")]
+        for cron in crons:
+            if not cron or not croniter.is_valid(cron):
+                raise ValueError(f"Invalid cron '{cron}' for market {market}")
+
+    # Old-style top-level schedule
+    schedule_cfg = config.get("schedule", {})
+    if schedule_cfg.get("enabled", False):
+        cron = schedule_cfg.get("cron")
+        if not cron or not croniter.is_valid(cron):
+            raise ValueError(f"Invalid cron '{cron}' for top-level schedule")
 
 
-def merge_recipient_settings(recipients: list, market: str) -> tuple:
-    """Merge holdings and industries from all recipients for a given market."""
-    from investbrief.us.industries import US_INDUSTRIES_MIGRATION
-    from investbrief.cn.industries import CN_INDUSTRIES_MIGRATION
-
-    _migration = {**US_INDUSTRIES_MIGRATION, **CN_INDUSTRIES_MIGRATION}
-
-    all_holdings = []
-    seen_symbols = set()
-    all_industries = set()
-
-    for r in recipients:
-        holdings = []
-        industries = []
-
-        # New-style config: r["markets"][market]
-        markets = r.get("markets", {})
-        if markets and market in markets:
-            market_cfg = markets[market]
-            holdings = market_cfg.get("holdings", [])
-            industries = market_cfg.get("industries", [])
-        elif market == "us":
-            # Old-style fallback: r["settings"]
-            settings = r.get("settings", {})
-            holdings = settings.get("holdings", [])
-            industries = settings.get("industries", [])
-
-        for h in holdings:
-            key = h.get("symbol", "")
-            if key and key not in seen_symbols:
-                seen_symbols.add(key)
-                all_holdings.append(h)
-        # Migrate old industry keys to new official keys
-        migrated = [_migration.get(k, k) for k in industries]
-        all_industries.update(migrated)
-
-    return all_holdings, list(all_industries)
+def _validate_holdings(holdings, email: str):
+    """Validate a recipient's optional holdings list (drives the per-recipient holdings email)."""
+    if holdings is None:
+        return
+    if not isinstance(holdings, list) or not holdings:
+        raise ValueError(f"config.json recipient {email} 'holdings' must be a non-empty list")
+    for h in holdings:
+        if not isinstance(h, dict):
+            raise ValueError(f"config.json recipient {email} holding must be an object: {h}")
+        for field in ("symbol", "market", "type"):
+            if not str(h.get(field, "")).strip():
+                raise ValueError(f"config.json recipient {email} holding missing '{field}': {h}")
+        if h["market"] not in _VALID_HOLDING_MARKETS:
+            raise ValueError(
+                f"config.json recipient {email} holding market must be one of "
+                f"{sorted(_VALID_HOLDING_MARKETS)}: {h}"
+            )
+        if h["type"] not in _VALID_HOLDING_TYPES:
+            raise ValueError(
+                f"config.json recipient {email} holding type must be one of "
+                f"{sorted(_VALID_HOLDING_TYPES)}: {h}"
+            )
+        # P1 market-type constraints: US supports stock only; fund is CN-only
+        if h["market"] == "us" and h["type"] != "stock":
+            raise ValueError(
+                f"config.json recipient {email} US market only supports type=stock (P1): {h}"
+            )
+        if h["type"] == "fund" and h["market"] != "cn":
+            raise ValueError(
+                f"config.json recipient {email} fund type only supported for cn market: {h}"
+            )
 
 
 # ============================================================================
@@ -252,356 +219,195 @@ def fetch_news(config, tickers, max_news_count, industries, market="us"):
 
 
 # ============================================================================
-# News summarization via Claude API
+# Macro report prompts (merged US+CN)
 # ============================================================================
 
-NEWS_SUMMARY_PROMPT = """你是财经新闻编辑。阅读以下新闻，为每条新闻生成中文标题和简明摘要。
+MACRO_BRIEF_PROMPT = """你是资深宏观经济分析师，为投资者撰写每日中美宏观市场简报。
 
-规则：
-1. 标题：用中文概括核心事件，10-20字，保留关键公司名/股票代码（英文）
-2. 摘要：1句话中文，说明影响什么、为什么重要，控制在50字以内
-3. 严格按 JSON 数组格式返回，每项包含 title 和 summary 字段
-4. 数量与输入一致，顺序与输入一致
-5. 不要使用任何 Markdown 格式（不要加粗、标题、列表标记）
-6. 不要加 markdown 代码块标记"""
+基于提供的中美宏观数据，输出纯 JSON（不要 markdown 代码块标记），包含两个字段：
+- "summary"：核心观点，纯 HTML（可用 <p>、<strong>、<ul><li>、<br>；不要 markdown/代码块标记），分 4 个小节，每节以 <strong>小节标题</strong> 起头：
+  1. <strong>宏观环境</strong>：中美经济数据信号（CPI/PMI/就业等）、增长与通胀走向
+  2. <strong>货币政策</strong>：美联储 vs 中国央行立场、美债收益率、中美利差含义
+  3. <strong>大类资产</strong>：美股/A股/债市/汇率/商品走势逻辑与轮动
+  4. <strong>风险与机会</strong>：最需关注的事件、潜在拐点
+  每节先用 <strong>1 句方向性结论</strong>开门（偏多/偏空/中性），再用 <ul><li> 列 2-4 个分点论据，关键数字用 <strong>。
+  必须分点陈列、可读性优先；禁止把一节写成一大段连续文字墙。总字数 400-600。
+- "risk"：未来一周风险事件与关注点，纯 HTML，用 <ul><li> 列 3-5 条，每条关键事件/日期用 <strong>，120 字以内。
+
+只用提供的数据，不编造数字。严格按 JSON 输出，形如 {"summary": "...", "risk": "..."}。"""
 
 
-def summarize_news(news: list, market="us") -> list:
-    """Summarize news titles and generate Chinese briefs via Claude API."""
-    if not news:
-        return news
+# ============================================================================
+# Macro report Claude ①⑥
+# ============================================================================
 
-    news = news[:NEWS_LIMIT]
-
+def _safe_risk_score(model, market):
+    """calculate_score with resilience — returns {} on failure (renders empty card)."""
     try:
-        import anthropic
-        import re
-
-        client = anthropic.Anthropic(
-            api_key=os.environ.get("ANTHROPIC_API_KEY"),
-            base_url=os.environ.get("ANTHROPIC_BASE_URL"),
-        )
-
-        items_text = "\n".join(
-            f"{i+1}. Title: {n.get('title', '')}\n   Content: {n.get('summary', '')[:500]}"
-            for i, n in enumerate(news)
-        )
-
-        user_message = f"请为以下 {len(news)} 条新闻生成中文标题和摘要：\n\n{items_text}"
-
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2048,
-            temperature=0.2,
-            system=NEWS_SUMMARY_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
-        )
-
-        text = response.content[0].text.strip()
-        text = re.sub(r"^\s*```(?:json)?\s*\n?", "", text)
-        text = re.sub(r"\n?\s*```\s*$", "", text)
-
-        summaries = json.loads(text)
-        if not isinstance(summaries, list) or len(summaries) != len(news):
-            logger.warning(f"News summary count mismatch: got {len(summaries) if isinstance(summaries, list) else 'non-list'}, expected {len(news)}")
-            return news
-
-        from investbrief.core.models import NewsSummaryResponse
-        validated = NewsSummaryResponse.from_raw_list(summaries)
-        if validated and len(validated.items) == len(news):
-            for i, item in enumerate(validated.items):
-                news[i]["title"] = item.title
-                news[i]["summary"] = item.summary
-        else:
-            for i, s in enumerate(summaries):
-                if isinstance(s, dict):
-                    news[i]["title"] = s.get("title", news[i].get("title", ""))
-                    news[i]["summary"] = s.get("summary", "")
-
-        logger.info(f"Summarized {len(news)} news items")
-        return news
-
+        return model.calculate_score(market)
     except Exception as e:
-        logger.warning(f"News summarization failed: {e}")
-        return news
+        logger.warning(f"Risk score for {market} failed: {e}")
+        return {}
 
 
-# ============================================================================
-# Global metrics
-# ============================================================================
-
-def build_global_metrics(indices):
-    metrics = []
-    for idx in indices:
-        metrics.append({
-            "label": idx["name"],
-            "value": f"{idx['change'] or 0:+.2f}%",
-            "change": idx["change"],
-        })
-    return metrics
-
-
-# ============================================================================
-# Daily summary via Claude API
-# ============================================================================
-
-def _serialize_market_context(market_data, news, holdings, market="us"):
-    """Serialize market data and news into structured text for Claude."""
+def _serialize_macro_context(us_data: dict, cn_data: dict, news: list, risk_scores: dict | None = None) -> str:
+    """Build compact text context from US+CN macro data for Claude."""
     lines = []
 
-    cur = "$" if market == "us" else "¥"
+    def _emit_market(label: str, md: dict):
+        lines.append(f"## {label}")
+        mp = md.get("monetary_policy") or {}
+        if mp:
+            for k, v in mp.items():
+                lines.append(f"- {k}: {v}")
+        ap = md.get("asset_performance") or []
+        if ap:
+            lines.append("### 大类资产表现")
+            for a in ap[:8]:
+                name = a.get("name", "")
+                change = a.get("change")
+                try:
+                    change_str = f"{change:+.2f}%" if change is not None else "-"
+                except (TypeError, ValueError):
+                    change_str = str(change) if change is not None else "-"
+                lines.append(f"- {name}: {change_str}")
+        ec = md.get("economic_calendar") or []
+        if ec:
+            lines.append("### 经济日历")
+            for e in ec[:8]:
+                ev = e.get("event") or e.get("name", "")
+                dt = e.get("date", "")
+                forecast = e.get("forecast", "")
+                previous = e.get("previous", "")
+                lines.append(f"- {dt} {ev} (预期:{forecast or 'N/A'}, 前值:{previous or 'N/A'})")
 
-    # Indices
-    lines.append("## 市场指数")
-    for idx in market_data.get("indices", []):
-        lines.append(f"- {idx['name']}: {idx['point'] or 0:.2f} ({idx['change'] or 0:+.2f}%)")
+    _emit_market("美国宏观", us_data)
+    _emit_market("中国宏观", cn_data)
 
-    # Holdings
-    lines.append("\n## 持仓股票")
-    for h in market_data.get("holdings", []):
-        symbol = h.get("symbol", "")
-        name = h.get("name", symbol)
-        price = h.get("price", 0)
-        change = h.get("change", 0)
-        lines.append(f"- {symbol} ({name}): {cur}{price or 0:.2f} ({change or 0:+.2f}%)")
+    if news:
+        lines.append("\n## 重要新闻")
+        for n in news[:5]:
+            lines.append(f"- {n.get('title', '')} ({n.get('source', '')})")
 
-        if market == "us":
-            info = h.get("info", {})
-            if info.get("pe"):
-                lines.append(f"  P/E: {info['pe']:.1f}")
-            targets = h.get("targets", {})
-            if targets.get("mean"):
-                upside = h.get("upside_pct")
-                lines.append(f"  目标价: {cur}{targets['mean']:.2f} (上涨空间: {upside:+.1f}%)" if upside else f"  目标价: {cur}{targets['mean']:.2f}")
-            for ug in h.get("upgrades", [])[:3]:
-                firm = ug.get("firm", "")
-                grade = ug.get("to_grade", "")
-                date = ug.get("date", "")
-                lines.append(f"  评级变动: {firm} → {grade} ({date})")
-            for eh in h.get("earnings_history", [])[:2]:
-                surprise = eh.get("surprise_pct")
-                if surprise is not None:
-                    lines.append(f"  财报惊喜: {surprise:+.1f}%")
-
-        if market == "cn":
-            # CN-specific: PE from quote, financial indicators, rating summary
-            if h.get("pe") is not None:
-                lines.append(f"  PE(动态): {h['pe']:.1f}")
-            fin = h.get("financial")
-            if fin:
-                if fin.get("roe") is not None:
-                    lines.append(f"  ROE: {fin['roe']:.2f}%")
-                if fin.get("revenue_growth") is not None:
-                    lines.append(f"  营收增长: {fin['revenue_growth']:+.2f}%")
-                if fin.get("profit_growth") is not None:
-                    lines.append(f"  净利润增长: {fin['profit_growth']:+.2f}%")
-            rating = h.get("rating_summary")
-            if rating and rating.get("total_reports", 0) > 0:
-                total = rating["total_reports"]
-                buy = rating.get("buy", 0) + rating.get("outperform", 0)
-                lines.append(f"  研报: {total}份, 买入评级 {buy/total*100:.0f}%")
-            # Insider trades (高管增减持)
-            for t in h.get("insider_trades", [])[:3]:
-                lines.append(f"  高管变动: {t.get('name', '')} {t.get('action', '')} {t.get('shares') or 0:,.0f}股 ({t.get('date', '')})")
-            # Institutional research
-            for r in h.get("institutional_research", [])[:3]:
-                lines.append(f"  机构调研: {r.get('institution', '')}家机构 ({r.get('date', '')})")
-
-        techs = h.get("technicals")
-        if techs:
-            rsi = techs.get("rsi_14")
-            if rsi:
-                rsi_label = "超买" if rsi > 70 else "超卖" if rsi < 30 else ""
-                lines.append(f"  RSI(14): {rsi:.1f} {rsi_label}")
-            if techs.get("macd_hist") is not None:
-                direction = "金叉" if techs["macd_hist"] > 0 else "死叉"
-                lines.append(f"  MACD: {direction}")
-
-    if market == "us":
-        # Earnings calendar
-        earnings_cal = market_data.get("earnings_calendar", [])
-        if earnings_cal:
-            lines.append("\n## 即将财报")
-            for e in earnings_cal:
-                lines.append(f"- {e['symbol']} ({e['name']}): {e['date']} ({e['days_away']}天后)")
-
-        # Economic calendar
-        econ_cal = market_data.get("economic_calendar", [])
-        if econ_cal:
-            lines.append("\n## 即将公布的经济数据")
-            for e in econ_cal[:8]:
-                lines.append(f"- {e.get('date', '')} {e.get('event', '')} (预期: {e.get('forecast', 'N/A')}, 前值: {e.get('previous', 'N/A')})")
-
-        # Insider trades (EDGAR Form 4)
-        for h in market_data.get("holdings", []):
-            edgar = h.get("insider_trades_edgar", [])
-            if edgar:
-                lines.append(f"\n## {h['symbol']} 内部人交易 (SEC Form 4)")
-                for tx in edgar[:5]:
-                    action = tx.get("action_label", "")
-                    shares = tx.get("shares", "")
-                    price = tx.get("price", "")
-                    date = tx.get("date", "")
-                    code = tx.get("code", "")
-                    lines.append(f"- {date}: {action} {shares}股 @ {cur}{price} (代码: {code})")
-
-    if market == "cn":
-        # Dragon tiger (龙虎榜)
-        dt = market_data.get("dragon_tiger", [])
-        if dt:
-            lines.append("\n## 龙虎榜")
-            for d in dt[:10]:
-                net = d.get("net_buy")
-                net_str = f"{cur}{net/1e8:.2f}亿" if net and net >= 1e8 else f"{cur}{net/1e4:.1f}万" if net else "-"
-                lines.append(f"- {d.get('name', '')} ({d.get('symbol', '')}): {d.get('change_pct', 0):+.2f}% 净买入{net_str} ({d.get('reason', '')})")
-
-        # Economic calendar
-        econ_cal = market_data.get("economic_calendar", [])
-        if econ_cal:
-            lines.append("\n## 经济日历")
-            for e in econ_cal[:8]:
-                lines.append(f"- {e.get('name', '')} {e.get('date', '')} ({e.get('days_away', '')}天后)")
-
-    # Recommendations
-    lines.append("\n## 推荐关注")
-    for r in market_data.get("recommendations", []):
-        symbol = r.get("symbol", "")
-        buy_pct = r.get("buy_pct", 0)
-        industry = r.get("industry", "")
-        lines.append(f"- {symbol}: 买入评级 {buy_pct:.0f}%, 行业: {industry}")
-
-    # News
-    lines.append("\n## 重要新闻")
-    for n in news[:5]:
-        title = n.get("title", "")
-        summary = n.get("summary", "")
-        source = n.get("source", "")
-        t = n.get("time", "") or n.get("date", "")
-        entry = f"- {title} ({source}, {t})"
-        if summary:
-            entry += f"\n  摘要: {summary[:200]}"
-        lines.append(entry)
+    if risk_scores:
+        lines.append("\n## 市场周期风险分（模型跟踪信号；跟踪≠预测，不可作为单独买卖依据）")
+        for market, name in (("us", "美股"), ("cn", "A股"), ("gold", "黄金")):
+            r = risk_scores.get(market) or {}
+            if r.get("total_score") is not None:
+                lines.append(f"- {name}: 风险分 {r['total_score']}（{r['state']}），{r['action']}")
 
     return "\n".join(lines)
 
 
-def generate_daily_summary(market_data, news, holdings, market="us"):
-    """Generate personalized daily summary via Claude API."""
-    try:
-        import anthropic
-        import re
+def generate_macro_brief(us_data: dict, cn_data: dict, news: list, risk_scores: dict | None = None, max_retries: int = 2) -> tuple[str, str]:
+    """一次 Claude 调用同时生成 ①核心观点 + ⑥风险（JSON 输出），带重试。
 
-        client = anthropic.Anthropic(
-            api_key=os.environ.get("ANTHROPIC_API_KEY"),
-            base_url=os.environ.get("ANTHROPIC_BASE_URL"),
+    失败重试 max_retries 次；最终仍失败则返回兜底占位（pipeline 不崩）。
+    """
+    import re as _re
+    from investbrief.core.llm import get_client, default_model
+
+    client = get_client()
+    context = _serialize_macro_context(us_data, cn_data, news, risk_scores=risk_scores)
+    fallback_summary = "<p>宏观研判生成失败，请查看下方数据。</p>"
+    fallback_risk = "<p>风险研判生成失败。</p>"
+
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.messages.create(
+                model=default_model(),
+                max_tokens=2560,
+                temperature=0.3,
+                system=MACRO_BRIEF_PROMPT,
+                messages=[{"role": "user", "content": context}],
+            )
+            text = response.content[0].text.strip()
+            text = _re.sub(r"^\s*```(?:json)?\s*\n?", "", text)
+            text = _re.sub(r"\n?\s*```\s*$", "", text)
+            data = json.loads(text)
+            summary = (data.get("summary") or "").strip() or fallback_summary
+            risk = (data.get("risk") or "").strip() or fallback_risk
+            logger.info(f"Generated macro brief (attempt {attempt + 1})")
+            return summary, risk
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning(f"Macro brief attempt {attempt + 1} failed, retrying: {e}")
+            else:
+                logger.warning(f"Macro brief failed after {max_retries + 1} attempts: {e}")
+    return fallback_summary, fallback_risk
+
+
+# ============================================================================
+# Research views (sell-side market commentary)
+# ============================================================================
+
+RESEARCH_VIEWS_PROMPT = """你是资深市场分析师。基于提供的「顶级卖方机构近 7 天市场观点」原始条目，为投资者写一段 HTML 摘要。
+
+输出要求：
+- 纯 HTML 片段，可用 <p>、<strong>、<ul><li>、<br>（不要 <h1>-<h6>、代码块标记）。
+- 按四个小节组织，每节以 <strong>小节标题</strong> 起头：
+  1. <strong>🌐 整体形势</strong>：全球宏观/利率/衰退/通胀/资金流等非单一市场的整体展望
+  2. <strong>🇺🇸 美国市场</strong>：美股/美联储/美国经济相关
+  3. <strong>🇨🇳 中国市场</strong>：A股/港股/中国经济相关
+  4. <strong>🌍 其他市场</strong>：其他地区（韩股/欧股/新兴市场等）
+- 只列「有条目」的小节；某类本周无条目，整节省略。
+- 根据每条观点的内容归入最合适的小节；提供的市场标签仅作参考，整体宏观主题（如衰退、降息周期、全球资产配置）归入"整体形势"。
+- 每个小节用 <ul><li> 分点陈列：每个 <li> 以 <strong>机构名</strong> 起头，接 1 句精炼观点（同一机构的多条合并为一条）。
+- 不要把多家机构揉成一整段；不同机构各占一条 <li>。
+- 不要在观点末尾附 (来源域名, 日期) 引用（机构名加粗已足够溯源）。
+- 只用提供的数据，不编造观点、数字或机构。
+- 若所有市场均无条目，输出 <p>本周暂无明显卖方机构观点。</p>。"""
+
+
+def _serialize_research_views(items: list) -> str:
+    """Compact text context from research-view items for Claude."""
+    from urllib.parse import urlparse
+    lines = []
+    for it in items:
+        markets = ",".join(it.get("markets") or []) or "全球其他"
+        firms = ",".join(it.get("firms") or [])
+        domain = urlparse(it.get("url", "")).netloc.replace("www.", "")
+        lines.append(
+            f"- [{markets}] {firms} | {it.get('title', '')} | "
+            f"{it.get('date', '')} | {domain} | {it.get('snippet', '')}"
         )
-
-        context = _serialize_market_context(market_data, news, holdings, market=market)
-        holdings_symbols = ", ".join(h["symbol"] for h in holdings)
-        system_prompt = SYSTEM_PROMPTS.get(market, SYSTEM_PROMPTS["us"])
-
-        user_message = f"当前持仓: {holdings_symbols}\n\n{context}"
-
-        with client.messages.stream(
-            model="claude-sonnet-4-6",
-            max_tokens=2048,
-            temperature=0.3,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
-        ) as stream:
-            summary = ""
-            for text in stream.text_stream:
-                summary += text
-
-        summary = re.sub(r"^\s*```(?:html)?\s*\n?", "", summary)
-        summary = re.sub(r"\n?\s*```\s*$", "", summary)
-        return summary.strip()
-
-    except Exception as e:
-        logger.warning(f"Claude API summary failed: {e}")
-        return "<p>今日市场数据已更新，请查看上方详情。</p>"
+    return "\n".join(lines)
 
 
-# ============================================================================
-# Section-level guidance via Claude API
-# ============================================================================
+def generate_research_views(items: list, max_retries: int = 2) -> str:
+    """Synthesize research-view items into an HTML fragment via Claude, with retry.
 
-SECTION_GUIDANCE_PROMPT = """你是面向投资小白的理财顾问。根据提供的市场数据，为以下三个区域各生成1-2句投资指导（用中文）。
+    Returns inner HTML (caller wraps in the section). Empty/failure → placeholder.
+    """
+    import re as _re
+    from investbrief.core.llm import get_client, default_model
 
-要求：
-1. 语气亲切通俗，用大白话解释数据含义和操作建议
-2. 每个区域的建议要结合该区域的数据，不要泛泛而谈
-3. 包含具体的数字参考（如"涨了X%"、"目标价Y"）
-4. 对新手友好：解释专业术语（如"RSI超买意味着短期可能回调"）
-5. 每个区域不超过80字，直接给出结论，不要铺垫
-6. 不要使用任何 Markdown 格式（不要加粗、标题、列表标记）
-7. 严格按 JSON 格式返回，key 为 market_overview / holdings / recommendations
-8. 不要加 markdown 代码块标记
+    if not items:
+        return ""
+    client = get_client()
+    context = _serialize_research_views(items)
+    fallback = "<p>卖方机构观点生成失败。</p>"
 
-区域说明：
-- market_overview: 市场总览区域，分析大盘走势和宏观环境对持仓的影响
-- holdings: 持仓股票区域，逐只分析涨跌原因和短期操作建议（持有/加仓/减仓/观望）
-- recommendations: 推荐关注区域，说明推荐逻辑和追入的风险提示"""
-
-
-def generate_section_guidance(market_data, news, holdings, market="us"):
-    """Generate per-section investment guidance via Claude API. Returns dict of section_key -> guidance_text."""
-    try:
-        import anthropic
-
-        client = anthropic.Anthropic(
-            api_key=os.environ.get("ANTHROPIC_API_KEY"),
-            base_url=os.environ.get("ANTHROPIC_BASE_URL"),
-        )
-
-        context = _serialize_market_context(market_data, news, holdings, market=market)
-        holdings_symbols = ", ".join(h["symbol"] for h in holdings)
-
-        user_message = f"当前持仓: {holdings_symbols}\n\n{context}"
-
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1024,
-            temperature=0.3,
-            system=SECTION_GUIDANCE_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
-        )
-
-        import re
-        text = response.content[0].text.strip()
-        text = re.sub(r"^\s*```(?:json)?\s*\n?", "", text)
-        text = re.sub(r"\n?\s*```\s*$", "", text)
-
-        guidance = json.loads(text)
-        if isinstance(guidance, dict):
-            logger.info(f"Generated section guidance for {list(guidance.keys())}")
-            return guidance
-
-        logger.warning("Section guidance response is not a dict")
-        return {}
-
-    except Exception as e:
-        logger.warning(f"Section guidance generation failed: {e}")
-        return {}
-
-
-# ============================================================================
-# Report data
-# ============================================================================
-
-def build_report_data(market: str, market_html: str, market_data: dict,
-                      news: list) -> dict:
-    market_names = {"us": "美股日报", "cn": "A股日报"}
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
-    return {
-        "subject": f"【{market_names.get(market, '投资日报')}】{now.year}年{now.month}月{now.day}日",
-        "data_time": now.strftime("%Y-%m-%d %H:%M"),
-        "date": now.strftime("%Y-%m-%d"),
-        "global_metrics": build_global_metrics(market_data.get("indices", [])),
-        "market_section_html": market_html,
-        "news": news,
-        "market": market,
-    }
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.messages.create(
+                model=default_model(),
+                max_tokens=1500,
+                temperature=0.3,
+                system=RESEARCH_VIEWS_PROMPT,
+                messages=[{"role": "user", "content": context}],
+            )
+            text = response.content[0].text.strip()
+            text = _re.sub(r"^\s*```(?:html)?\s*\n?", "", text)
+            text = _re.sub(r"\n?\s*```\s*$", "", text)
+            logger.info(f"Generated research views (attempt {attempt + 1})")
+            return text or fallback
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning(f"Research views attempt {attempt + 1} failed, retrying: {e}")
+            else:
+                logger.warning(f"Research views failed after {max_retries + 1} attempts: {e}")
+    return fallback
 
 
 # ============================================================================
@@ -624,6 +430,7 @@ def send_report(report_data: dict, config: dict, recipients: list):
 
     sender = EmailSender(str(CONFIG_FILE))
 
+    failed = []
     for r in recipients:
         email = r["email"]
         name = r.get("name", email)
@@ -631,7 +438,7 @@ def send_report(report_data: dict, config: dict, recipients: list):
 
         logger.info(f"Processing: {name} ({email}) - Language: {language}")
 
-        html = render_template(template, report_data, language, r.get("settings", {}))
+        html = render_template(template, report_data, language)
 
         if language != "zh-CN":
             html = translate_html(html, language)
@@ -643,110 +450,161 @@ def send_report(report_data: dict, config: dict, recipients: list):
             logger.info(f"Sent successfully to {email}")
         except Exception as e:
             logger.error(f"Failed to send to {email}: {e}")
+            failed.append(email)
+
+    if failed:
+        if len(failed) == len(recipients):
+            raise RuntimeError(f"All {len(recipients)} recipients failed: {failed}")
+        logger.warning(f"{len(failed)}/{len(recipients)} recipients failed: {failed}")
+
 
 
 # ============================================================================
-# Single-market pipeline
+# Macro report pipeline (merged US+CN)
 # ============================================================================
 
-def _run_single_market(market: str, args):
-    """Execute the full pipeline for a single market."""
-    logger.info(f"{'=' * 60}")
-    logger.info(f"invest-brief - Starting {market.upper()} market pipeline")
+def _run_macro_report(args):
+    """Build ONE merged US+CN macro report and send to all active recipients."""
+    logger.info("=" * 60)
+    logger.info("invest-brief - Macro report pipeline (US+CN merged)")
 
-    # Step 1: Load config
-    logger.info("Step 1: Loading configuration")
-    config = load_config()
-    all_recipients = [r for r in config.get("recipients", []) if r.get("active", True)]
-    recipients = _filter_recipients(all_recipients, market)
-
-    if not recipients:
-        logger.info(f"No active recipients for market '{market}', skipping.")
+    if getattr(args, "update", False):
+        logger.info("Update-only mode: refreshing macro data, no render/send")
+        us = _create_provider("us")
+        cn = _create_provider("cn")
+        us.refresh()
+        cn.refresh()
+        try:
+            from investbrief.data.gold_data import GoldData
+            gold_data = GoldData()
+            try:
+                gold_data.update_incremental()
+            finally:
+                gold_data.close()
+        except Exception as e:
+            logger.warning(f"Gold data refresh failed in update-only mode: {e}")
+        logger.info("Update-only complete")
         return
 
-    logger.info(f"Found {len(recipients)} recipient(s) for market '{market}'")
+    config = load_config()
+    recipients = [r for r in config.get("recipients", []) if r.get("active", True)]
+    if not recipients:
+        logger.info("No active recipients, skipping.")
+        return
 
-    # Step 2: Merge settings
-    logger.info("Step 2: Merging recipient settings")
-    holdings, industries = merge_recipient_settings(recipients, market)
-    holdings_symbols = [h["symbol"] for h in holdings]
-    logger.info(f"Holdings: {holdings_symbols}, Industries: {industries}")
+    render_config = {"color_up": "#e74c3c", "color_down": "#27ae60"}
+    skip_summary = getattr(args, "skip_summary", False)
 
-    # Step 3: Fetch market data
-    logger.info("Step 3: Fetching market data")
+    # Fetch macro data
+    logger.info("Fetching macro data (US + CN)")
+    us = _create_provider("us")
+    cn = _create_provider("cn")
+    # P1: 增量取数落盘（失败不阻塞，get_* 回退库内最新值）
+    us.refresh()
+    cn.refresh()
+    # P4: refresh gold data daily (resilient — fallback to stored values on failure)
+    from investbrief.data.gold_data import GoldData
+    gold_data = GoldData()
     try:
-        provider = _create_provider(market)
-        cn_config = config.get("markets", {}).get(market, {})
-        max_recs = cn_config.get("max_recommendations", 3)
-        market_data = provider.fetch_all(holdings, industries, max_recommendations=max_recs)
-        logger.info(f"Got {len(market_data.get('holdings', []))} holdings, {len(market_data.get('indices', []))} indices")
-
-        # Write public data to Redis for web dashboard
-        try:
-            import redis as _redis
-            _r = _redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
-            import json as _json
-            _public_keys = (["indices", "economic_calendar", "premarket_movers", "earnings_calendar", "congressional_trades"]
-                            if market == "us" else
-                            ["indices", "economic_calendar", "dragon_tiger", "sector_performance"])
-            _public = {k: market_data.get(k, []) for k in _public_keys}
-            _r.setex(f"market:{market}:public", 14400, _json.dumps(_public, ensure_ascii=False, default=str))
-            _r.set(f"market:{market}:updated_at", __import__("time").strftime("%Y-%m-%dT%H:%M:%S%z"))
-            logger.info(f"Wrote public data to Redis for {market}")
-        except Exception as e:
-            logger.warning(f"Failed to write to Redis (web mode optional): {e}")
+        gold_data.update_incremental()
     except Exception as e:
-        logger.warning(f"Market data fetch failed: {e}")
-        market_data = {"indices": [], "holdings": [], "recommendations": []}
+        logger.warning(f"Gold data refresh failed, falling back to stored values: {e}")
+    from investbrief.us.calendar import get_upcoming_events_with_yfinance
+    from investbrief.cn.calendar import get_upcoming_events as get_cn_events
+    us_data = {
+        "monetary_policy": us.get_monetary_policy(),
+        "asset_performance": us.get_asset_performance(),
+        "economic_calendar": get_upcoming_events_with_yfinance(),
+    }
+    cn_data = {
+        "monetary_policy": cn.get_monetary_policy(),
+        "asset_performance": cn.get_asset_performance(),
+        "economic_calendar": get_cn_events(),
+    }
 
-    # Step 4: Fetch news
-    logger.info("Step 4: Fetching news")
+    # News (US + CN, no tickers)
+    news = []
     try:
-        news = fetch_news(config, holdings_symbols, NEWS_LIMIT, industries, market=market)
-        logger.info(f"Got {len(news)} news items")
+        news = fetch_news(config, [], NEWS_LIMIT, [], market="us") + \
+            fetch_news(config, [], NEWS_LIMIT, [], market="cn")
+        news = news[:NEWS_LIMIT]
     except Exception as e:
         logger.warning(f"News fetch failed: {e}")
-        news = []
 
-    # Step 5: Summarize news
-    if news:
-        logger.info("Step 5: Summarizing news via Claude API")
-        news = summarize_news(news, market=market)
+    # P4: compute risk scores (resilient — empty dict renders empty card)
+    from investbrief.risk.models import RiskModel
+    from investbrief.risk.render import render_risk_card, render_gold_section
+    risk_model = RiskModel(us.data)
+    risk_scores = {
+        "us": _safe_risk_score(risk_model, "us"),
+        "cn": _safe_risk_score(risk_model, "cn"),
+        "gold": _safe_risk_score(risk_model, "gold"),
+    }
+    us_risk_html = render_risk_card(risk_scores["us"])
+    cn_risk_html = render_risk_card(risk_scores["cn"])
+    gold_section_html = render_gold_section(risk_scores["gold"])
+
+    # Claude ①⑥（一次调用同时生成核心观点 + 风险）
+    if skip_summary:
+        logger.info("Skipping Claude brief (--skip-summary)")
+        macro_summary = "<p>（已跳过 AI 研判）</p>"
+        risk_outlook = "<p>—</p>"
     else:
-        logger.info("Step 5: No news to summarize")
+        logger.info("Generating macro brief via Claude (①⑥)")
+        macro_summary, risk_outlook = generate_macro_brief(us_data, cn_data, news, risk_scores=risk_scores)
 
-    # Step 6: Generate per-section guidance
-    skip_summary = getattr(args, 'skip_summary', False)
-    section_guidance = {}
+    # Research views (sell-side market commentary) — Tavily fetch + Claude synthesis
+    research_views_html = ""
     if not skip_summary:
-        logger.info("Step 6: Generating section guidance via Claude API")
-        section_guidance = generate_section_guidance(market_data, news, holdings, market=market)
-    else:
-        logger.info("Step 6: Skipping section guidance (--skip-summary)")
+        try:
+            from investbrief.research.views import fetch_research_views
+            research_items = fetch_research_views()
+            logger.info(f"Fetched {len(research_items)} research-view items")
+            if research_items:
+                inner = generate_research_views(research_items)
+                if inner:
+                    research_views_html = (
+                        '<div class="section">'
+                        '<h2 style="margin:0 0 15px 0;font-size:18px;color:#2c3e50;">🏦 卖方机构观点</h2>'
+                        f'<div class="summary-box">{inner}</div>'
+                        '</div>'
+                    )
+        except Exception as e:
+            logger.warning(f"Research views failed: {e}")
 
-    # Step 7: Render market HTML and build report data
-    logger.info("Step 7: Building report data")
-    try:
-        render_config = {
-            "color_up": "#e74c3c",
-            "color_down": "#27ae60",
-        }
-        market_html = provider.render_section(market_data, render_config, guidance=section_guidance)
-    except Exception as e:
-        logger.warning(f"Market HTML render failed: {e}")
-        market_html = "<p>市场数据渲染失败。</p>"
+    # Render sections
+    us_html = us.render_section(us_data, render_config, risk_html=us_risk_html)
+    cn_html = cn.render_section(cn_data, render_config, risk_html=cn_risk_html)
 
-    report_data = build_report_data(market, market_html, market_data, news)
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    report_data = {
+        "subject": f"【宏观经济日报】{now.strftime('%Y年%m月%d日')}",
+        "data_time": now.strftime("%Y-%m-%d %H:%M"),
+        "date": now.strftime("%Y-%m-%d"),
+        "market": "all",
+        "macro_summary": macro_summary,
+        "risk_outlook": risk_outlook,
+        "market_section_html": us_html + cn_html + gold_section_html,
+        "research_views": research_views_html,
+        "news": news,
+    }
 
-    if getattr(args, 'dry_run', False):
+    if getattr(args, "dry_run", False):
         logger.info("Dry run - outputting report data to stdout")
         print(json.dumps(report_data, ensure_ascii=False, indent=2, default=str))
-        logger.info("Dry run complete")
+        try:
+            gold_data.close()
+        except Exception:
+            pass
         return
 
-    # Step 8: Send report
-    logger.info("Step 8: Sending report")
     send_report(report_data, config, recipients)
+
+    # Release gold data resources
+    try:
+        gold_data.close()
+    except Exception:
+        pass
 
     # Save local preview
     try:
@@ -754,14 +612,133 @@ def _run_single_market(market: str, args):
         preview_dir = Path(__file__).parent / "reports"
         preview_dir.mkdir(exist_ok=True)
         template = load_template()
-        preview_html = render_template(template, report_data, "zh-CN", {})
-        preview_path = preview_dir / f"preview_{market}.html"
+        preview_html = render_template(template, report_data, "zh-CN")
+        preview_path = preview_dir / "preview_macro.html"
         preview_path.write_text(preview_html, encoding="utf-8")
         logger.info(f"Preview saved to {preview_path}")
     except Exception as e:
         logger.warning(f"Failed to save preview: {e}")
 
-    logger.info(f"Market '{market}' pipeline complete")
+    logger.info("Macro report pipeline complete")
+
+
+# ============================================================================
+# Holdings report pipeline (per-recipient, distinct from macro)
+# ============================================================================
+
+def _run_holdings_report(args):
+    """Build per-recipient holdings-analysis emails and send (distinct from the macro email).
+
+    Only recipients with a non-empty `holdings` list receive this email. Holdings are
+    deduplicated across recipients so each unique symbol is analyzed once per run.
+    """
+    logger.info("=" * 60)
+    logger.info("invest-brief - Holdings report pipeline (per-recipient)")
+    config = load_config()
+    recipients = [r for r in config.get("recipients", [])
+                  if r.get("active", True) and r.get("holdings")]
+    if not recipients:
+        logger.info("No active recipients with holdings, skipping.")
+        return
+
+    from investbrief.holdings.analyzer import HoldingsAnalyzer
+    from investbrief.holdings.brief import generate_holdings_brief
+    from investbrief.holdings.renderer import render_holdings_section
+    from investbrief.report import load_template, render_holdings_template
+
+    skip_summary = getattr(args, "skip_summary", False)
+
+    # Collect unique holdings across recipients (analyzer caches per-key internally)
+    seen: set = set()
+    all_holdings: list = []
+    for r in recipients:
+        for h in r["holdings"]:
+            key = (h["symbol"], h["market"], h["type"])
+            if key not in seen:
+                seen.add(key)
+                all_holdings.append(h)
+
+    logger.info(f"Analyzing {len(all_holdings)} unique holdings for {len(recipients)} recipient(s)")
+    analyzer = HoldingsAnalyzer()
+    by_key: dict = {}
+    for h in all_holdings:
+        by_key[(h["symbol"], h["market"], h["type"])] = analyzer.analyze_one(
+            h["symbol"], h["market"], h["type"]
+        )
+
+    template = load_template("email_holdings.html")
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    data_time = now.strftime("%Y-%m-%d %H:%M")
+
+    def _subset(r):
+        return [by_key[(h["symbol"], h["market"], h["type"])] for h in r["holdings"]]
+
+    # Dry run: JSON to stdout + preview HTML for the first recipient
+    if getattr(args, "dry_run", False):
+        logger.info("Dry run - outputting holdings data to stdout")
+        try:
+            first = recipients[0]
+            sub = _subset(first)
+            summary_html = "<p>（已跳过 AI 研判）</p>" if skip_summary else generate_holdings_brief(sub)
+            preview_html = render_holdings_template(
+                template,
+                {"data_time": data_time,
+                 "holdings_summary": summary_html,
+                 "holdings_sections": render_holdings_section(sub)},
+                first.get("language", "zh-CN"),
+            )
+            preview_dir = Path(__file__).parent / "reports"
+            preview_dir.mkdir(exist_ok=True)
+            (preview_dir / "preview_holdings.html").write_text(preview_html, encoding="utf-8")
+            logger.info("Holdings preview saved to reports/preview_holdings.html")
+        except Exception as e:
+            logger.warning(f"Failed to render holdings preview: {e}")
+        out = [{"email": r["email"], "name": r.get("name"), "language": r.get("language"),
+                "holdings": [h.to_dict() for h in _subset(r)]} for r in recipients]
+        print(json.dumps(out, ensure_ascii=False, indent=2, default=str))
+        return
+
+    # Send per recipient
+    from investbrief.report import translate_html
+    from investbrief.core.mailer import EmailSender
+    sender = EmailSender(str(CONFIG_FILE))
+    failed: list = []
+    last_html = ""
+    for r in recipients:
+        email, name = r["email"], r.get("name", r["email"])
+        language = r.get("language", "zh-CN")
+        sub = _subset(r)
+        summary_html = "<p>（已跳过 AI 研判）</p>" if skip_summary else generate_holdings_brief(sub)
+        report_data = {
+            "data_time": data_time,
+            "holdings_summary": summary_html,
+            "holdings_sections": render_holdings_section(sub),
+        }
+        html = render_holdings_template(template, report_data, language)
+        if language != "zh-CN":
+            html = translate_html(html, language)
+        last_html = html
+        subject = f"【持仓分析】{now.strftime('%Y年%m月%d日')} — {name}"
+        try:
+            sender.send(email, subject, html)
+            logger.info(f"Holdings email sent to {email}")
+        except Exception as e:
+            logger.error(f"Failed to send holdings to {email}: {e}")
+            failed.append(email)
+
+    # Save preview of the last rendered email
+    if last_html:
+        try:
+            preview_dir = Path(__file__).parent / "reports"
+            preview_dir.mkdir(exist_ok=True)
+            (preview_dir / "preview_holdings.html").write_text(last_html, encoding="utf-8")
+            logger.info("Holdings preview saved to reports/preview_holdings.html")
+        except Exception as e:
+            logger.warning(f"Failed to save holdings preview: {e}")
+
+    if failed:
+        logger.warning(f"{len(failed)}/{len(recipients)} holdings emails failed: {failed}")
+    logger.info("Holdings report pipeline complete")
 
 
 # ============================================================================
@@ -769,13 +746,13 @@ def _run_single_market(market: str, args):
 # ============================================================================
 
 def run_once(args):
-    """Execute the pipeline for selected market(s)."""
-    market = args.market
-    if market == "all":
-        for m in ["us", "cn"]:
-            _run_single_market(m, args)
-    else:
-        _run_single_market(market, args)
+    """Execute pipeline(s) once. --only controls which; default runs both macro + holdings."""
+    only = getattr(args, "only", None)
+    if only in (None, "macro"):
+        _run_macro_report(args)
+    # Holdings pipeline has no update-only mode; skip under --update
+    if only in (None, "holdings") and not getattr(args, "update", False):
+        _run_holdings_report(args)
 
 
 # ============================================================================
@@ -783,49 +760,50 @@ def run_once(args):
 # ============================================================================
 
 def run_scheduler(config):
-    """Run as a long-lived process, executing at cron-scheduled times."""
-    markets_cfg = config.get("markets", {})
-    if markets_cfg:
-        threads = []
-        for market, cfg in markets_cfg.items():
-            if not cfg.get("enabled", False):
-                continue
+    """Run as a long-lived process, executing ONE merged macro report at cron-scheduled times.
 
-            # Support both single schedule and array of schedules
-            raw = cfg.get("schedule", {})
-            if isinstance(raw, list):
-                cron_exprs = [s.get("cron", "0 23 * * 1-5") for s in raw]
-            else:
-                cron_expr = raw.get("cron", "0 23 * * 1-5")
-                cron_exprs = [cron_expr]
-
-            for i, cron_expr in enumerate(cron_exprs):
-                name = f"scheduler-{market}-{i}" if len(cron_exprs) > 1 else f"scheduler-{market}"
-                t = threading.Thread(
-                    target=_run_scheduled_market,
-                    args=(market, cron_expr, config),
-                    name=name,
-                    daemon=True,
-                )
-                t.start()
-                threads.append(t)
-
-        if not threads:
-            logger.error("No enabled markets found in config")
-            return
-
-        while not _shutdown:
-            time.sleep(1)
+    The macro pipeline always merges US+CN, so only a single scheduler thread is started
+    using the first enabled market's cron expression to avoid double-sending.
+    """
+    cron_expr = _first_enabled_cron(config)
+    if cron_expr is None:
+        logger.error("No enabled markets found in config; nothing to schedule")
         return
 
-    # Fallback to old-style single schedule
+    t = threading.Thread(
+        target=_run_scheduled_macro,
+        args=(cron_expr,),
+        name="scheduler-macro",
+        daemon=True,
+    )
+    t.start()
+
+    while not _shutdown:
+        time.sleep(1)
+
+
+def _first_enabled_cron(config: dict) -> str | None:
+    """Return the cron expression of the first enabled market (us preferred), else None."""
+    markets_cfg = config.get("markets", {})
+    for market in ("us", "cn"):
+        cfg = markets_cfg.get(market, {})
+        if not cfg.get("enabled", False):
+            continue
+        raw = cfg.get("schedule")
+        if isinstance(raw, list):
+            if raw:
+                return raw[0].get("cron", "0 23 * * 1-5")
+        elif isinstance(raw, dict):
+            return raw.get("cron", "0 23 * * 1-5")
+    # Fallback: old-style top-level schedule
     schedule_cfg = config.get("schedule", {})
-    cron_expr = schedule_cfg.get("cron", "0 23 * * 1-5")
-    _run_scheduled_market("us", cron_expr, config)
+    if schedule_cfg.get("enabled", False):
+        return schedule_cfg.get("cron", "0 23 * * 1-5")
+    return None
 
 
-def _run_scheduled_market(market: str, cron_expr: str, config: dict):
-    """Run scheduled loop for a single market."""
+def _run_scheduled_macro(cron_expr: str):
+    """Run the merged macro report loop on a single cron schedule."""
     if not croniter.is_valid(cron_expr):
         logger.error(f"Invalid cron expression: {cron_expr}")
         return
@@ -835,27 +813,32 @@ def _run_scheduled_market(market: str, cron_expr: str, config: dict):
     cron = croniter(cron_expr, now)
     next_run = cron.get_next(datetime)
 
-    logger.info(f"Scheduler started for market '{market}' with cron: '{cron_expr}'")
+    logger.info(f"Scheduler started with cron: '{cron_expr}'")
     logger.info(f"Next run scheduled at: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
 
     while not _shutdown:
         now = datetime.now(tz)
 
         if now >= next_run:
-            logger.info(f"{'=' * 60}")
-            logger.info(f"Scheduled run triggered for market '{market}'")
+            logger.info("=" * 60)
+            logger.info("Scheduled macro report run triggered")
 
             args = argparse.Namespace(
-                market=market,
+                market="all",
                 dry_run=False,
                 skip_summary=False,
+                only=None,
                 log_level=logging.getLevelName(logger.getEffectiveLevel()),
             )
 
             try:
-                _run_single_market(market, args)
+                _run_macro_report(args)
             except Exception as e:
-                logger.error(f"Scheduled run failed for market '{market}': {e}", exc_info=True)
+                logger.error(f"Scheduled macro run failed: {e}", exc_info=True)
+            try:
+                _run_holdings_report(args)
+            except Exception as e:
+                logger.error(f"Scheduled holdings run failed: {e}", exc_info=True)
 
             cron = croniter(cron_expr, now)
             next_run = cron.get_next(datetime)
@@ -863,7 +846,7 @@ def _run_scheduled_market(market: str, cron_expr: str, config: dict):
 
         time.sleep(30)
 
-    logger.info(f"Scheduler stopped for market '{market}'")
+    logger.info("Scheduler stopped")
 
 
 # ============================================================================
@@ -876,11 +859,15 @@ def main():
         "--market",
         required=False,
         choices=["us", "cn", "all"],
-        help="Market to run: us, cn, or all (required with --now/--dry-run; scheduler mode uses config.json)",
+        help="(Deprecated) macro pipeline always merges US+CN; kept for CLI compat",
     )
     parser.add_argument("--now", action="store_true", help="Run once immediately (default: scheduler mode)")
     parser.add_argument("--dry-run", action="store_true", help="Build report, output to stdout, do not send email")
     parser.add_argument("--skip-summary", action="store_true", help="Skip Claude API summary, use placeholder")
+    parser.add_argument("--update", action="store_true",
+                        help="Only refresh macro data into SQLite, no render/email")
+    parser.add_argument("--only", choices=["macro", "holdings"], default=None,
+                        help="Run only one pipeline (default: both macro + holdings)")
     parser.add_argument("--log-level", default="INFO", help="Log level (DEBUG, INFO, WARNING, ERROR)")
     args = parser.parse_args()
 
@@ -897,9 +884,7 @@ def main():
         ],
     )
 
-    if args.now or args.dry_run:
-        if not args.market:
-            parser.error("--market is required when using --now or --dry-run")
+    if args.now or args.dry_run or args.update:
         run_once(args)
     else:
         # Scheduler mode

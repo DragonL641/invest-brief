@@ -1,38 +1,15 @@
 """
-Send daily investment report to multiple recipients with personalized content.
+Email report template-rendering library.
 
-This script receives market data and news from Claude (via JSON input),
-renders the unified template for each recipient based on their settings,
-and sends via SMTP.
+Loads the base HTML template and renders it with macro report data, with
+optional translation to the recipient's language via the Claude API.
 
-Features:
-- Multi-language support (zh-CN, ko-KR)
-- Per-recipient configuration (markets, holdings, news count)
-- Dynamic country ordering
-- Color-coded global metrics
-- Technical analysis with support/resistance
-- Personalized daily summary
-- HTML translation via Claude API
-
-Workflow:
-    1. Generate JSON data in Chinese
-    2. Render HTML template with Chinese content
-    3. Translate entire HTML to target language (if not Chinese)
-    4. Send via SMTP
-
-Usage:
-    python send_report.py --data-json '<json_string>'
-    python send_report.py --data-file report_data.json
+Public API: load_template(), render_template(), translate_html().
 """
-import sys
 import re
-import json
 import logging
-import argparse
 from datetime import datetime
 from pathlib import Path
-
-from investbrief.core.mailer import EmailSender
 
 # Try to import anthropic for translation
 try:
@@ -76,13 +53,11 @@ LANGUAGE_CONFIG = {
         'font_family': "'Microsoft YaHei', 'PingFang SC', sans-serif",
         'color_up': '#e74c3c',      # Red for up (中国惯例：红涨)
         'color_down': '#27ae60',    # Green for down (中国惯例：绿跌)
-        'color_neutral': '#7f8c8d',
     },
     'ko-KR': {
         'font_family': "'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif",
         'color_up': '#e74c3c',      # Red for up
         'color_down': '#2980b9',    # Blue for down
-        'color_neutral': '#7f8c8d',
     }
 }
 
@@ -91,22 +66,10 @@ LANGUAGE_CONFIG = {
 # Configuration Loading
 # ============================================================================
 
-def _resolve_config_path() -> Path:
-    """Resolve config path from project root"""
-    return Path(__file__).resolve().parent.parent / "config.json"
-
-
-def load_config():
-    """Load configuration from config.json"""
-    config_path = _resolve_config_path()
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-
-def load_template():
-    """Load base HTML template"""
+def load_template(name: str = "email_base.html") -> str:
+    """Load HTML template by name from templates/ (default: macro email base)."""
     skill_dir = Path(__file__).parent.parent
-    template_path = skill_dir / 'templates' / 'email_base.html'
+    template_path = skill_dir / 'templates' / name
     with open(template_path, 'r', encoding='utf-8') as f:
         return f.read()
 
@@ -139,11 +102,9 @@ def translate_html(html_content, target_language, max_retries=2):
         logger.warning('anthropic package not installed, skipping translation')
         return html_content
 
-    import os
-    client = anthropic.Anthropic(
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
-        base_url=os.environ.get("ANTHROPIC_BASE_URL"),
-    )
+    from investbrief.core.llm import get_client, default_model
+    client = get_client()
+    model = default_model()
 
     language_names = {
         'zh-CN': 'Simplified Chinese (简体中文)',
@@ -184,7 +145,7 @@ Return only the translated HTML, no explanations or markdown code blocks."""
         try:
             # Use streaming to avoid timeout on large HTML
             with client.messages.stream(
-                model="claude-sonnet-4-6",
+                model=model,
                 max_tokens=32000,
                 messages=[{"role": "user", "content": prompt}]
             ) as stream:
@@ -212,33 +173,6 @@ Return only the translated HTML, no explanations or markdown code blocks."""
 # ============================================================================
 # HTML Building Functions
 # ============================================================================
-
-def build_metrics_html(metrics, config):
-    """Build global metrics cards as table for Outlook compatibility"""
-    cells = ''
-    for m in metrics:
-        change = m.get('change', 0)
-        if change > 0:
-            bg_color = config['color_up']
-        elif change < 0:
-            bg_color = config['color_down']
-        else:
-            bg_color = config['color_neutral']
-
-        cells += f'''
-        <td style="background-color:{bg_color}; color:#ffffff; padding:15px; text-align:center; width:25%; border-radius:8px;">
-            <div style="font-size:22px; font-weight:bold;">{m['value']}</div>
-            <div style="font-size:11px; margin-top:5px; opacity:0.9;">{m['label']}</div>
-        </td>'''
-
-    # Wrap in table with spacing between cells
-    html = f'''
-    <table width="100%" cellpadding="0" cellspacing="12" style="border-collapse:separate; border-spacing:12px;">
-      <tr>{cells}
-      </tr>
-    </table>'''
-    return html
-
 
 def build_news_html(news_items):
     """Build news items HTML - content from JSON"""
@@ -275,8 +209,8 @@ def build_news_html(news_items):
 # Template Rendering
 # ============================================================================
 
-def render_template(template, data, language, recipient_settings):
-    """Render template with data and recipient-specific settings.
+def render_template(template, data, language):
+    """Render template with data.
 
     All content in Chinese - translated later via translate_html().
     """
@@ -289,27 +223,28 @@ def render_template(template, data, language, recipient_settings):
     html = html.replace('{{color_down}}', config['color_down'])
 
     # Basic info
-    market_titles = {"us": "美股日报", "cn": "A股日报"}
-    market_label = market_titles.get(data.get("market", "us"), "投资日报")
-    html = html.replace('{{title}}', f'\U0001F4C5 {market_label}')
+    html = html.replace('{{title}}', '🗓️ 宏观经济日报')
     html = html.replace('{{date}}', datetime.now().strftime('%Y年%m月%d日'))
     html = html.replace('{{data_time_label}}', '数据截止')
     html = html.replace('{{data_time}}', data.get('data_time', datetime.now().strftime('%H:%M:%S')))
 
     # Global section labels
-    html = html.replace('{{global_market_title}}', '🌍 全球市场概况')
     html = html.replace('{{global_news_title}}', '📰 重要新闻')
 
-    # Global metrics
-    html = html.replace('{{global_metrics}}', build_metrics_html(data.get('global_metrics', []), config))
+    # Macro summary (① 核心观点) and risk outlook (⑥ 风险提示)
+    html = html.replace('{{macro_summary}}', data.get('macro_summary') or '<p>暂无研判。</p>')
+    html = html.replace('{{risk_outlook}}', data.get('risk_outlook') or '<p>—</p>')
 
     # Market sections - pre-rendered HTML passed in by the caller
     market_html = data.get('market_section_html', '')
     html = html.replace('{{market_sections}}', market_html)
 
-    # News - limit by recipient's news_count
+    # Research views (sell-side) - pre-rendered section HTML, or empty
+    html = html.replace('{{research_views}}', data.get('research_views') or '')
+
+    # News - hard cap at 5 items
     news = data.get('news', data.get('global_news', []))
-    news_count = 5  # Hard limit: always show 5 news items
+    news_count = 5
     html = html.replace('{{global_news}}', build_news_html(news[:news_count]))
 
     # Footer
@@ -320,78 +255,28 @@ def render_template(template, data, language, recipient_settings):
     return html
 
 
-# ============================================================================
-# Main Entry Point
-# ============================================================================
+def render_holdings_template(template: str, data: dict, language: str) -> str:
+    """Render the per-recipient holdings-analysis email template.
 
-def main():
-    parser = argparse.ArgumentParser(description='Send daily investment report')
-    parser.add_argument('--data-json', type=str, help='Report data as JSON string')
-    parser.add_argument('--data-file', type=str, help='Path to JSON file with report data')
-    args = parser.parse_args()
+    Mirrors render_template but for the holdings email: replaces
+    {{title}}/{{date}}/{{holdings_summary}}/{{holdings_sections}} etc.
+    Pre-rendered HTML (summary + section cards) is supplied by the caller.
+    """
+    html = template
+    config = get_config(language)
+    html = html.replace('{{font_family}}', config['font_family'])
+    html = html.replace('{{color_up}}', config['color_up'])
+    html = html.replace('{{color_down}}', config['color_down'])
 
-    # Load data
-    if args.data_file:
-        with open(args.data_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-    elif args.data_json:
-        data = json.loads(args.data_json)
-    else:
-        print('ERROR: No data provided. Use --data-json or --data-file')
-        sys.exit(1)
+    html = html.replace('{{title}}', '📊 持仓分析')
+    html = html.replace('{{date}}', datetime.now().strftime('%Y年%m月%d日'))
+    html = html.replace('{{data_time_label}}', '数据截止')
+    html = html.replace('{{data_time}}', data.get('data_time', datetime.now().strftime('%H:%M:%S')))
 
-    # Load config
-    config = load_config()
-    skill_dir = Path(__file__).parent.parent
+    html = html.replace('{{holdings_summary}}', data.get('holdings_summary') or '<p>暂无组合研判。</p>')
+    html = html.replace('{{holdings_sections}}', data.get('holdings_sections') or '')
 
-    # Get active recipients
-    active_recipients = [r for r in config.get('recipients', []) if r.get('active', True)]
-
-    if not active_recipients:
-        print('ERROR: No active recipients found in config')
-        sys.exit(1)
-
-    # Load template once
-    template = load_template()
-
-    # Send to each recipient
-    sender = EmailSender(str(_resolve_config_path()))
-
-    for recipient in active_recipients:
-        email = recipient['email']
-        name = recipient.get('name', email)
-        language = recipient.get('language', 'zh-CN')
-        settings = recipient.get('settings', {})
-
-        print(f'\n{"="*60}')
-        print(f'Processing: {name} ({email}) - Language: {language}')
-        holdings_count = len(settings.get('holdings', []))
-        print(f'Holdings: {holdings_count} stocks')
-        print(f'{"="*60}')
-
-        # Render template with data and recipient settings (Chinese content)
-        html = render_template(template, data, language, settings)
-
-        # Translate HTML (news from API is English, need to translate to target language)
-        print(f'Translating to {language}...')
-        html = translate_html(html, language)
-
-        # Generate subject from data (or use default Chinese subject)
-        subject = data.get('subject', f'【美股日报】{datetime.now().strftime("%Y年%m月%d日")}')
-
-        print(f'HTML size: {len(html)} characters')
-
-        # Send email
-        try:
-            sender.send(email, subject, html)
-            print(f'✅ Sent successfully to {email}')
-        except Exception as e:
-            print(f'❌ Failed to send to {email}: {e}')
-
-    print(f'\n{"="*60}')
-    print('Report sending complete!')
-    print(f'{"="*60}')
-
-
-if __name__ == '__main__':
-    main()
+    html = html.replace('{{disclaimer}}', '⚠️ 免责声明：本报告仅供参考，不构成投资建议。数据来自公开渠道，可能存在延迟或误差。')
+    html = html.replace('{{generated_by}}', '由 Claude Code 自动生成')
+    html = html.replace('{{generated_at}}', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    return html
