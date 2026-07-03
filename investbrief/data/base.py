@@ -144,6 +144,21 @@ class BaseData(ABC):
         row = cursor.fetchone()
         return row[0] if row else None
 
+    def get_update_time(self, table_name: str) -> str | None:
+        """Get the actual fetch timestamp (update_time) for a table.
+
+        Unlike get_update_date (which holds the data's own date — can be old for
+        lagging series like Shiller PE), this returns when we last RAN the fetch.
+        Use for recency gates.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT update_time FROM update_log WHERE table_name = ?",
+            (table_name,),
+        )
+        row = cursor.fetchone()
+        return row[0] if row else None
+
     def set_update_date(self, table_name: str, date: str):
         """Record last update date for a table."""
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

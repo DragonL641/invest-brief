@@ -261,8 +261,8 @@ def test_cn_margin_first_run_starts_from_2010(monkeypatch, db):
     assert fetched["first_start"].startswith("2010"), f"first run should start from 2010, got {fetched['first_start']}"
 
 
-def test_us_shiller_pe_skipped_when_recent(monkeypatch, db):
-    """Shiller PE 在 7 天内已取过 → 跳过 xls 下载。"""
+def test_us_shiller_pe_skipped_when_fetch_recent(monkeypatch, db):
+    """Shiller PE：fetch 时间在 7 天内 → 跳过 xls（用 update_time，非数据日期）。"""
     from investbrief.data import us_data as us_mod
     from datetime import datetime, timedelta
     called = {"get": False}
@@ -278,8 +278,72 @@ def test_us_shiller_pe_skipped_when_recent(monkeypatch, db):
         def update_incremental(self): pass
 
     c = _US(db_path=db.db_path)
-    recent = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
-    c.set_update_date("sentiment_pe_us_shiller", recent)
+    # Shiller data date lags (~2023-06); set last_update_date to that, but override
+    # update_time (fetch timestamp) to 2 days ago to simulate a recent fetch.
+    c.set_update_date("sentiment_pe_us_shiller", "2023-06")
+    recent_ts = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
+    c.conn.execute(
+        "UPDATE update_log SET update_time=? WHERE table_name=?",
+        (recent_ts, "sentiment_pe_us_shiller"),
+    )
+    c.conn.commit()
     c._update_shiller_pe()
     c.close()
-    assert not called["get"], "xls should not be downloaded when last fetch < 7 days ago"
+    assert not called["get"], "xls should not be downloaded when fetch < 7 days ago"
+
+
+def test_us_shiller_pe_downloads_when_fetch_stale(monkeypatch, db):
+    """Shiller PE：fetch 时间 > 7 天 → 下载 xls。"""
+    from investbrief.data import us_data as us_mod
+    from datetime import datetime, timedelta
+    called = {"get": False}
+
+    class _FakeResp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self):
+            called["get"] = True
+            return b""  # pandas read_excel will fail → method's try/except logs + returns
+
+    monkeypatch.setattr(us_mod.urllib.request, "urlopen", lambda url, timeout=None: _FakeResp())
+
+    class _US(us_mod.USData):
+        def update_all(self): pass
+        def update_incremental(self): pass
+
+    c = _US(db_path=db.db_path)
+    c.set_update_date("sentiment_pe_us_shiller", "2023-06")
+    stale_ts = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    c.conn.execute(
+        "UPDATE update_log SET update_time=? WHERE table_name=?",
+        (stale_ts, "sentiment_pe_us_shiller"),
+    )
+    c.conn.commit()
+    c._update_shiller_pe()
+    c.close()
+    assert called["get"], "xls should be downloaded when fetch > 7 days ago"
+
+
+def test_cn_treasury_yield_incremental_uses_last_date(monkeypatch, db):
+    """treasury yield 有 last_date 时从 last_date 附近起（不再从 2005）。"""
+    fetched = {"first_start": None, "called": False}
+
+    def fake_bond(start_date, end_date):
+        if not fetched["called"]:
+            fetched["first_start"] = start_date
+        fetched["called"] = True
+        return pd.DataFrame()  # empty → no rows, short-circuit
+
+    monkeypatch.setattr(cn_mod.ak, "bond_china_yield", fake_bond)
+
+    class _CN(cn_mod.CNData):
+        def update_all(self): pass
+        def update_incremental(self): pass
+
+    c = _CN(db_path=db.db_path)
+    c.set_update_date("macro_data_treasury_cn", "2026-06-15")
+    c._update_treasury_yield()
+    c.close()
+    assert fetched["called"]
+    assert fetched["first_start"].startswith("2026"), (
+        f"incremental should start near last_date, got {fetched['first_start']}")

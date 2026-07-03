@@ -169,7 +169,10 @@ class USData(BaseData):
         """
         try:
             import io
-            last = self.get_update_date("sentiment_pe_us_shiller")
+            # Recency gate on FETCH time (not data date — Shiller series lags, so
+            # get_update_date returns ~2023 forever; get_update_time returns when we
+            # last ran this fetch). Monthly series → skip if fetched within 7 days.
+            last = self.get_update_time("sentiment_pe_us_shiller")
             if last:
                 try:
                     last_dt = datetime.strptime(str(last)[:10], "%Y-%m-%d")

@@ -103,10 +103,18 @@ class CNData(BaseData):
     def _update_treasury_yield(self):
         try:
             today = datetime.now()
-            all_rows = []
+            last_date = self.get_update_date("macro_data_treasury_cn")
+            if last_date:
+                try:
+                    # Incremental: fetch from ~10 days before last_date (overlap safe; PK dedup).
+                    chunk_start = datetime.strptime(str(last_date)[:10], "%Y-%m-%d") - timedelta(days=10)
+                except ValueError:
+                    chunk_start = datetime(2005, 1, 1)
+            else:
+                chunk_start = datetime(2005, 1, 1)
 
-            # Fetch in 1-year chunks from 2005
-            start = datetime(2005, 1, 1)
+            all_rows = []
+            start = chunk_start
             while start < today:
                 end = min(start + timedelta(days=360), today)
                 s = start.strftime("%Y%m%d")
