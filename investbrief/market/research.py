@@ -101,6 +101,75 @@ def _default_search(subject: str, *, api_key: str, session: requests.Session,
     raise last_exc or RuntimeError("tavily returned no data")
 
 
+RESEARCH_VIEWS_PROMPT = """你是资深市场分析师。基于提供的「顶级卖方机构近 7 天市场观点」原始条目，为投资者写一段 HTML 摘要。
+
+输出要求：
+- 纯 HTML 片段，可用 <p>、<strong>、<ul><li>、<br>（不要 <h1>-<h6>、代码块标记）。
+- 按四个小节组织，每节以 <strong>小节标题</strong> 起头：
+  1. <strong>🌐 整体形势</strong>：全球宏观/利率/衰退/通胀/资金流等非单一市场的整体展望
+  2. <strong>🇺🇸 美国市场</strong>：美股/美联储/美国经济相关
+  3. <strong>🇨🇳 中国市场</strong>：A股/港股/中国经济相关
+  4. <strong>🌍 其他市场</strong>：其他地区（韩股/欧股/新兴市场等）
+- 只列「有条目」的小节；某类本周无条目，整节省略。
+- 根据每条观点的内容归入最合适的小节；提供的市场标签仅作参考，整体宏观主题（如衰退、降息周期、全球资产配置）归入"整体形势"。
+- 每个小节用 <ul><li> 分点陈列：每个 <li> 以 <strong>机构名</strong> 起头，接 1 句精炼观点（同一机构的多条合并为一条）。
+- 不要把多家机构揉成一整段；不同机构各占一条 <li>。
+- 不要在观点末尾附 (来源域名, 日期) 引用（机构名加粗已足够溯源）。
+- 只用提供的数据，不编造观点、数字或机构。
+- 若所有市场均无条目，输出 <p>本周暂无明显卖方机构观点。</p>。"""
+
+
+def serialize_research_views(items: list) -> str:
+    """Compact text context from research-view items for Claude."""
+    from urllib.parse import urlparse
+    lines = []
+    for it in items:
+        markets = ",".join(it.get("markets") or []) or "全球其他"
+        firms = ",".join(it.get("firms") or [])
+        domain = urlparse(it.get("url", "")).netloc.replace("www.", "")
+        lines.append(
+            f"- [{markets}] {firms} | {it.get('title', '')} | "
+            f"{it.get('date', '')} | {domain} | {it.get('snippet', '')}"
+        )
+    return "\n".join(lines)
+
+
+def generate_research_views(items: list, max_retries: int = 2) -> str:
+    """Synthesize research-view items into an HTML fragment via Claude, with retry.
+
+    Returns inner HTML (caller wraps in the section). Empty/failure → placeholder.
+    """
+    import re as _re
+    from investbrief.core.llm import get_client, default_model
+
+    if not items:
+        return ""
+    client = get_client()
+    context = serialize_research_views(items)
+    fallback = "<p>卖方机构观点生成失败。</p>"
+
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.messages.create(
+                model=default_model(),
+                max_tokens=1500,
+                temperature=0.3,
+                system=RESEARCH_VIEWS_PROMPT,
+                messages=[{"role": "user", "content": context}],
+            )
+            text = response.content[0].text.strip()
+            text = _re.sub(r"^\s*```(?:html)?\s*\n?", "", text)
+            text = _re.sub(r"\n?\s*```\s*$", "", text)
+            logger.info(f"Generated research views (attempt {attempt + 1})")
+            return text or fallback
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning(f"Research views attempt {attempt + 1} failed, retrying: {e}")
+            else:
+                logger.warning(f"Research views failed after {max_retries + 1} attempts: {e}")
+    return fallback
+
+
 def fetch_research_views(*, api_key: str | None = None) -> list[dict]:
     """Fetch last-7-day sell-side market views across designated firms.
 

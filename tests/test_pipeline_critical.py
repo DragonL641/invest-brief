@@ -21,7 +21,7 @@ def test_generate_macro_brief_falls_back_on_claude_failure(monkeypatch):
 
 def test_send_report_continues_after_single_failure(monkeypatch):
     """第一个收件人 send 抛异常 → 仍尝试第二个。"""
-    import run
+    from investbrief.pipelines._send import send_report
 
     config = {
         "email_service": {
@@ -52,7 +52,7 @@ def test_send_report_continues_after_single_failure(monkeypatch):
     monkeypatch.setattr(report_mod, "render_template", lambda tpl, data, lang: "<html></html>")
     monkeypatch.setattr(report_mod, "translate_html", lambda html, lang: html)
 
-    run.send_report({"subject": "s", "market_section_html": ""}, config, recipients)
+    send_report({"subject": "s", "market_section_html": ""}, config, recipients)
 
     assert calls == ["fail@x.com", "ok@x.com"], (
         "second recipient must still be attempted after first fails"
@@ -60,24 +60,24 @@ def test_send_report_continues_after_single_failure(monkeypatch):
 
 
 def test_first_enabled_cron_handles_config_shapes():
-    """_first_enabled_cron parses list-of-dict, dict, and old-style shapes."""
-    import run
+    """first_enabled_cron parses list-of-dict, dict, and old-style shapes."""
+    from investbrief.pipelines.scheduler import first_enabled_cron
 
     # new-style: markets.us.schedule = [{"cron": "0 23 * * 1-5"}]
     c1 = {"markets": {"us": {"enabled": True, "schedule": [{"cron": "0 23 * * 1-5"}]}}}
-    assert run._first_enabled_cron(c1) == "0 23 * * 1-5"
+    assert first_enabled_cron(c1) == "0 23 * * 1-5"
 
     # dict schedule
     c2 = {"markets": {"us": {"enabled": True, "schedule": {"cron": "30 22 * * 1-5"}}}}
-    assert run._first_enabled_cron(c2) == "30 22 * * 1-5"
+    assert first_enabled_cron(c2) == "30 22 * * 1-5"
 
     # cn first enabled when us disabled
     c3 = {"markets": {"us": {"enabled": False}, "cn": {"enabled": True, "schedule": [{"cron": "0 23 * * 1-5"}]}}}
-    assert run._first_enabled_cron(c3) == "0 23 * * 1-5"
+    assert first_enabled_cron(c3) == "0 23 * * 1-5"
 
     # old-style top-level
     c4 = {"schedule": {"enabled": True, "cron": "15 23 * * 1-5"}}
-    assert run._first_enabled_cron(c4) == "15 23 * * 1-5"
+    assert first_enabled_cron(c4) == "15 23 * * 1-5"
 
     # none enabled
-    assert run._first_enabled_cron({"markets": {}}) is None
+    assert first_enabled_cron({"markets": {}}) is None
