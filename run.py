@@ -115,6 +115,33 @@ def _validate_config(config: dict):
     if "recipients" not in config or not config["recipients"]:
         raise ValueError("config.json missing or empty 'recipients' list")
 
+    # Recipients must each have a non-empty email
+    for r in config["recipients"]:
+        if not isinstance(r, dict) or not r.get("email"):
+            raise ValueError(f"config.json recipient missing 'email': {r}")
+
+    # Validate cron expressions for every enabled market
+    markets_cfg = config.get("markets", {})
+    for market, cfg in markets_cfg.items():
+        if not isinstance(cfg, dict) or not cfg.get("enabled", False):
+            continue
+        raw = cfg.get("schedule")
+        crons = []
+        if isinstance(raw, list):
+            crons = [s.get("cron") for s in raw if isinstance(s, dict)]
+        elif isinstance(raw, dict):
+            crons = [raw.get("cron")]
+        for cron in crons:
+            if not cron or not croniter.is_valid(cron):
+                raise ValueError(f"Invalid cron '{cron}' for market {market}")
+
+    # Old-style top-level schedule
+    schedule_cfg = config.get("schedule", {})
+    if schedule_cfg.get("enabled", False):
+        cron = schedule_cfg.get("cron")
+        if not cron or not croniter.is_valid(cron):
+            raise ValueError(f"Invalid cron '{cron}' for top-level schedule")
+
 
 # ============================================================================
 # Provider factory
@@ -365,6 +392,7 @@ def send_report(report_data: dict, config: dict, recipients: list):
 
     sender = EmailSender(str(CONFIG_FILE))
 
+    failed = []
     for r in recipients:
         email = r["email"]
         name = r.get("name", email)
@@ -384,6 +412,12 @@ def send_report(report_data: dict, config: dict, recipients: list):
             logger.info(f"Sent successfully to {email}")
         except Exception as e:
             logger.error(f"Failed to send to {email}: {e}")
+            failed.append(email)
+
+    if failed:
+        if len(failed) == len(recipients):
+            raise RuntimeError(f"All {len(recipients)} recipients failed: {failed}")
+        logger.warning(f"{len(failed)}/{len(recipients)} recipients failed: {failed}")
 
 
 
