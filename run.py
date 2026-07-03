@@ -175,7 +175,16 @@ MACRO_BRIEF_PROMPT = """你是资深宏观经济分析师，为投资者撰写�
 # Macro report Claude ①⑥
 # ============================================================================
 
-def _serialize_macro_context(us_data: dict, cn_data: dict, news: list) -> str:
+def _safe_risk_score(model, market):
+    """calculate_score with resilience — returns {} on failure (renders empty card)."""
+    try:
+        return model.calculate_score(market)
+    except Exception as e:
+        logger.warning(f"Risk score for {market} failed: {e}")
+        return {}
+
+
+def _serialize_macro_context(us_data: dict, cn_data: dict, news: list, risk_scores: dict | None = None) -> str:
     """Build compact text context from US+CN macro data for Claude."""
     lines = []
 
@@ -214,10 +223,17 @@ def _serialize_macro_context(us_data: dict, cn_data: dict, news: list) -> str:
         for n in news[:5]:
             lines.append(f"- {n.get('title', '')} ({n.get('source', '')})")
 
+    if risk_scores:
+        lines.append("\n## 市场周期风险分（模型跟踪信号；跟踪≠预测，不可作为单独买卖依据）")
+        for market, name in (("us", "美股"), ("cn", "A股"), ("gold", "黄金")):
+            r = risk_scores.get(market) or {}
+            if r.get("total_score") is not None:
+                lines.append(f"- {name}: 风险分 {r['total_score']}（{r['state']}），{r['action']}")
+
     return "\n".join(lines)
 
 
-def generate_macro_brief(us_data: dict, cn_data: dict, news: list, max_retries: int = 2) -> tuple[str, str]:
+def generate_macro_brief(us_data: dict, cn_data: dict, news: list, risk_scores: dict | None = None, max_retries: int = 2) -> tuple[str, str]:
     """一次 Claude 调用同时生成 ①核心观点 + ⑥风险（JSON 输出），带重试。
 
     失败重试 max_retries 次；最终仍失败则返回兜底占位（pipeline 不崩）。
@@ -226,7 +242,7 @@ def generate_macro_brief(us_data: dict, cn_data: dict, news: list, max_retries: 
     from investbrief.core.llm import get_client, default_model
 
     client = get_client()
-    context = _serialize_macro_context(us_data, cn_data, news)
+    context = _serialize_macro_context(us_data, cn_data, news, risk_scores=risk_scores)
     fallback_summary = "<p>宏观研判生成失败，请查看下方数据。</p>"
     fallback_risk = "<p>风险研判生成失败。</p>"
 
@@ -382,6 +398,15 @@ def _run_macro_report(args):
         cn = _create_provider("cn")
         us.refresh()
         cn.refresh()
+        try:
+            from investbrief.data.gold_data import GoldData
+            gold_data = GoldData()
+            try:
+                gold_data.update_incremental()
+            finally:
+                gold_data.close()
+        except Exception as e:
+            logger.warning(f"Gold data refresh failed in update-only mode: {e}")
         logger.info("Update-only complete")
         return
 
@@ -401,6 +426,13 @@ def _run_macro_report(args):
     # P1: 增量取数落盘（失败不阻塞，get_* 回退库内最新值）
     us.refresh()
     cn.refresh()
+    # P4: refresh gold data daily (resilient — fallback to stored values on failure)
+    from investbrief.data.gold_data import GoldData
+    gold_data = GoldData()
+    try:
+        gold_data.update_incremental()
+    except Exception as e:
+        logger.warning(f"Gold data refresh failed, falling back to stored values: {e}")
     from investbrief.us.calendar import get_upcoming_events_with_yfinance
     from investbrief.cn.calendar import get_upcoming_events as get_cn_events
     us_data = {
@@ -423,6 +455,19 @@ def _run_macro_report(args):
     except Exception as e:
         logger.warning(f"News fetch failed: {e}")
 
+    # P4: compute risk scores (resilient — empty dict renders empty card)
+    from investbrief.risk.models import RiskModel
+    from investbrief.risk.render import render_risk_card, render_gold_section
+    risk_model = RiskModel(us.data)
+    risk_scores = {
+        "us": _safe_risk_score(risk_model, "us"),
+        "cn": _safe_risk_score(risk_model, "cn"),
+        "gold": _safe_risk_score(risk_model, "gold"),
+    }
+    us_risk_html = render_risk_card(risk_scores["us"])
+    cn_risk_html = render_risk_card(risk_scores["cn"])
+    gold_section_html = render_gold_section(risk_scores["gold"])
+
     # Claude ①⑥（一次调用同时生成核心观点 + 风险）
     if skip_summary:
         logger.info("Skipping Claude brief (--skip-summary)")
@@ -430,7 +475,7 @@ def _run_macro_report(args):
         risk_outlook = "<p>—</p>"
     else:
         logger.info("Generating macro brief via Claude (①⑥)")
-        macro_summary, risk_outlook = generate_macro_brief(us_data, cn_data, news)
+        macro_summary, risk_outlook = generate_macro_brief(us_data, cn_data, news, risk_scores=risk_scores)
 
     # Research views (sell-side market commentary) — Tavily fetch + Claude synthesis
     research_views_html = ""
@@ -452,8 +497,8 @@ def _run_macro_report(args):
             logger.warning(f"Research views failed: {e}")
 
     # Render sections
-    us_html = us.render_section(us_data, render_config)
-    cn_html = cn.render_section(cn_data, render_config)
+    us_html = us.render_section(us_data, render_config, risk_html=us_risk_html)
+    cn_html = cn.render_section(cn_data, render_config, risk_html=cn_risk_html)
 
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
     report_data = {
@@ -463,7 +508,7 @@ def _run_macro_report(args):
         "market": "all",
         "macro_summary": macro_summary,
         "risk_outlook": risk_outlook,
-        "market_section_html": us_html + cn_html,
+        "market_section_html": us_html + cn_html + gold_section_html,
         "research_views": research_views_html,
         "news": news,
     }
@@ -471,9 +516,19 @@ def _run_macro_report(args):
     if getattr(args, "dry_run", False):
         logger.info("Dry run - outputting report data to stdout")
         print(json.dumps(report_data, ensure_ascii=False, indent=2, default=str))
+        try:
+            gold_data.close()
+        except Exception:
+            pass
         return
 
     send_report(report_data, config, recipients)
+
+    # Release gold data resources
+    try:
+        gold_data.close()
+    except Exception:
+        pass
 
     # Save local preview
     try:
