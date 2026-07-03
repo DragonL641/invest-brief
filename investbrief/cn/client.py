@@ -242,23 +242,46 @@ class AKShareClient:
         "卖出": "sell",
     }
 
-    def get_analyst_rating_summary(self, symbol: str) -> dict[str, Any] | None:
-        """汇总研报评级分布 + 盈利预测一致预期。"""
+    def _count_rating_distribution(self, df: "pd.DataFrame") -> dict[str, int]:
+        """统计给定 DataFrame 的研报评级分布（东财评级 → 标准桶）。"""
+        counts = {"buy": 0, "outperform": 0, "neutral": 0, "underperform": 0, "sell": 0}
+        for _, r in df.iterrows():
+            en = self._RATING_MAP.get(str(r.get("东财评级", "")), "")
+            if en:
+                counts[en] += 1
+        return counts
+
+    def get_analyst_rating_summary(self, symbol: str, days: int = 90) -> dict[str, Any] | None:
+        """汇总近 `days` 天研报评级分布 + 盈利预测一致预期 + 评级变化（vs 上一 `days` 周期）。
+
+        akshare 帧顺序不稳定，先解析日期+排序。`change` 是各评级桶占比的 pct-point
+        变化（正=近期更偏多）。盈利预测一致预期仍用全量数据。
+        """
         try:
             df = ak.stock_research_report_em(symbol=symbol)
             if df is None or df.empty:
                 return None
 
-            counts: dict[str, int] = {
-                "buy": 0, "outperform": 0, "neutral": 0,
-                "underperform": 0, "sell": 0,
-            }
-            for _, r in df.iterrows():
-                en = self._RATING_MAP.get(str(r.get("东财评级", "")), "")
-                if en:
-                    counts[en] += 1
+            df = df.copy()
+            df["_dt"] = pd.to_datetime(df.get("日期"), errors="coerce")
+            df = df.sort_values("_dt", ascending=False)
 
-            # 盈利预测：按年份聚合 EPS 和 PE 的一致预期
+            now = pd.Timestamp.now()
+            recent_cutoff = now - pd.Timedelta(days=days)
+            prev_cutoff = recent_cutoff - pd.Timedelta(days=days)
+            df_recent = df[df["_dt"] >= recent_cutoff]
+            df_prev = df[(df["_dt"] >= prev_cutoff) & (df["_dt"] < recent_cutoff)]
+
+            recent_counts = self._count_rating_distribution(df_recent)
+            prev_counts = self._count_rating_distribution(df_prev)
+
+            all_buckets = ("buy", "outperform", "neutral", "underperform", "sell")
+            r_tot = sum(recent_counts.values()) or 1
+            p_tot = sum(prev_counts.values()) or 1
+            change = {k: round(recent_counts[k] / r_tot * 100 - prev_counts[k] / p_tot * 100, 1)
+                      for k in all_buckets}
+
+            # 盈利预测一致预期（用全量数据，按年份聚合 EPS 和 PE）
             eps_forecasts: dict[str, list[float]] = {}
             pe_forecasts: dict[str, list[float]] = {}
             institutions: set[str] = set()
@@ -295,7 +318,6 @@ class AKShareClient:
                     )
                 consensus.append(entry)
 
-            # 盈利增速：相邻年份 EPS 增长
             growth_rates: list[float] = []
             for i in range(1, len(consensus)):
                 prev = consensus[i - 1].get("eps_avg")
@@ -304,11 +326,14 @@ class AKShareClient:
                     growth_rates.append(round((curr - prev) / prev * 100, 1))
 
             return {
-                **counts,
-                "total_reports": len(df),
+                **recent_counts,
+                "total_reports": len(df_recent),
+                "total_reports_all": len(df),
                 "institutions": len(institutions),
+                "change": change,
                 "consensus": consensus,
                 "eps_growth_rates": growth_rates,
+                "days": days,
             }
         except Exception as e:
             logger.warning(f"AKShare get_analyst_rating_summary failed for {symbol}: {e}")
@@ -801,6 +826,41 @@ class AKShareClient:
             return df[["nav", "acc_nav"]]
         except Exception as e:
             logger.warning(f"AKShare get_etf_nav_history failed for {fund}: {e}")
+            return None
+
+    def get_open_fund_nav(self, symbol: str) -> dict[str, Any] | None:
+        """获取场外（开放式）基金最新净值 + 近期收益。
+
+        场外基金按 T 日净值、T+1 公布，无实时价格/资金流/IOPV。
+        返回近 1 周/1 月/3 月收益（基于单位净值序列计算）。
+        """
+        try:
+            df = ak.fund_open_fund_info_em(symbol=symbol, indicator="单位净值走势")
+            if df is None or df.empty:
+                return None
+            df = df.sort_values("净值日期", ascending=False)
+            latest = df.iloc[0]
+            nav = self._safe_float(latest.get("单位净值"))
+
+            def _ret(n: int) -> float | None:
+                if len(df) > n and nav:
+                    old = self._safe_float(df.iloc[n].get("单位净值"))
+                    if old:
+                        return round((nav - old) / old * 100, 2)
+                return None
+
+            return {
+                "symbol": symbol,
+                "nav": nav,
+                "acc_nav": self._safe_float(latest.get("累计净值")),
+                "date": str(latest.get("净值日期", "")),
+                "daily_change": self._safe_float(latest.get("日增长率")),
+                "return_1w": _ret(7),
+                "return_1m": _ret(30),
+                "return_3m": _ret(90),
+            }
+        except Exception as e:
+            logger.warning(f"AKShare get_open_fund_nav failed for {symbol}: {e}")
             return None
 
     # ETF 跟踪指数 → 乐咕乐股指数名称映射

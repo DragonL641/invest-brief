@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - Each trading day: fetch US+CN macro data (rates, monetary aggregates, broad assets, economic calendar, news) → Claude generates a core-view summary + risk outlook → render a merged dual-view HTML report → send one email to all active recipients.
 - Data sources: yfinance (US), akshare (CN), external news APIs, Claude for synthesis.
-- An ETF analysis package (`investbrief/etf/`) is retained as a standalone asset for future use; it is NOT wired into the email pipeline.
+- Two email types: the **macro email** (daily, broadcast to all active recipients) and the optional **holdings email** (per-recipient, sent only to recipients who configure a `holdings` list). The `investbrief/etf/` package is reused by the holdings pipeline for CN ETF analysis.
 
 ## Commands
 
@@ -18,7 +18,9 @@ uv run run.py --dry-run                  # Build merged macro report, output JSO
 uv run run.py --dry-run --skip-summary   # Skip Claude ①⑥ (faster, structure-only)
 uv run run.py --now                      # Run once: build + send email
 uv run run.py --update                   # Refresh macro data into SQLite only, no render/email
-uv run run.py                            # Scheduler mode (cron-based, single merged report)
+uv run run.py                            # Scheduler mode (cron-based; runs macro then holdings)
+# --only {macro,holdings} limits a single run to one pipeline (default: both)
+uv run run.py --dry-run --only holdings  # Build per-recipient holdings email (needs recipients[].holdings)
 
 # Data backfill (first deploy only, ~10-30 min)
 uv run python scripts/backfill_macro_data.py        # Full-history backfill (CN+US)
@@ -40,7 +42,7 @@ docker compose -f docker-compose.prod.yml up -d  # Prod: pull GHCR image
 
 - `config.json` (gitignored) — `markets` (cron schedules), `email_service` (SMTP), `recipients[]`. Copy from `config.example.json`.
 - **Schedule:** the scheduler honors the FIRST cron entry of the FIRST enabled market (us preferred). Since the macro pipeline always merges US+CN, keep one schedule entry per market — only the first enabled market's cron actually triggers runs.
-- `recipients[]` shape: `{email, name, active, language}`. No web fields (no id/password/markets.holdings).
+- `recipients[]` shape: `{email, name, active, language, holdings?}`. Optional `holdings: [{symbol, market, type}]` (market∈{us,cn}, type∈{stock,etf,fund}; fund=CN 场外基金) triggers a separate per-recipient **holdings-analysis email** (distinct from the macro email). No web/auth fields.
 - `.env` (gitignored) — `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_DEFAULT_SONNET_MODEL` (defaults to `claude-sonnet-4-6`; set to a model code your `ANTHROPIC_BASE_URL` supports), `SMTP_PASSWORD`, and news keys (`FINNHUB_KEY`, `ALPHAVANTAGE_KEY`, `TAVILY_KEY`).
 - `ANTHROPIC_AUTH_TOKEN` auto-aliases to `ANTHROPIC_API_KEY`.
 - macOS system proxy auto-detected for yfinance; NO_PROXY set for akshare (eastmoney) domains.
@@ -83,8 +85,9 @@ DB at `data/macro_data.db` (gitignored; parent dir auto-created by `BaseData.con
 | `cn/` | `client.py` | `AKShareClient` — wraps akshare (macro monetary, ETF, index valuation) |
 | `cn/` | `news.py` | A-share news via AKShare |
 | `cn/` | `calendar.py` | A-share economic calendar (LPR/PMI/CPI/PPI/M2) |
-| `etf/` | — | **Retained ETF analysis package** (analyzer/engine/indicators/rules.json); not wired into pipeline |
-| `report.py` | — | Template-rendering library: `load_template` / `render_template` / `translate_html` (multi-language via Claude) |
+| `etf/` | — | ETF analysis package (analyzer/engine/indicators/rules.json); reused by `holdings/` for CN ETF |
+| `holdings/` | `analyzer.py`/`brief.py`/`renderer.py` | **Holdings email pipeline** — per-recipient analysis (stock/etf/fund) by market/type; reuses `etf/` + clients |
+| `report.py` | — | Template-rendering library: `load_template` / `render_template` / `render_holdings_template` / `translate_html` (multi-language via Claude) |
 
 ### Macro data sources (verified)
 
@@ -96,6 +99,8 @@ DB at `data/macro_data.db` (gitignored; parent dir auto-created by `BaseData.con
 ### Report structure (email)
 
 `templates/email_base.html`: header (宏观日报 title) → ① 核心观点 (`.summary-box`, Claude) → `{{market_sections}}` (US section + CN section, each: 大类资产 / 货币政策 / 经济日历) → ⑥ 风险提示与下周关注 → news → footer. `report.render_template` replaces `{{macro_summary}}`/`{{risk_outlook}}`/`{{market_sections}}`/`{{global_news}}` etc.
+
+The **holdings email** (`templates/email_holdings.html`, separate from macro) renders per-recipient: header → `{{holdings_summary}}` (Claude 组合研判) → `{{holdings_sections}}` (one card per holding). Each card shows available dimensions by `type`: price/NAV, rating distribution + **multi-period trend** (本期 vs 上期, pct-point) + analyst actions + price target (US only), fundamentals (PE/ROE/returns), technicals (MA/RSI/MACD, via `etf/indicators.py`), flow (CN only), news. Missing dimensions degrade gracefully. `report.render_holdings_template` replaces the placeholders.
 
 ## Key Conventions
 

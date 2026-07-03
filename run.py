@@ -104,6 +104,10 @@ def load_config() -> dict:
     return config
 
 
+_VALID_HOLDING_MARKETS = {"us", "cn"}
+_VALID_HOLDING_TYPES = {"stock", "etf", "fund"}
+
+
 def _validate_config(config: dict):
     """Validate required config fields with clear error messages."""
     if "email_service" not in config:
@@ -115,10 +119,11 @@ def _validate_config(config: dict):
     if "recipients" not in config or not config["recipients"]:
         raise ValueError("config.json missing or empty 'recipients' list")
 
-    # Recipients must each have a non-empty email
+    # Recipients must each have a non-empty email; optional holdings validated if present
     for r in config["recipients"]:
         if not isinstance(r, dict) or not r.get("email"):
             raise ValueError(f"config.json recipient missing 'email': {r}")
+        _validate_holdings(r.get("holdings"), r["email"])
 
     # Validate cron expressions for every enabled market
     markets_cfg = config.get("markets", {})
@@ -141,6 +146,39 @@ def _validate_config(config: dict):
         cron = schedule_cfg.get("cron")
         if not cron or not croniter.is_valid(cron):
             raise ValueError(f"Invalid cron '{cron}' for top-level schedule")
+
+
+def _validate_holdings(holdings, email: str):
+    """Validate a recipient's optional holdings list (drives the per-recipient holdings email)."""
+    if holdings is None:
+        return
+    if not isinstance(holdings, list) or not holdings:
+        raise ValueError(f"config.json recipient {email} 'holdings' must be a non-empty list")
+    for h in holdings:
+        if not isinstance(h, dict):
+            raise ValueError(f"config.json recipient {email} holding must be an object: {h}")
+        for field in ("symbol", "market", "type"):
+            if not str(h.get(field, "")).strip():
+                raise ValueError(f"config.json recipient {email} holding missing '{field}': {h}")
+        if h["market"] not in _VALID_HOLDING_MARKETS:
+            raise ValueError(
+                f"config.json recipient {email} holding market must be one of "
+                f"{sorted(_VALID_HOLDING_MARKETS)}: {h}"
+            )
+        if h["type"] not in _VALID_HOLDING_TYPES:
+            raise ValueError(
+                f"config.json recipient {email} holding type must be one of "
+                f"{sorted(_VALID_HOLDING_TYPES)}: {h}"
+            )
+        # P1 market-type constraints: US supports stock only; fund is CN-only
+        if h["market"] == "us" and h["type"] != "stock":
+            raise ValueError(
+                f"config.json recipient {email} US market only supports type=stock (P1): {h}"
+            )
+        if h["type"] == "fund" and h["market"] != "cn":
+            raise ValueError(
+                f"config.json recipient {email} fund type only supported for cn market: {h}"
+            )
 
 
 # ============================================================================
@@ -585,12 +623,136 @@ def _run_macro_report(args):
 
 
 # ============================================================================
+# Holdings report pipeline (per-recipient, distinct from macro)
+# ============================================================================
+
+def _run_holdings_report(args):
+    """Build per-recipient holdings-analysis emails and send (distinct from the macro email).
+
+    Only recipients with a non-empty `holdings` list receive this email. Holdings are
+    deduplicated across recipients so each unique symbol is analyzed once per run.
+    """
+    logger.info("=" * 60)
+    logger.info("invest-brief - Holdings report pipeline (per-recipient)")
+    config = load_config()
+    recipients = [r for r in config.get("recipients", [])
+                  if r.get("active", True) and r.get("holdings")]
+    if not recipients:
+        logger.info("No active recipients with holdings, skipping.")
+        return
+
+    from investbrief.holdings.analyzer import HoldingsAnalyzer
+    from investbrief.holdings.brief import generate_holdings_brief
+    from investbrief.holdings.renderer import render_holdings_section
+    from investbrief.report import load_template, render_holdings_template
+
+    skip_summary = getattr(args, "skip_summary", False)
+
+    # Collect unique holdings across recipients (analyzer caches per-key internally)
+    seen: set = set()
+    all_holdings: list = []
+    for r in recipients:
+        for h in r["holdings"]:
+            key = (h["symbol"], h["market"], h["type"])
+            if key not in seen:
+                seen.add(key)
+                all_holdings.append(h)
+
+    logger.info(f"Analyzing {len(all_holdings)} unique holdings for {len(recipients)} recipient(s)")
+    analyzer = HoldingsAnalyzer()
+    by_key: dict = {}
+    for h in all_holdings:
+        by_key[(h["symbol"], h["market"], h["type"])] = analyzer.analyze_one(
+            h["symbol"], h["market"], h["type"]
+        )
+
+    template = load_template("email_holdings.html")
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    data_time = now.strftime("%Y-%m-%d %H:%M")
+
+    def _subset(r):
+        return [by_key[(h["symbol"], h["market"], h["type"])] for h in r["holdings"]]
+
+    # Dry run: JSON to stdout + preview HTML for the first recipient
+    if getattr(args, "dry_run", False):
+        logger.info("Dry run - outputting holdings data to stdout")
+        try:
+            first = recipients[0]
+            sub = _subset(first)
+            summary_html = "<p>（已跳过 AI 研判）</p>" if skip_summary else generate_holdings_brief(sub)
+            preview_html = render_holdings_template(
+                template,
+                {"data_time": data_time,
+                 "holdings_summary": summary_html,
+                 "holdings_sections": render_holdings_section(sub)},
+                first.get("language", "zh-CN"),
+            )
+            preview_dir = Path(__file__).parent / "reports"
+            preview_dir.mkdir(exist_ok=True)
+            (preview_dir / "preview_holdings.html").write_text(preview_html, encoding="utf-8")
+            logger.info("Holdings preview saved to reports/preview_holdings.html")
+        except Exception as e:
+            logger.warning(f"Failed to render holdings preview: {e}")
+        out = [{"email": r["email"], "name": r.get("name"), "language": r.get("language"),
+                "holdings": [h.to_dict() for h in _subset(r)]} for r in recipients]
+        print(json.dumps(out, ensure_ascii=False, indent=2, default=str))
+        return
+
+    # Send per recipient
+    from investbrief.report import translate_html
+    from investbrief.core.mailer import EmailSender
+    sender = EmailSender(str(CONFIG_FILE))
+    failed: list = []
+    last_html = ""
+    for r in recipients:
+        email, name = r["email"], r.get("name", r["email"])
+        language = r.get("language", "zh-CN")
+        sub = _subset(r)
+        summary_html = "<p>（已跳过 AI 研判）</p>" if skip_summary else generate_holdings_brief(sub)
+        report_data = {
+            "data_time": data_time,
+            "holdings_summary": summary_html,
+            "holdings_sections": render_holdings_section(sub),
+        }
+        html = render_holdings_template(template, report_data, language)
+        if language != "zh-CN":
+            html = translate_html(html, language)
+        last_html = html
+        subject = f"【持仓分析】{now.strftime('%Y年%m月%d日')} — {name}"
+        try:
+            sender.send(email, subject, html)
+            logger.info(f"Holdings email sent to {email}")
+        except Exception as e:
+            logger.error(f"Failed to send holdings to {email}: {e}")
+            failed.append(email)
+
+    # Save preview of the last rendered email
+    if last_html:
+        try:
+            preview_dir = Path(__file__).parent / "reports"
+            preview_dir.mkdir(exist_ok=True)
+            (preview_dir / "preview_holdings.html").write_text(last_html, encoding="utf-8")
+            logger.info("Holdings preview saved to reports/preview_holdings.html")
+        except Exception as e:
+            logger.warning(f"Failed to save holdings preview: {e}")
+
+    if failed:
+        logger.warning(f"{len(failed)}/{len(recipients)} holdings emails failed: {failed}")
+    logger.info("Holdings report pipeline complete")
+
+
+# ============================================================================
 # Run Once (immediate execution)
 # ============================================================================
 
 def run_once(args):
-    """Execute the macro pipeline (always merged US+CN)."""
-    _run_macro_report(args)
+    """Execute pipeline(s) once. --only controls which; default runs both macro + holdings."""
+    only = getattr(args, "only", None)
+    if only in (None, "macro"):
+        _run_macro_report(args)
+    # Holdings pipeline has no update-only mode; skip under --update
+    if only in (None, "holdings") and not getattr(args, "update", False):
+        _run_holdings_report(args)
 
 
 # ============================================================================
@@ -665,13 +827,18 @@ def _run_scheduled_macro(cron_expr: str):
                 market="all",
                 dry_run=False,
                 skip_summary=False,
+                only=None,
                 log_level=logging.getLevelName(logger.getEffectiveLevel()),
             )
 
             try:
                 _run_macro_report(args)
             except Exception as e:
-                logger.error(f"Scheduled run failed: {e}", exc_info=True)
+                logger.error(f"Scheduled macro run failed: {e}", exc_info=True)
+            try:
+                _run_holdings_report(args)
+            except Exception as e:
+                logger.error(f"Scheduled holdings run failed: {e}", exc_info=True)
 
             cron = croniter(cron_expr, now)
             next_run = cron.get_next(datetime)
@@ -699,6 +866,8 @@ def main():
     parser.add_argument("--skip-summary", action="store_true", help="Skip Claude API summary, use placeholder")
     parser.add_argument("--update", action="store_true",
                         help="Only refresh macro data into SQLite, no render/email")
+    parser.add_argument("--only", choices=["macro", "holdings"], default=None,
+                        help="Run only one pipeline (default: both macro + holdings)")
     parser.add_argument("--log-level", default="INFO", help="Log level (DEBUG, INFO, WARNING, ERROR)")
     args = parser.parse_args()
 

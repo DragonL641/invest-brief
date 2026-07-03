@@ -121,34 +121,41 @@ class FinnhubClient:
             "timestamp": data.get("t", 0)  # Timestamp
         }
 
-    def get_recommendation(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """
-        Get analyst recommendation trends
+    def get_recommendation(self, symbol: str, periods: int = 3) -> Optional[Dict[str, Any]]:
+        """Get analyst recommendation trend over recent monthly periods.
 
-        Returns latest recommendation:
-            {
-                "buy": int,
-                "hold": int,
-                "sell": int,
-                "strong_buy": int,
-                "strong_sell": int,
-                "period": str
-            }
+        Finnhub returns monthly buckets; we compare the latest two to surface
+        rating drift (change is the pct-point delta of each bucket's share,
+        positive = more bullish this month).
+
+        Returns: {latest, previous, change, periods}
         """
         data = self._request("stock/recommendation", {"symbol": symbol})
         if not data or len(data) == 0:
             return None
 
-        # Get the latest recommendation
-        latest = data[0]
-        return {
-            "buy": latest.get("buy", 0),
-            "hold": latest.get("hold", 0),
-            "sell": latest.get("sell", 0),
-            "strong_buy": latest.get("strongBuy", 0),
-            "strong_sell": latest.get("strongSell", 0),
-            "period": latest.get("period", "")
-        }
+        def norm(d):
+            return {
+                "period": d.get("period", ""),
+                "strong_buy": d.get("strongBuy", 0), "buy": d.get("buy", 0),
+                "hold": d.get("hold", 0),
+                "sell": d.get("sell", 0), "strong_sell": d.get("strongSell", 0),
+            }
+
+        buckets = ("strong_buy", "buy", "hold", "sell", "strong_sell")
+        normed = [norm(d) for d in data[:periods]]
+        latest = normed[0] if normed else None
+        previous = normed[1] if len(normed) > 1 else None
+
+        change: Dict[str, float] = {}
+        if latest and previous:
+            lt_tot = sum(latest.get(k, 0) for k in buckets) or 1
+            pv_tot = sum(previous.get(k, 0) for k in buckets) or 1
+            for k in buckets:
+                change[k] = round(latest.get(k, 0) / lt_tot * 100
+                                  - previous.get(k, 0) / pv_tot * 100, 1)
+
+        return {"latest": latest, "previous": previous, "change": change, "periods": normed}
 
     def get_price_target(self, symbol: str) -> Optional[Dict[str, Any]]:
         """

@@ -66,10 +66,10 @@ LANGUAGE_CONFIG = {
 # Configuration Loading
 # ============================================================================
 
-def load_template():
-    """Load base HTML template"""
+def load_template(name: str = "email_base.html") -> str:
+    """Load HTML template by name from templates/ (default: macro email base)."""
     skill_dir = Path(__file__).parent.parent
-    template_path = skill_dir / 'templates' / 'email_base.html'
+    template_path = skill_dir / 'templates' / name
     with open(template_path, 'r', encoding='utf-8') as f:
         return f.read()
 
@@ -252,4 +252,31 @@ def render_template(template, data, language):
     html = html.replace('{{generated_by}}', '由 Claude Code 自动生成')
     html = html.replace('{{generated_at}}', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
+    return html
+
+
+def render_holdings_template(template: str, data: dict, language: str) -> str:
+    """Render the per-recipient holdings-analysis email template.
+
+    Mirrors render_template but for the holdings email: replaces
+    {{title}}/{{date}}/{{holdings_summary}}/{{holdings_sections}} etc.
+    Pre-rendered HTML (summary + section cards) is supplied by the caller.
+    """
+    html = template
+    config = get_config(language)
+    html = html.replace('{{font_family}}', config['font_family'])
+    html = html.replace('{{color_up}}', config['color_up'])
+    html = html.replace('{{color_down}}', config['color_down'])
+
+    html = html.replace('{{title}}', '📊 持仓分析')
+    html = html.replace('{{date}}', datetime.now().strftime('%Y年%m月%d日'))
+    html = html.replace('{{data_time_label}}', '数据截止')
+    html = html.replace('{{data_time}}', data.get('data_time', datetime.now().strftime('%H:%M:%S')))
+
+    html = html.replace('{{holdings_summary}}', data.get('holdings_summary') or '<p>暂无组合研判。</p>')
+    html = html.replace('{{holdings_sections}}', data.get('holdings_sections') or '')
+
+    html = html.replace('{{disclaimer}}', '⚠️ 免责声明：本报告仅供参考，不构成投资建议。数据来自公开渠道，可能存在延迟或误差。')
+    html = html.replace('{{generated_by}}', '由 Claude Code 自动生成')
+    html = html.replace('{{generated_at}}', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     return html
