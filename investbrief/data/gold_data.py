@@ -187,8 +187,14 @@ class GoldData(BaseData):
 
     # ---------- FRED M2 / CPI ----------
 
-    def update_fred_series(self, series_id, indicator, country, cosd="2000-01-01"):
-        """Fetch a FRED series into macro_data. M2 单位转为 万亿美元."""
+    def update_fred_series(self, series_id, indicator, country, cosd=None):
+        """Fetch a FRED series into macro_data. M2 单位转为 万亿美元.
+
+        cosd=None 时按 macro_data 中该 indicator 的 last_update_date 增量取（首跑全量自 2000）。
+        """
+        if cosd is None:
+            last = self.get_update_date(f"macro_data_{indicator.lower()}_{country}")
+            cosd = last or "2000-01-01"
         url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}&cosd={cosd}"
         try:
             r = requests.get(url, timeout=FRED_TIMEOUT)

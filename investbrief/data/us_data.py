@@ -1,6 +1,6 @@
 """US stock data acquisition using yfinance and akshare."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import akshare as ak
 import pandas as pd
@@ -54,7 +54,13 @@ class USData(BaseData):
         """Fetch daily OHLCV for all US symbols invest-brief + risk model need."""
         for ticker_symbol in self.INDEX_SYMBOLS:
             try:
-                hist = self._retry_api(lambda ts=ticker_symbol: yf.Ticker(ts).history(period="max"))
+                last_date = self.get_update_date(f"us_index_daily_{ticker_symbol}")
+                if last_date:
+                    # Incremental: fetch from ~1 week before last_date (TZ-safe), dedup by PK on upsert.
+                    start = (datetime.strptime(last_date, "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")
+                    hist = self._retry_api(lambda ts=ticker_symbol, s=start: yf.Ticker(ts).history(start=s))
+                else:
+                    hist = self._retry_api(lambda ts=ticker_symbol: yf.Ticker(ts).history(period="max"))
                 if hist is None or hist.empty:
                     continue
                 hist = hist.reset_index()
@@ -62,7 +68,6 @@ class USData(BaseData):
                 hist["date"] = pd.to_datetime(hist["Date"]).dt.strftime("%Y-%m-%d")
                 df = hist[["code", "date", "Open", "High", "Low", "Close", "Volume"]].copy()
                 df.columns = ["code", "date", "open", "high", "low", "close", "volume"]
-                last_date = self.get_update_date(f"us_index_daily_{ticker_symbol}")
                 if last_date:
                     df = df[df["date"] > last_date]
                 if not df.empty:

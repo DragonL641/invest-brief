@@ -149,3 +149,63 @@ def test_us_index_symbols_cover_investbrief_surface():
         "^GSPC", "^IXIC", "^DJI", "^VIX", "^TNX", "^FVX", "^IRX",
         "HYG", "CL=F", "DX-Y.NYB", "GC=F",
     }
+
+
+def test_us_update_index_daily_uses_start_when_has_last_date(monkeypatch, db):
+    """有 last_date 时走增量 (history(start=...))，无则 period=max。"""
+    from investbrief.data import us_data as us_mod
+    calls = []
+
+    class _FakeTicker:
+        def __init__(self, sym): self._sym = sym
+        def history(self, **kw):
+            calls.append(kw)
+            return pd.DataFrame({"Date": [pd.Timestamp("2026-07-03")],
+                                 "Open":[1],"High":[1],"Low":[1],"Close":[1],"Volume":[1]})
+
+    monkeypatch.setattr(us_mod.yf, "Ticker", lambda s: _FakeTicker(s))
+
+    class _US(us_mod.USData):
+        def update_all(self): pass
+        def update_incremental(self): pass
+
+    # First run: no last_date → period="max"
+    c1 = _US(db_path=db.db_path)
+    c1.update_index_daily()
+    c1.close()
+    assert any("period" in k for k in calls), "first run should use period=max"
+    assert calls and "max" in calls[0].get("period", "")
+
+    calls.clear()
+    # Second run: last_date now set → start= used
+    c2 = _US(db_path=db.db_path)
+    c2.update_index_daily()
+    c2.close()
+    assert any("start" in k for k in calls), "incremental run should use start="
+
+
+def test_gold_update_fred_series_uses_last_date_as_cosd(monkeypatch, db):
+    """update_fred_series 默认 cosd 取 last_update_date（增量）。"""
+    from investbrief.data import gold_data as gd_mod
+    captured = {}
+
+    class _FakeResp:
+        status_code = 200
+        text = "date,M2SL\n2026-07-01,21000\n"
+
+    def fake_get(url, timeout=None):
+        captured["url"] = url
+        return _FakeResp()
+
+    monkeypatch.setattr(gd_mod.requests, "get", fake_get)
+
+    class _Gold(gd_mod.GoldData):
+        def update_all(self): pass
+        def update_incremental(self): pass
+
+    g = _Gold(db_path=db.db_path)
+    # Pre-seed a last_update_date for M2/us
+    g.set_update_date("macro_data_m2_us", "2026-06-01")
+    g.update_fred_series("M2SL", "M2", "us")
+    g.close()
+    assert "cosd=2026-06-01" in captured["url"], f"incremental cosd not applied: {captured['url']}"
