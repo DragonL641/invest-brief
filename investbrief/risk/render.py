@@ -15,7 +15,7 @@ from investbrief.risk.config import (
 )
 
 
-# === Indicator metadata: key → {name, scale, unit} ===
+# === Indicator metadata: key → {name, scale, unit, explain, description, thresholds} ===
 _INDICATOR_META = {}
 for _d in (CN_ALL_INDICATORS, US_ALL_INDICATORS, GOLD_ALL_INDICATORS):
     for _k, _v in _d.items():
@@ -23,6 +23,9 @@ for _d in (CN_ALL_INDICATORS, US_ALL_INDICATORS, GOLD_ALL_INDICATORS):
             "name": _v.get("name", _k),
             "scale": _v.get("scale", 1.0),
             "unit": _v.get("unit", ""),
+            "explain": _v.get("explain", ""),
+            "description": _v.get("description", ""),
+            "thresholds": _v.get("thresholds", {}),
         }
 
 
@@ -58,12 +61,27 @@ def _risk_color(score: float) -> str:
     return "#16a085"  # 低位 dark green
 
 
+def _pct_label(pct) -> str:
+    """percentile → 高位/中位/低位 label. None -> ''."""
+    if pct is None:
+        return ""
+    try:
+        p = float(pct)
+    except (TypeError, ValueError):
+        return ""
+    if p >= 67:
+        return "高位"
+    if p >= 33:
+        return "中位"
+    return "低位"
+
+
 def render_risk_card(score_data: dict) -> str:
     """渲染紧凑内联风险子卡片 HTML 片段。
 
     嵌入 market section (cn/us) 底部或 gold section 内部。
-    显示: 📈 周期风险 标签 + 大号彩色分数 + 状态·操作 + 维度 mini-bar + 指标详情行。
-    跳过缺失/空维度 (gold 只有 估值/技术)。指标仅渲染 value 非 None 的。
+    显示: 📈 周期风险 标签 + 大号彩色分数 + 状态·操作 + 指标 2-line 详情
+    (value/警戒/历史分位 + explain/算法)。指标仅渲染 value 非 None 的, 按分数降序。
     空/None 输入返回 ''。
     """
     if not score_data:
@@ -76,31 +94,10 @@ def render_risk_card(score_data: dict) -> str:
     score_str = _fmt_num(total_score)
     state = score_data.get("state") or ""
     action = score_data.get("action") or ""
+    market = score_data.get("market") or ""
 
-    # 维度 mini-bars
-    dims_html = ""
-    for name, dim_score in (score_data.get("dimensions") or {}).items():
-        if dim_score is None:
-            continue
-        try:
-            dim_score_f = float(dim_score)
-        except (TypeError, ValueError):
-            continue
-        dim_pct = max(0.0, min(100.0, dim_score_f / 10.0 * 100.0))
-        dim_color = _risk_color(dim_score_f * 10)
-        dims_html += (
-            '<div style="margin-bottom:5px;font-size:12px;color:#555;">'
-            f'<span style="display:inline-block;width:84px;vertical-align:middle;">{name}</span>'
-            '<span style="display:inline-block;width:90px;height:6px;'
-            'background:#e9ecef;border-radius:3px;vertical-align:middle;overflow:hidden;">'
-            f'<span style="display:block;width:{dim_pct:.0f}%;height:100%;'
-            f'background:{dim_color};"></span></span>'
-            f'<span style="margin-left:5px;color:{dim_color};font-weight:600;">{_fmt_num(dim_score_f)}</span>'
-            '</div>'
-        )
-
-    # 指标详情行 (仅 value 非 None): 名称 · 原始值 → 风险分/10 (· scoring)
-    indicators_html = ""
+    # 收集 value 非 None 的指标, 按分数降序 (None 最后)
+    items = []
     for key, ind in (score_data.get("indicators") or {}).items():
         if not isinstance(ind, dict) or ind.get("value") is None:
             continue
@@ -109,29 +106,55 @@ def render_risk_card(score_data: dict) -> str:
             ind_score_f = float(ind_score) if ind_score is not None else None
         except (TypeError, ValueError):
             ind_score_f = None
+        items.append((key, ind, ind_score_f))
+    items.sort(
+        key=lambda t: (t[2] is None, -(t[2] if t[2] is not None else 0.0))
+    )
+
+    # 每条指标 2-line block
+    indicators_html = ""
+    for key, ind, ind_score_f in items:
         ind_color = _risk_color(ind_score_f * 10) if ind_score_f is not None else "#7f8c8d"
-        meta = _INDICATOR_META.get(key, {"name": key, "scale": 1.0, "unit": ""})
-        name = meta["name"]
-        val_str = _fmt_value(ind.get("value"), meta["scale"], meta["unit"])
-        score_txt = _fmt_num(ind_score_f) if ind_score_f is not None else "-"
-        scoring = ind.get("scoring")
-        scoring_html = (
-            f'<span style="color:#95a5a6;font-weight:400;"> · {scoring}</span>'
-            if scoring
-            else ""
+        meta = _INDICATOR_META.get(
+            key,
+            {"name": key, "scale": 1.0, "unit": "", "explain": "",
+             "description": "", "thresholds": {}},
         )
+        name = meta["name"]
+        scale = meta["scale"]
+        unit = meta["unit"]
+        val_str = _fmt_value(ind.get("value"), scale, unit)
+        score_txt = _fmt_num(ind_score_f) if ind_score_f is not None else "-"
+
+        # line 2 parts
+        parts = []
+        if meta["explain"]:
+            parts.append(meta["explain"])
+        if meta["description"]:
+            parts.append(f"算法 {meta['description']}")
+        threshold_raw = meta["thresholds"].get(market) if market else None
+        if threshold_raw is not None:
+            parts.append(f"警戒 {_fmt_value(threshold_raw, scale, unit)}")
+        pct = ind.get("percentile")
+        label = _pct_label(pct)
+        if label:
+            try:
+                pct_txt = _fmt_num(float(pct))
+            except (TypeError, ValueError):
+                pct_txt = "-"
+            parts.append(f"历史{label} {pct_txt}%")
+
+        line2 = " · ".join(parts)
         indicators_html += (
-            '<div style="margin-bottom:4px;font-size:12px;color:#555;line-height:1.4;">'
+            '<div style="margin-bottom:8px;">'
+            '<div style="font-size:12px;color:#555;line-height:1.4;">'
             f'<span style="display:inline-block;width:96px;vertical-align:top;color:#34495e;">{name}</span>'
             f'<span style="display:inline-block;width:80px;vertical-align:top;">{val_str}</span>'
-            f'<span style="vertical-align:top;">→ <b style="color:{ind_color};">{score_txt}/10</b>{scoring_html}</span>'
+            f'<span style="vertical-align:top;">→ 风险 <b style="color:{ind_color};">{score_txt}/10</b></span>'
+            '</div>'
+            f'<div style="font-size:11px;color:#95a5a6;padding-left:8px;margin-top:2px;line-height:1.4;">{line2}</div>'
             '</div>'
         )
-    indicators_block = (
-        f'<div style="margin-top:6px;">{indicators_html}</div>'
-        if indicators_html
-        else ""
-    )
 
     return (
         '<div style="margin-top:8px;padding:10px 12px;background:#f8f9fa;'
@@ -147,8 +170,7 @@ def render_risk_card(score_data: dict) -> str:
         f'<b style="color:{color};">{state}</b>'
         + (f' · {action}' if action else '')
         + '</div>'
-        + dims_html
-        + indicators_block
+        + indicators_html
         + '</div>'
     )
 

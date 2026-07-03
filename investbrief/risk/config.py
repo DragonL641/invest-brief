@@ -25,6 +25,7 @@ COMMON_INDICATORS = {
         "description": "(收盘价 - MA50) / MA50",
         "scale": 100,
         "unit": "%",
+        "explain": "偏离越大=超买或超卖越重",
     },
     "volume_shrinkage": {
         "name": "成交量萎缩度",
@@ -36,6 +37,7 @@ COMMON_INDICATORS = {
         "description": "5日均量 / 30日均量",
         "scale": 100,
         "unit": "%",
+        "explain": "上涨中缩量=见顶信号",
     },
 }
 
@@ -51,6 +53,7 @@ CN_INDICATORS = {
         "description": "(1/沪深300PE) - 10Y国债, 高=股便宜=低风险",
         "scale": 1,
         "unit": "%",
+        "explain": "高=股便宜=低风险",
     },
     "zz500_erp": {
         "name": "中证500 ERP",
@@ -62,6 +65,7 @@ CN_INDICATORS = {
         "description": "(1/中证500PE) - 10Y国债, 中小盘成长ERP",
         "scale": 1,
         "unit": "%",
+        "explain": "高=中小盘便宜=低风险",
     },
     "structural_divergence": {
         "name": "结构分化(等权/加权PE)",
@@ -72,6 +76,7 @@ CN_INDICATORS = {
         "description": "沪深300等权PE/加权PE, 高=少数股泡沫(抱团/小盘疯)",
         "scale": 1,
         "unit": "倍",
+        "explain": "高=少数股泡沫(抱团)",
     },
     "margin_growth": {
         "name": "融资余额增速",
@@ -82,6 +87,7 @@ CN_INDICATORS = {
         "description": "4周融资余额增速, 杠杆加速度(管2015杠杆顶)",
         "scale": 1,
         "unit": "%",
+        "explain": "高=杠杆加速冲顶",
     },
     "margin_level": {
         "name": "融资余额水平",
@@ -92,6 +98,7 @@ CN_INDICATORS = {
         "description": "融资余额绝对值分位, 杠杆水平(管2021抱团顶)",
         "scale": 1,
         "unit": "亿",
+        "explain": "高=杠杆仓位重",
     },
 }
 
@@ -106,6 +113,7 @@ US_INDICATORS = {
         "description": "美股SPY trailing PE",
         "scale": 1,
         "unit": "",
+        "explain": "高=估值贵=风险",
     },
     "sp500_erp": {
         "name": "标普500 ERP",
@@ -117,6 +125,7 @@ US_INDICATORS = {
         "description": "(1/标普500PE) - 10Y国债, 高=股便宜=低风险(与A股ERP同口径)",
         "scale": 1,
         "unit": "%",
+        "explain": "高=股便宜=低风险",
     },
     "credit_spread": {
         "name": "信用利差",
@@ -127,6 +136,7 @@ US_INDICATORS = {
         "description": "HYG价格相对国债的偏离",
         "scale": 100,
         "unit": "%",
+        "explain": "扩大=资金逃风险",
     },
     "yield_curve_inversion": {
         "name": "收益率曲线倒挂",
@@ -137,6 +147,7 @@ US_INDICATORS = {
         "description": "10年期 - 3个月期利差",
         "scale": 1,
         "unit": "%",
+        "explain": "倒挂(负值)=衰退信号",
     },
     "vix": {
         "name": "VIX恐慌指数",
@@ -147,6 +158,7 @@ US_INDICATORS = {
         "description": "VIX收盘值",
         "scale": 1,
         "unit": "",
+        "explain": "高=市场恐慌",
     },
 }
 
@@ -161,6 +173,7 @@ GOLD_INDICATORS = {
         "description": "全部黄金价值/全球GDP(UP主方法: 全球GDP分母不受单国放水干扰, 均值~9%)",
         "scale": 1,
         "unit": "%",
+        "explain": "高=金价相对经济偏高",
     },
     "gold_real_price": {
         "name": "实际金价 z-score",
@@ -171,6 +184,7 @@ GOLD_INDICATORS = {
         "description": "金价/CPI 实际金价的历史 z-score",
         "scale": 1,
         "unit": "σ",
+        "explain": "高=实际金价偏贵",
     },
     "gold_ma200_deviation": {
         "name": "金价MA200偏离度",
@@ -181,6 +195,7 @@ GOLD_INDICATORS = {
         "description": "(金价 - MA200) / MA200",
         "scale": 100,
         "unit": "%",
+        "explain": "高=超买",
     },
 }
 GOLD_ALL_INDICATORS = GOLD_INDICATORS

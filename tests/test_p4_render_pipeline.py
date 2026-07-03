@@ -43,8 +43,8 @@ def test_three_market_risk_cards_render():
         assert risk[m]["state"] in combined
     # Gold section header present
     assert "黄金" in gold_html
-    # 估值风险 dimension appears across cards
-    assert combined.count("估值风险") >= 3
+    # Each of the three cards renders its risk-card headline
+    assert combined.count("📈 周期风险") >= 3
 
     us.data.close()
     cn.data.close()
