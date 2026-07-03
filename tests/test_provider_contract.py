@@ -127,3 +127,33 @@ def test_cn_asset_performance_includes_usdcny(cn_provider):
     fx = next(a for a in ap if a["name"] == "人民币汇率(USDCNY)")
     assert abs(fx["point"] - 7.25) < 1e-6
     assert abs(fx["change"] - round((7.25 - 7.20) / 7.20 * 100, 2)) < 1e-3
+
+
+def test_us_render_section_embeds_risk_html(us_provider):
+    data = {
+        "asset_performance": [{"name": "S&P 500", "point": 100.0, "change": 0.0, "volume": "-"}],
+    }
+    html = us_provider.render_section(data, {"color_up": "#e74c3c", "color_down": "#27ae60"},
+                                      risk_html="<!--RISK-MARKER-->")
+    assert "<!--RISK-MARKER-->" in html
+    # risk marker appears before the final closing section div (inside the section)
+    last_close = html.rfind("</div>")
+    marker = html.find("<!--RISK-MARKER-->")
+    assert marker < last_close, "risk_html should be embedded inside the section, before its final </div>"
+
+
+def test_us_render_section_no_risk_html_unchanged(us_provider):
+    """Without risk_html, render_section output has no empty artifact."""
+    data = {"asset_performance": [{"name": "S&P 500", "point": 100.0, "change": 0.0, "volume": "-"}]}
+    html_default = us_provider.render_section(data, {"color_up": "#e74c3c", "color_down": "#27ae60"})
+    assert "<!--RISK-MARKER-->" not in html_default
+
+
+def test_cn_render_section_embeds_risk_html(cn_provider):
+    data = {"asset_performance": [{"name": "上证指数", "symbol": "000001", "point": 3000.0,
+                                    "change": 0.0, "change_amt": 0.0, "amount": None}]}
+    html = cn_provider.render_section(data, {"color_up": "#e74c3c", "color_down": "#27ae60"},
+                                      risk_html="<!--RISK-MARKER-->")
+    assert "<!--RISK-MARKER-->" in html
+    last_close = html.rfind("</div>")
+    assert html.find("<!--RISK-MARKER-->") < last_close

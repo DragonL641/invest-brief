@@ -106,7 +106,7 @@ class USMarketProvider(MarketProvider):
     # ==================== Rendering ====================
 
     def render_section(self, data: Dict[str, Any], config: Dict[str, Any], *,
-                       macro_summary: str | None = None) -> str:
+                       macro_summary: str | None = None, risk_html: str = "") -> str:
         """Render US market macro section.
 
         Macro view: ② economic calendar, ③ monetary policy, ④ asset performance.
@@ -133,6 +133,7 @@ class USMarketProvider(MarketProvider):
       </div>
       {monetary_html}
       {econ_html}
+      {risk_html}
     </div>'''
 
     # ==================== Render Helpers ====================
