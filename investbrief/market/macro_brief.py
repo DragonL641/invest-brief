@@ -91,8 +91,8 @@ def generate_macro_brief(us_data: dict, cn_data: dict, news: list, risk_scores: 
                 messages=[{"role": "user", "content": context}],
             )
             text = response.content[0].text.strip()
-            text = _re.sub(r"^\s*```(?:json)?\s*\n?", "", text)
-            text = _re.sub(r"\n?\s*```\s*$", "", text)
+            text = re.sub(r"^\s*```(?:json)?\s*\n?", "", text)
+            text = re.sub(r"\n?\s*```\s*$", "", text)
             data = json.loads(text)
             summary = (data.get("summary") or "").strip() or fallback_summary
             risk = (data.get("risk") or "").strip() or fallback_risk
