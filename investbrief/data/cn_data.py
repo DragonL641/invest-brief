@@ -229,8 +229,15 @@ class CNData(BaseData):
         try:
             # Fetch in 1-year chunks to avoid API date range limits
             today = datetime.now()
+            last_date = self.get_update_date("sentiment_margin_cn")
+            if last_date:
+                # Incremental: only fetch the chunk from ~10 days before last_date onward.
+                # (merge_sentiment_row preserves existing non-NULL values, so overlap is safe.)
+                chunk_start = datetime.strptime(last_date, "%Y-%m-%d") - timedelta(days=10)
+            else:
+                chunk_start = datetime(2010, 1, 1)
             chunks = []
-            start = datetime(2010, 1, 1)
+            start = chunk_start
             while start < today:
                 end = min(start + timedelta(days=360), today)
                 s = start.strftime("%Y%m%d")
@@ -238,7 +245,6 @@ class CNData(BaseData):
                 chunks.append((s, e))
                 start = end + timedelta(days=1)
 
-            last_date = self.get_update_date("sentiment_margin_cn")
             last_merged_date = None
             for s, e in chunks:
                 try:

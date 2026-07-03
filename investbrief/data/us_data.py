@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import akshare as ak
 import pandas as pd
+import urllib.request
 import yfinance as yf
 
 from investbrief.data.base import BaseData
@@ -166,10 +167,17 @@ class USData(BaseData):
         历史分位。upsert+UPDATE_NULL 模式(参照 _update_credit_spread), 不覆盖
         vix/credit_spread 等已有列。
         """
-        import io
-        import urllib.request
         try:
-            import pandas as pd
+            import io
+            last = self.get_update_date("sentiment_pe_us_shiller")
+            if last:
+                try:
+                    last_dt = datetime.strptime(str(last)[:10], "%Y-%m-%d")
+                    if (datetime.now() - last_dt).days < 7:
+                        logger.info("Shiller PE recent (within 7d), skip xls download")
+                        return
+                except ValueError:
+                    pass  # malformed date → proceed to download
             url = "http://www.econ.yale.edu/~shiller/data/ie_data.xls"
             with urllib.request.urlopen(url, timeout=60) as resp:
                 buf = io.BytesIO(resp.read())

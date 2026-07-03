@@ -209,3 +209,77 @@ def test_gold_update_fred_series_uses_last_date_as_cosd(monkeypatch, db):
     g.update_fred_series("M2SL", "M2", "us")
     g.close()
     assert "cosd=2026-06-01" in captured["url"], f"incremental cosd not applied: {captured['url']}"
+
+
+def test_cn_margin_incremental_uses_last_date_for_chunk_start(monkeypatch, db):
+    """有 last_date 时，margin 分块从 last_date 附近起（不再从 2010）。"""
+    fetched_ranges = []
+
+    def fake_margin(start_date, end_date):
+        fetched_ranges.append((start_date, end_date))
+        return pd.DataFrame([
+            {"信用交易日期": "20260701", "融资融券余额": 15000.0},
+        ])
+
+    monkeypatch.setattr(cn_mod.ak, "stock_margin_sse", fake_margin)
+
+    class _CN(cn_mod.CNData):
+        def update_all(self): pass
+        def update_incremental(self): pass
+
+    c = _CN(db_path=db.db_path)
+    c.set_update_date("sentiment_margin_cn", "2026-06-15")
+    c._update_margin()
+    c.close()
+    # Chunks should start around 2026-06 (not 2010)
+    assert fetched_ranges, "no chunks fetched"
+    first_start = fetched_ranges[0][0]
+    assert first_start.startswith("2026"), f"incremental chunk should start near last_date, got {first_start}"
+
+
+def test_cn_margin_first_run_starts_from_2010(monkeypatch, db):
+    fetched = {"called": False, "first_start": None}
+
+    def fake_margin(start_date, end_date):
+        if not fetched["called"]:
+            fetched["first_start"] = start_date
+        fetched["called"] = True
+        # return empty to short-circuit the loop's row processing
+        return pd.DataFrame()
+
+    monkeypatch.setattr(cn_mod.ak, "stock_margin_sse", fake_margin)
+
+    class _CN(cn_mod.CNData):
+        def update_all(self): pass
+        def update_incremental(self): pass
+
+    c = _CN(db_path=db.db_path)
+    # No last_date set → first run
+    c._update_margin()
+    c.close()
+    assert fetched["called"]
+    assert fetched["first_start"].startswith("2010"), f"first run should start from 2010, got {fetched['first_start']}"
+
+
+def test_us_shiller_pe_skipped_when_recent(monkeypatch, db):
+    """Shiller PE 在 7 天内已取过 → 跳过 xls 下载。"""
+    from investbrief.data import us_data as us_mod
+    from datetime import datetime, timedelta
+    called = {"get": False}
+
+    def fake_get(url, timeout=None):
+        called["get"] = True
+        raise AssertionError("should not download when recent")
+
+    monkeypatch.setattr(us_mod.urllib.request, "urlopen", fake_get)
+
+    class _US(us_mod.USData):
+        def update_all(self): pass
+        def update_incremental(self): pass
+
+    c = _US(db_path=db.db_path)
+    recent = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    c.set_update_date("sentiment_pe_us_shiller", recent)
+    c._update_shiller_pe()
+    c.close()
+    assert not called["get"], "xls should not be downloaded when last fetch < 7 days ago"
