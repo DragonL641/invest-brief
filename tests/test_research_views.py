@@ -2,7 +2,7 @@
 
 mock _default_search（底层 Tavily 调用），保证无网络、确定性。
 """
-from investbrief.research import views
+from investbrief.market import research as views
 
 
 # ---------------------------------------------------------------------------

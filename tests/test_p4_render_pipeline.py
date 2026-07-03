@@ -4,8 +4,8 @@ from investbrief.core.config import DB_PATH
 import pytest
 from investbrief.data.us_data import USData
 from investbrief.data.cn_data import CNData
-from investbrief.us.provider import USMarketProvider
-from investbrief.cn.provider import CNMarketProvider
+from investbrief.market.us.provider import USMarketProvider
+from investbrief.market.cn.provider import CNMarketProvider
 from investbrief.risk.models import RiskModel
 from investbrief.risk.render import render_risk_card, render_gold_section
 

@@ -9,7 +9,7 @@ from typing import Any
 
 import pandas as pd
 
-from investbrief.core.provider import MarketProvider
+from investbrief.market.base import MarketProvider
 from investbrief.data.cn_data import CNData
 
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ class CNMarketProvider(MarketProvider):
         return assets
 
     def fetch_all(self) -> dict[str, Any]:
-        from investbrief.cn.calendar import get_upcoming_events
+        from investbrief.market.cn.calendar import get_upcoming_events
         return {
             "monetary_policy": self.get_monetary_policy(),
             "asset_performance": self.get_asset_performance(),

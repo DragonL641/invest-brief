@@ -5,16 +5,16 @@ from unittest.mock import MagicMock
 
 def test_generate_macro_brief_falls_back_on_claude_failure(monkeypatch):
     """Claude 抛异常 → generate_macro_brief 返回兜底占位，不崩。"""
-    import run
+    from investbrief.market import macro_brief
 
     fake_client = MagicMock()
     fake_client.messages.create.side_effect = RuntimeError("claude down")
-    monkeypatch.setattr("investbrief.core.llm.get_client", lambda: fake_client)
+    monkeypatch.setattr(macro_brief, "get_client", lambda: fake_client)
 
-    summary, risk = run.generate_macro_brief({"monetary_policy": {}}, {"monetary_policy": {}}, [])
+    summary, risk = macro_brief.generate_macro_brief({"monetary_policy": {}}, {"monetary_policy": {}}, [])
 
     assert isinstance(summary, str) and isinstance(risk, str)
-    # Fallback strings from run.generate_macro_brief
+    # Fallback strings from macro_brief.generate_macro_brief
     assert summary == "<p>宏观研判生成失败，请查看下方数据。</p>"
     assert risk == "<p>风险研判生成失败。</p>"
 

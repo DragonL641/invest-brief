@@ -1,8 +1,8 @@
-from run import _serialize_macro_context
+from investbrief.market.macro_brief import serialize_macro_context
 
 
 def test_risk_scores_in_claude_context():
-    ctx = _serialize_macro_context(
+    ctx = serialize_macro_context(
         {"monetary_policy": {}}, {"monetary_policy": {}}, [],
         risk_scores={
             "us": {"total_score": 62.4, "state": "狂热泡沫", "action": "大幅减仓"},
@@ -17,5 +17,5 @@ def test_risk_scores_in_claude_context():
 
 
 def test_no_risk_scores_omits_section():
-    ctx = _serialize_macro_context({"monetary_policy": {}}, {"monetary_policy": {}}, [])
+    ctx = serialize_macro_context({"monetary_policy": {}}, {"monetary_policy": {}}, [])
     assert "市场周期风险分" not in ctx
