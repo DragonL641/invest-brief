@@ -228,8 +228,8 @@ def generate_research_views(items: list, max_retries: int = 2) -> str:
 
 def send_report(report_data: dict, config: dict, recipients: list):
     """Render and send report to each recipient."""
-    from investbrief.report import load_template, render_template, translate_html
-    from investbrief.core.mailer import EmailSender
+    from investbrief.mail.render import load_template, render_template, translate_html
+    from investbrief.mail.sender import EmailSender
 
     template = load_template()
 
@@ -421,7 +421,7 @@ def _run_macro_report(args):
 
     # Save local preview
     try:
-        from investbrief.report import load_template, render_template
+        from investbrief.mail.render import load_template, render_template
         preview_dir = Path(__file__).parent / "reports"
         preview_dir.mkdir(exist_ok=True)
         template = load_template()
@@ -457,7 +457,7 @@ def _run_holdings_report(args):
     from investbrief.holdings.analyzer import HoldingsAnalyzer
     from investbrief.holdings.brief import generate_holdings_brief
     from investbrief.holdings.renderer import render_holdings_section
-    from investbrief.report import load_template, render_holdings_template
+    from investbrief.mail.render import load_template, render_holdings_template
 
     skip_summary = getattr(args, "skip_summary", False)
 
@@ -512,8 +512,8 @@ def _run_holdings_report(args):
         return
 
     # Send per recipient
-    from investbrief.report import translate_html
-    from investbrief.core.mailer import EmailSender
+    from investbrief.mail.render import translate_html
+    from investbrief.mail.sender import EmailSender
     sender = EmailSender(str(CONFIG_FILE))
     failed: list = []
     last_html = ""

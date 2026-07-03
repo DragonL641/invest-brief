@@ -17,7 +17,7 @@ from investbrief.us.provider import USMarketProvider
 from investbrief.cn.provider import CNMarketProvider
 from investbrief.risk.models import RiskModel
 from investbrief.risk.render import render_risk_card, render_gold_section
-from investbrief.report import load_template, render_template
+from investbrief.mail.render import load_template, render_template
 
 
 def main():

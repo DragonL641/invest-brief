@@ -44,10 +44,10 @@ def test_send_report_continues_after_single_failure(monkeypatch):
             raise RuntimeError("smtp down")
 
     sender.send.side_effect = fake_send
-    monkeypatch.setattr("investbrief.core.mailer.EmailSender", lambda *a, **k: sender)
+    monkeypatch.setattr("investbrief.mail.sender.EmailSender", lambda *a, **k: sender)
 
     # send_report imports these inside the function, so patch at the source module
-    import investbrief.report as report_mod
+    import investbrief.mail.render as report_mod
     monkeypatch.setattr(report_mod, "load_template", lambda: "<html></html>")
     monkeypatch.setattr(report_mod, "render_template", lambda tpl, data, lang: "<html></html>")
     monkeypatch.setattr(report_mod, "translate_html", lambda html, lang: html)

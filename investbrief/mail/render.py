@@ -66,10 +66,12 @@ LANGUAGE_CONFIG = {
 # Configuration Loading
 # ============================================================================
 
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
 def load_template(name: str = "email_base.html") -> str:
-    """Load HTML template by name from templates/ (default: macro email base)."""
-    skill_dir = Path(__file__).parent.parent
-    template_path = skill_dir / 'templates' / name
+    """Load HTML template by name from mail/templates/ (default: macro email base)."""
+    template_path = TEMPLATES_DIR / name
     with open(template_path, 'r', encoding='utf-8') as f:
         return f.read()
 
