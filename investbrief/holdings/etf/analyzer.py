@@ -9,8 +9,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
 
 from investbrief.datasources.akshare import AKShareClient
-from investbrief.etf.indicators import compute_indicators
-from investbrief.etf.engine import RuleEngine, RuleResult
+from investbrief.holdings.etf.indicators import compute_indicators
+from investbrief.holdings.etf.engine import RuleEngine, RuleResult
 
 logger = logging.getLogger(__name__)
 

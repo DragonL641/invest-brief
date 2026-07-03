@@ -11,7 +11,7 @@ from investbrief.core.config import validate_config
 from investbrief.holdings.analyzer import HoldingsAnalyzer, HoldingResult, _ratio
 from investbrief.holdings.brief import _fallback, generate_holdings_brief
 from investbrief.holdings.renderer import render_holdings_section
-from investbrief.etf.analyzer import ETFAnalysisResult
+from investbrief.holdings.etf.analyzer import ETFAnalysisResult
 
 BASE_CFG = {
     "email_service": {"smtp_server": "s", "smtp_port": 465, "sender_email": "a@b.c"},

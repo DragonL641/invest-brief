@@ -14,8 +14,8 @@ from typing import Any, Callable
 from investbrief.datasources.akshare import AKShareClient
 from investbrief.datasources.finnhub import FinnhubClient
 from investbrief.datasources.yfinance import YFinanceClient
-from investbrief.etf.analyzer import ETFAnalyzer, ETFAnalysisResult
-from investbrief.etf.indicators import compute_indicators
+from investbrief.holdings.etf.analyzer import ETFAnalyzer, ETFAnalysisResult
+from investbrief.holdings.etf.indicators import compute_indicators
 
 logger = logging.getLogger(__name__)
 
