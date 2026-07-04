@@ -77,6 +77,32 @@ def _format_holding(r: HoldingResult) -> str:
     return "\n".join(lines)
 
 
+def _fallback_stock_conclusion(r: HoldingResult) -> str:
+    """LLM 不可用时的规则兜底（rating 分布 + technicals 趋势）。
+
+    distribution schema:
+      US: strong_buy/buy/hold/sell/strong_sell
+      CN: buy/outperform/neutral/underperform/sell
+    """
+    rt = r.rating or {}
+    tech = r.technicals or {}
+    dist = rt.get("distribution", {}) or {}
+    bull = sum(dist.get(k, 0) or 0 for k in ("strong_buy", "buy", "outperform"))
+    bear = sum(dist.get(k, 0) or 0 for k in ("strong_sell", "sell", "underperform"))
+    ma = tech.get("ma_alignment", "")
+    if not dist and not tech:
+        return "数据不足，无法生成结论。"
+    if ma == "bullish" and bull > bear:
+        return f"偏多。均线多头排列，评级偏多（{bull}买 vs {bear}卖），趋势向上。"
+    if ma == "bearish" and bear > bull:
+        return f"偏空。均线空头排列，评级偏空（{bear}卖 vs {bull}买），注意风险。"
+    if bull > bear:
+        return f"偏多。评级偏多（{bull}买 vs {bear}卖），但技术面待确认。"
+    if bear > bull:
+        return f"偏空。评级偏空（{bear}卖 vs {bull}买），谨慎。"
+    return f"中性。多空均衡（{bull}买 vs {bear}卖），建议观望。"
+
+
 def _build_prompt(results: list[HoldingResult]) -> str:
     lines = ["你是投资顾问。基于以下持仓分析，给出组合层面的综合研判。", ""]
     for r in results:

@@ -1,6 +1,6 @@
 """brief prompt 包含新维度字段。"""
 from investbrief.holdings.analyzer import HoldingResult
-from investbrief.holdings.brief import _build_prompt, _format_holding
+from investbrief.holdings.brief import _build_prompt, _format_holding, _fallback_stock_conclusion
 
 
 def test_prompt_includes_insider():
@@ -46,3 +46,22 @@ def test_format_holding_includes_key_dimensions():
     assert "bullish" in text
     assert "30.3" in text
     assert "ai_conclusion" not in text
+
+
+def test_fallback_bullish():
+    r = HoldingResult(symbol="601138", market="cn", type="stock",
+                      rating={"distribution": {"buy": 5, "outperform": 2, "sell": 1}},
+                      technicals={"ma_alignment": "bullish"})
+    assert "偏多" in _fallback_stock_conclusion(r)
+
+
+def test_fallback_bearish():
+    r = HoldingResult(symbol="AAPL", market="us", type="stock",
+                      rating={"distribution": {"strong_sell": 3, "sell": 2, "buy": 1}},
+                      technicals={"ma_alignment": "bearish"})
+    assert "偏空" in _fallback_stock_conclusion(r)
+
+
+def test_fallback_insufficient_data():
+    r = HoldingResult(symbol="002335", market="cn", type="stock")
+    assert "数据不足" in _fallback_stock_conclusion(r)
