@@ -183,6 +183,29 @@ class HoldingsAnalyzer:
             logger.warning(f"insider collect failed for {symbol}: {e}")
             return {}
 
+    def _collect_cn_activity(self, symbol: str, market: str = "cn") -> dict:
+        """CN 独有：龙虎榜上榜次数（最近 30 天）+ 机构调研次数（90 天）。US 返回 {}。
+
+        Field structure: {"dragon_tiger_count": int, "institution_research_count": int}
+
+        - 龙虎榜：get_dragon_tiger_list 返回全市场最近 days 日上榜股票（字段 symbol），
+          需按 symbol 后过滤统计次数。
+        - 机构调研：get_institutional_research(symbol, days) 已按 symbol 过滤，长度即次数。
+        """
+        if market != "cn":
+            return {}
+        try:
+            dragon = self._ak.get_dragon_tiger_list(days=30) or []
+            dt_count = sum(1 for d in dragon if str(d.get("symbol", "")) == str(symbol))
+            research = self._ak.get_institutional_research(symbol, days=90) or []
+            return {
+                "dragon_tiger_count": dt_count,
+                "institution_research_count": len(research),
+            }
+        except Exception as e:
+            logger.warning(f"cn_activity collect failed for {symbol}: {e}")
+            return {}
+
     def _analyze_us_stock(self, symbol: str) -> HoldingResult:
         data = self._parallel({
             "quote": lambda: self._yf.get_quote(symbol),
@@ -288,6 +311,7 @@ class HoldingsAnalyzer:
             news=_extract_news(data.get("news")),
             events=self._collect_events(symbol, "cn"),
             insider=self._collect_insider(symbol, "cn"),
+            cn_activity=self._collect_cn_activity(symbol, "cn"),
         )
 
     def _analyze_cn_etf(self, symbol: str) -> HoldingResult:
