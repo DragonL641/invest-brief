@@ -18,9 +18,9 @@ def generate_holdings_brief(results: list[HoldingResult], max_retries: int = 2) 
     if not any(not r.error for r in results):
         return "<p>（本期持仓无可用分析数据）</p>"
     try:
-        from investbrief.core.llm import get_client as _get_client
+        from investbrief.core.llm import get_client as _get_client, default_model
         client = _get_client()
-        model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
+        model = default_model()
     except Exception as e:
         logger.warning(f"holdings brief: llm init failed: {e}")
         return _fallback(results)

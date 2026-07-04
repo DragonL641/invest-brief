@@ -105,9 +105,9 @@ class ETFAnalyzer:
     ) -> str:
         """调用 Claude 进行综合研判。"""
         try:
-            from investbrief.core.llm import get_client as _get_client
+            from investbrief.core.llm import get_client as _get_client, default_model
             client = _get_client()
-            model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
+            model = default_model()
         except Exception as e:
             logger.error(f"AI client init failed: {e}")
             return self._fallback_conclusion(dim_summary)
