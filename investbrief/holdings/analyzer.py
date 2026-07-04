@@ -206,6 +206,29 @@ class HoldingsAnalyzer:
             logger.warning(f"cn_activity collect failed for {symbol}: {e}")
             return {}
 
+    def _collect_forecast(self, symbol: str, market: str) -> dict:
+        """盈利预估（EPS next-quarter + yoy growth）。CN 返回 {}（无免费源）。
+
+        Field structure: {"eps_next": float, "yoy_pct": float, "revenue_next": float|None}
+
+        yfinance.get_earnings_estimate 真实返回：{period_key: {avg, low, high, growth, num_analysts}}
+        period_key 取值 0q/+1q/0y/+1y。我们取 **+1q（下一季度）** 的 avg 作为 eps_next，
+        growth 即该期 EPS 同比；revenue 无免费源 → None。源缺 +1q → 对应字段 None（降级）。
+        """
+        if market != "us":
+            return {}
+        try:
+            est = self._yf.get_earnings_estimate(symbol) or {}
+            next_q = est.get("+1q") or {}
+            return {
+                "eps_next": next_q.get("avg"),
+                "yoy_pct": next_q.get("growth"),
+                "revenue_next": None,  # 无免费 revenue estimate 源
+            }
+        except Exception as e:
+            logger.warning(f"forecast collect failed for {symbol}: {e}")
+            return {}
+
     def _analyze_us_stock(self, symbol: str) -> HoldingResult:
         data = self._parallel({
             "quote": lambda: self._yf.get_quote(symbol),
@@ -260,6 +283,7 @@ class HoldingsAnalyzer:
             news=_extract_news(data.get("news")),
             events=self._collect_events(symbol, "us"),
             insider=self._collect_insider(symbol, "us"),
+            forecast=self._collect_forecast(symbol, "us"),
         )
 
     def _analyze_cn_stock(self, symbol: str) -> HoldingResult:
