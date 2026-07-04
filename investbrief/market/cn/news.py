@@ -8,7 +8,7 @@ from investbrief.datasources.akshare import AKShareClient
 logger = logging.getLogger(__name__)
 
 
-def fetch_cn_news(tickers: list[str], industries: list[str], limit: int = 20) -> list[dict[str, Any]]:
+def fetch_cn_news(tickers: list[str], limit: int = 20) -> list[dict[str, Any]]:
     """获取 A 股相关新闻。"""
     client = AKShareClient()
     all_news = []
