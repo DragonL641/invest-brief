@@ -1,6 +1,5 @@
 """Tavily Search API Client."""
 import logging
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -92,52 +91,3 @@ class TavilyClient:
             })
 
         return results
-
-    def search_market_news(
-        self,
-        markets: List[str] = None,
-        industries: List[str] = None,
-        max_results: int = 10
-    ) -> Optional[List[Dict[str, Any]]]:
-        """
-        Search for market and industry news
-
-        Args:
-            markets: List of markets (cn, us, kr)
-            industries: List of industries to filter
-            max_results: Maximum number of results
-
-        Returns:
-            List of news items with market/industry tags
-        """
-        # Build search query
-        query_parts = []
-
-        if industries:
-            industry_map = {
-                "semiconductor_ai": "semiconductor OR AI chip OR GPU",
-                "aerospace_defense": "aerospace OR defense OR military",
-                "machinery": "machinery OR manufacturing equipment",
-                "education": "education OR edtech"
-            }
-            for ind in industries:
-                if ind in industry_map:
-                    query_parts.append(f"({industry_map[ind]})")
-
-        if markets:
-            market_map = {
-                "cn": "China OR Chinese",
-                "us": "US OR American OR Wall Street",
-                "kr": "Korea OR Korean OR KOSPI"
-            }
-            market_terms = [market_map.get(m, "") for m in markets if m in market_map]
-            if market_terms:
-                query_parts.append(f"({' OR '.join(market_terms)})")
-
-        query = " AND ".join(query_parts) if query_parts else "stock market news"
-
-        # Add date for freshness
-        today = datetime.now()
-        query += f" {today.strftime('%B %Y')}"
-
-        return self.search_news(query, max_results)
