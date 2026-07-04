@@ -58,6 +58,20 @@ if sys.platform == "darwin" and not os.environ.get("HTTPS_PROXY"):
     except Exception:
         pass
 
+# akshare 走 eastmoney 数据中心，必须绕过系统代理直连——否则代理 SSL 劫持
+# (hostname mismatch / RemoteDisconnected) 会导致 CN 行情/历史/资金流数据全失败。
+# CLAUDE.md 约定 NO_PROXY for eastmoney，此处落地实现。
+_EASTMONEY_NO_PROXY = (
+    "eastmoney.com,push2.eastmoney.com,push2his.eastmoney.com,"
+    "82.push2.eastmoney.com,datacenter-web.eastmoney.com,fund.eastmoney.com"
+)
+_existing_no_proxy = os.environ.get("NO_PROXY", "")
+if "eastmoney.com" not in _existing_no_proxy:
+    os.environ["NO_PROXY"] = (
+        f"{_existing_no_proxy},{_EASTMONEY_NO_PROXY}".strip(",")
+        if _existing_no_proxy else _EASTMONEY_NO_PROXY
+    )
+
 # Bypass proxy for AKShare data sources (eastmoney)
 _no_proxy = os.environ.get("NO_PROXY", "")
 _eastmoney_domains = ".eastmoney.com,.push2.eastmoney.com,.push2his.eastmoney.com,.push2delay.eastmoney.com"
