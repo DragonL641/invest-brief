@@ -103,6 +103,43 @@ def _fallback_stock_conclusion(r: HoldingResult) -> str:
     return f"中性。多空均衡（{bull}买 vs {bear}卖），建议观望。"
 
 
+def generate_stock_conclusion(r: HoldingResult) -> str:
+    """单标的 Claude 综合研判。失败 fallback，不抛异常。
+
+    对标 etf/analyzer.py:_ai_synthesize。r.error 非空直接返回空（不调 Claude）。
+    """
+    if r.error:
+        return ""
+    try:
+        from investbrief.core.llm import get_client as _get_client, default_model
+        client = _get_client()
+        model = default_model()
+    except Exception as e:
+        logger.warning(f"stock_conclusion: llm init failed: {e}")
+        return _fallback_stock_conclusion(r)
+
+    market_label = "A股" if r.market == "cn" else "美股"
+    prompt = f"""你是一位{market_label}投资顾问。基于以下信息给出该标的的综合研判。
+
+{_format_holding(r)}
+
+要求：
+1. 第一句直接给整体结论（偏多/偏空/中性）
+2. 如有矛盾信号（如评级偏多但资金流出），指出并给出倾向
+3. 给出具体操作建议（买入/持有/观望/减仓）
+4. 150 字以内，中文，不要铺垫套话"""
+
+    try:
+        resp = client.messages.create(
+            model=model, max_tokens=400,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return resp.content[0].text.strip()
+    except Exception as e:
+        logger.warning(f"stock_conclusion failed for {r.symbol}: {e}")
+        return _fallback_stock_conclusion(r)
+
+
 def _build_prompt(results: list[HoldingResult]) -> str:
     lines = ["你是投资顾问。基于以下持仓分析，给出组合层面的综合研判。", ""]
     for r in results:

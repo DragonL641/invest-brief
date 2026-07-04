@@ -1,6 +1,10 @@
 """brief prompt 包含新维度字段。"""
 from investbrief.holdings.analyzer import HoldingResult
-from investbrief.holdings.brief import _build_prompt, _format_holding, _fallback_stock_conclusion
+from unittest.mock import patch, MagicMock
+
+from investbrief.holdings.brief import (
+    _build_prompt, _format_holding, _fallback_stock_conclusion, generate_stock_conclusion,
+)
 
 
 def test_prompt_includes_insider():
@@ -65,3 +69,35 @@ def test_fallback_bearish():
 def test_fallback_insufficient_data():
     r = HoldingResult(symbol="002335", market="cn", type="stock")
     assert "数据不足" in _fallback_stock_conclusion(r)
+
+
+def _sample_holding():
+    return HoldingResult(
+        symbol="601138", market="cn", type="stock", name="工业富联",
+        price={"current": 64.72, "change_pct": 1.09},
+        rating={"distribution": {"buy": 5, "sell": 1}, "total": 6},
+        technicals={"ma_alignment": "bullish"},
+    )
+
+
+@patch("investbrief.core.llm.get_client")
+@patch("investbrief.core.llm.default_model", return_value="test-model")
+def test_generate_stock_conclusion_success(mock_model, mock_get_client):
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value.content = [MagicMock(text="偏多。均线多头，趋势向上，建议持有。")]
+    mock_get_client.return_value = mock_client
+    result = generate_stock_conclusion(_sample_holding())
+    assert "偏多" in result
+    mock_client.messages.create.assert_called_once()
+
+
+@patch("investbrief.core.llm.get_client", side_effect=RuntimeError("no key"))
+def test_generate_stock_conclusion_llm_init_fail_fallback(mock_get_client):
+    result = generate_stock_conclusion(_sample_holding())
+    assert result
+    assert "偏多" in result
+
+
+def test_generate_stock_conclusion_skips_error_holding():
+    r = HoldingResult(symbol="XXX", market="cn", type="stock", error="分析失败")
+    assert generate_stock_conclusion(r) == ""
