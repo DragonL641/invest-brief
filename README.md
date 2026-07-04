@@ -106,7 +106,7 @@ SMTP_PASSWORD=                           # 邮箱 SMTP 授权码
 
 # 可选（自定义 Claude API 端点与模型）
 ANTHROPIC_BASE_URL=                      # 自定义 Anthropic 兼容端点
-ANTHROPIC_DEFAULT_SONNET_MODEL=          # 默认 claude-sonnet-4-6；填你的 BASE_URL 支持的模型代号
+ANTHROPIC_DEFAULT_SONNET_MODEL=          # 默认 claude-sonnet-4-5-20250929；填你的 BASE_URL 支持的模型代号
 
 # 可选（增强美股数据与新闻）
 FINNHUB_KEY=                             # Finnhub API Key
@@ -118,33 +118,38 @@ TAVILY_KEY=                              # Tavily 新闻搜索 API Key
 
 ## 架构
 
+按**业务域**而非技术层拆分。依赖严格单向：`run.py → pipelines → {market, holdings, risk, mail} → {data, datasources} → core`，域与域之间无横向依赖（如 `market/` 不 import `holdings/` 或 `mail/`，只通过 `pipelines/` 协作）。
+
 ```
-run.py                          # 唯一入口：CLI、cron 调度、pipeline 编排
+run.py                              # CLI 入口（~145 行）：argparse + 代理/环境引导 + run_once 分发
 
 investbrief/
-  core/
-    provider.py                 # MarketProvider ABC（宏观方法）
-    llm.py                      # get_client() 缓存的 Anthropic 客户端 + default_model()
-    mailer.py                   # SMTP 邮件发送（带重试）
-  us/
-    provider.py                 # USMarketProvider — yfinance 宏观（指数/收益率/黄金）
-    clients.py                  # YFinanceClient + Finnhub/Alpha Vantage/Tavily
-    news.py                     # 美股新闻聚合（带 fallback + 评分）
-    calendar.py                 # 美股经济日历（FOMC/CPI/NFP/PCE）
-  cn/
-    provider.py                 # CNMarketProvider — akshare 宏观（指数/LPR/M2/社融/国债/USDCNY）
-    client.py                   # AKShareClient 封装（货币、ETF、指数估值）
-    news.py                     # A 股新闻
-    calendar.py                 # A 股经济日历（LPR/PMI/CPI/PPI/M2）
-  etf/                          # 独立保留的 ETF 分析包（analyzer/engine/indicators/rules.json）
-                                # ⚠ 未接入邮件 pipeline，待后续启用
-  report.py                     # HTML 模板渲染、宏观标题、多语言（via Claude）
-
-templates/
-  email_base.html               # 邮件 HTML 模板
+  core/         llm.py / config.py                    # Anthropic client + 配置加载/校验 + 常量
+  data/         base / cn_data / us_data / gold_data  # SQLite 持久层（指数/宏观时间序列的唯一真值源）
+  datasources/  yfinance / akshare / finnhub /        # 外部 API 适配器（薄封装）
+                alphavantage / tavily / _common
+  market/       base.py (MarketProvider ABC)          # 市场分析域
+                __init__.py (MARKET_PROVIDERS 注册表 + create_provider 工厂)
+                us/{provider,calendar,news}.py
+                cn/{provider,calendar,news}.py
+                macro_brief.py (Claude ①⑥ + serialize_macro_context)
+                research.py (卖方机构观点：Tavily 抓取 + Claude 综合)
+  holdings/     analyzer / brief / renderer           # 持仓邮件管道（per-recipient）
+                etf/{analyzer,engine,indicators,rules.json}  # CN ETF 分析（原顶层 etf/ 包）
+  risk/         models / config / calc_utils / render / indicators/  # 市场周期风险评分模型
+  mail/         sender.py (EmailSender) / render.py   # SMTP 发送 + HTML 模板渲染（原 report.py）
+                templates/{email_base,email_holdings}.html
+  pipelines/    macro.py (run_macro_report + fetch_news + _safe_risk_score)
+                holdings.py (run_holdings_report)
+                scheduler.py (run_scheduler + first_enabled_cron)
+                _send.py (send_report)
 ```
 
-**Pipeline 流程：** 加载配置 → 抓取 US 宏观 + CN 宏观 + 新闻 → Claude 生成 ① 核心观点 + ⑥ 风险展望 → `render_section`（US + CN）→ `render_template` 合并 HTML → `send_report` 发送单封邮件。`--dry-run` 时打印 JSON 而非发信。
+**Pipeline 流程（宏观）：** `pipelines/macro.py:run_macro_report` 加载配置 → 刷新 US+CN+黄金数据（失败回退库内最新值）→ 抓取 US/CN 宏观 + 新闻 → 计算 P4 风险评分 → Claude 生成 ① 核心观点 + ⑥ 风险展望（`market.macro_brief.generate_macro_brief`）→ 卖方机构观点（`market.research`）→ `render_section`（US + CN，含风险卡片）+ 黄金段 → `mail.render.render_template` 合并 HTML → `pipelines._send.send_report` 发送单封邮件。`--dry-run` 时打印 JSON 而非发信。
+
+**扩展方式：**
+- 新增市场 → 在 `market/<mkt>/` 实现 `MarketProvider` 子类 + 在 `market/__init__.py:MARKET_PROVIDERS` 注册一行（无需改 `run.py`）。
+- 新增报告类型 → 加 `pipelines/<name>.py` + 在 `run.py:run_once` 加分发。
 
 ### 宏观数据来源（已验证）
 
@@ -156,18 +161,18 @@ templates/
 
 > 评级是**结构化数据**（买入/持有/卖出 + 目标价），由数据商按个股聚合后以字段返回；与"机构的宏观/行业观点"（非结构化研报正文）是两类不同数据。本节只覆盖评级。
 
-- **US 个股评级**（`investbrief/us/clients.py`）：
+- **US 个股评级**（`investbrief/datasources/finnhub.py` + `investbrief/datasources/yfinance.py`）：
   - **Finnhub** `stock/recommendation`（共识分布 strongBuy/buy/hold/sell/strongSell）+ `stock/price-target`（分析师目标价）。
   - **yfinance** `upgrades_downgrades`（**带 `Firm` 字段、可区分到具体投行**）、`recommendations`（共识分布）、`analyst_price_targets`（目标价）。
   - 覆盖**全部主流投行，含 JPMorgan / Morgan Stanley**（如 AAPL 历史中两家各有数十条记录）。
-- **CN 个股评级**（`investbrief/cn/client.py`，`get_research_reports` / `get_analyst_rating_summary`）：
+- **CN 个股评级**（`investbrief/datasources/akshare.py`，`get_research_reports` / `get_analyst_rating_summary`）：
   - **akshare** `stock_research_report_em(symbol)`（底层为东方财富 reportapi）→ 返回 `机构`+`东财评级`+日期，再聚合成评级分布。
   - ⚠ **仅覆盖二线券商**（实测：贵州茅台 759 篇研报，机构为东吴 / 国金 / 华鑫 / 西南 / 东莞 / 民生 / 太平洋 / 中银 / 国信 / 群益等）。
   - ⚠ **头部券商中信证券 / 华泰证券 / 申万宏源 / 中金 / 国泰君安 / 招商等不在免费流** —— 它们将研报与评级数据一并封锁在 Wind / Choice / 同花顺 iFinD 等付费终端。免费渠道对这几家**评级与观点均不可得**。
 
 ### 报告结构
 
-`templates/email_base.html`：页头（宏观日报标题）→ ① 核心观点（`.summary-box`，Claude）→ `{{market_sections}}`（US 段 + CN 段，各含 大类资产 / 货币政策 / 经济日历）→ ⑥ 风险提示与下周关注 → 新闻 → 页脚。
+`mail/templates/email_base.html`：页头（宏观日报标题）→ ① 核心观点（`.summary-box`，Claude）→ `{{market_sections}}`（US 段 + CN 段，各含 大类资产 / 货币政策 / 经济日历）→ ⑥ 风险提示与下周关注 → 新闻 → 页脚。
 
 ## 部署
 
