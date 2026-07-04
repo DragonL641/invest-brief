@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 NEWS_LIMIT = 5
 
 
-def fetch_news(config, tickers, max_news_count, industries, market="us"):
+def fetch_news(config, tickers, max_news_count, market="us"):
     """Fetch news for the specified market."""
     if market == "us":
         from investbrief.market.us.news import DataProvider
@@ -21,11 +21,10 @@ def fetch_news(config, tickers, max_news_count, industries, market="us"):
             tickers=tickers,
             limit=max_news_count,
             user_tickers=tickers,
-            industries=industries,
         )
     elif market == "cn":
         from investbrief.market.cn.news import fetch_cn_news
-        return fetch_cn_news(tickers, industries, max_news_count)
+        return fetch_cn_news(tickers, max_news_count)
     return []
 
 
@@ -109,8 +108,8 @@ def run_macro_report(args):
     # News (US + CN, no tickers)
     news = []
     try:
-        news = fetch_news(config, [], NEWS_LIMIT, [], market="us") + \
-            fetch_news(config, [], NEWS_LIMIT, [], market="cn")
+        news = fetch_news(config, [], NEWS_LIMIT, market="us") + \
+            fetch_news(config, [], NEWS_LIMIT, market="cn")
         news = news[:NEWS_LIMIT]
     except Exception as e:
         logger.warning(f"News fetch failed: {e}")
