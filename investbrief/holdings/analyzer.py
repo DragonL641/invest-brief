@@ -124,6 +124,65 @@ class HoldingsAnalyzer:
             logger.warning(f"events collect failed for {symbol}: {e}")
             return {}
 
+    def _collect_insider(self, symbol: str, market: str) -> dict:
+        """大股东/高管增减持，最近窗口聚合。失败返回 {}。
+
+        Field structure: {"net_amount": float, "direction": "buy"/"sell"/"flat",
+                          "latest_date": str, "count": int}
+
+        数据源限制：
+        - CN akshare major: action 文本（"增持4.16万"/"减持..."），无数值 → 仅参与方向判定。
+        - CN akshare insider: 已过滤为「增」（buy），shares 可量化。
+        - US yfinance: 已过滤为 Buy，value 字段为交易金额。
+        net_amount 仅累加可量化的数值；方向由 sell/buy 计数主导（无可用数值时按方向多数）。
+        """
+        try:
+            if market == "cn":
+                major = self._ak.get_major_shareholder_trades(symbol, days=90) or []
+                insider = self._ak.get_insider_trades(symbol, days=90) or []
+                records = []
+                # major: action 文本含「减」=sell，含「增」=buy；数值缺失
+                for t in major:
+                    action = str(t.get("action", ""))
+                    if "减" in action:
+                        records.append(("sell", None, t.get("date", "")))
+                    elif "增" in action:
+                        records.append(("buy", None, t.get("date", "")))
+                # insider: 已是「增」（buy）；shares 可量化
+                for t in insider:
+                    shares = t.get("shares")
+                    amt = float(shares) if shares is not None else None
+                    records.append(("buy", amt, t.get("date", "")))
+            else:
+                txns = self._yf.get_insider_transactions(symbol, limit=10) or []
+                records = [
+                    ("buy", t.get("value"), t.get("date", ""))
+                    for t in txns
+                ]
+            if not records:
+                return {}
+            net = sum(amt for _, amt, _ in records if amt is not None)
+            buy_n = sum(1 for d, _, _ in records if d == "buy")
+            sell_n = sum(1 for d, _, _ in records if d == "sell")
+            if net != 0:
+                direction = "buy" if net > 0 else "sell"
+            elif buy_n > sell_n:
+                direction = "buy"
+            elif sell_n > buy_n:
+                direction = "sell"
+            else:
+                direction = "flat"
+            dates = [d for _, _, d in records if d]
+            return {
+                "net_amount": net,
+                "direction": direction,
+                "latest_date": max(dates) if dates else "",
+                "count": len(records),
+            }
+        except Exception as e:
+            logger.warning(f"insider collect failed for {symbol}: {e}")
+            return {}
+
     def _analyze_us_stock(self, symbol: str) -> HoldingResult:
         data = self._parallel({
             "quote": lambda: self._yf.get_quote(symbol),
@@ -177,6 +236,7 @@ class HoldingsAnalyzer:
             technicals=_extract_technicals(data.get("history"), uppercase_cols=True),
             news=_extract_news(data.get("news")),
             events=self._collect_events(symbol, "us"),
+            insider=self._collect_insider(symbol, "us"),
         )
 
     def _analyze_cn_stock(self, symbol: str) -> HoldingResult:
@@ -227,6 +287,7 @@ class HoldingsAnalyzer:
             technicals=_extract_technicals(data.get("history")),
             news=_extract_news(data.get("news")),
             events=self._collect_events(symbol, "cn"),
+            insider=self._collect_insider(symbol, "cn"),
         )
 
     def _analyze_cn_etf(self, symbol: str) -> HoldingResult:
