@@ -81,3 +81,18 @@ def test_first_enabled_cron_handles_config_shapes():
 
     # none enabled
     assert first_enabled_cron({"markets": {}}) is None
+
+
+from investbrief.pipelines.macro import _safe_regime_judge
+
+
+class _BoomEngine:
+    """judge() 总是抛异常,验证 _safe_regime_judge 兜底。"""
+    def judge(self, market):
+        raise RuntimeError("simulated DB failure")
+
+
+def test_safe_regime_judge_returns_empty_on_failure():
+    """RegimeEngine 异常时返回 {} → 渲染空卡片,pipeline 不阻塞。"""
+    result = _safe_regime_judge(_BoomEngine(), "us")
+    assert result == {}
