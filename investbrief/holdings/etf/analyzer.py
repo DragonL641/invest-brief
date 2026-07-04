@@ -48,13 +48,10 @@ class ETFAnalyzer:
         if not spot:
             return ETFAnalysisResult(symbol=symbol, name="未知")
 
-        from investbrief.datasources.akshare import resolve_etf_index
-        index_code = resolve_etf_index(symbol)
         futures = {
             _fetch_pool.submit(self.client.get_etf_hist, symbol, 120): "hist",
+            _fetch_pool.submit(self.client.get_index_valuation, symbol): "valuation",
         }
-        if index_code:
-            futures[_fetch_pool.submit(self.client.get_index_valuation, index_code)] = "valuation"
         results = {}
         for future in as_completed(futures):
             key = futures[future]
