@@ -40,6 +40,31 @@ class _DataFrameCache:
 _df_cache = _DataFrameCache()
 
 
+# ETF 代码 → 跟踪指数代码（用于 get_index_valuation 的指数代码入参）
+# 注意：与 AKShareClient._ETF_INDEX_MAP（乐咕乐股指数名称映射）用途不同，二者并存。
+_ETF_INDEX_MAP: dict[str, str] = {
+    # 宽基
+    "510300": "000300",   # 沪深300ETF华泰柏瑞 → 沪深300
+    "510050": "000016",   # 上证50ETF → 上证50
+    "510500": "000905",   # 中证500ETF → 中证500
+    "159915": "399006",   # 创业板ETF → 创业板指
+    "512100": "000852",   # 中证1000
+    "588200": "000688",   # 科创50ETF → 科创50
+    "588000": "000688",   # 科创50ETF (另一只)
+    # 行业
+    "512880": "399975",   # 证券ETF → 证券公司
+    "512170": "399969",   # 医疗ETF → 中证医疗
+    "512480": "399967",   # 半导体ETF → 中证半导体
+    "515790": "399808",   # 光伏ETF → 中证光伏
+    "515030": "399812",   # 新能源车ETF → 中证新能源车
+}
+
+
+def resolve_etf_index(etf_symbol: str) -> str | None:
+    """ETF 代码 → 跟踪指数代码；未命中返回 None。"""
+    return _ETF_INDEX_MAP.get(str(etf_symbol))
+
+
 def _safe_float(val) -> float | None:
     """安全转换为 float。"""
     if val is None or val == "-" or val == "":
