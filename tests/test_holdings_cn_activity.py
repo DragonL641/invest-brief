@@ -5,7 +5,7 @@
 - 机构调研数据源 AKShareClient.get_institutional_research(symbol, days) 已按 symbol 过滤，
   返回该股调研事件列表 [{institution, date, type, researchers}]。
 - US 市场返回 {}（不适用）。
-- 韧性：任一数据源异常 → 返回 {}，不阻塞整体分析。
+- 韧性：dragon_tiger 异常 → 降级 dt_count=0（run 级缓存吞异常，多只 CN stock 共享一次拉取）；research 异常 → 返回已采集部分。不阻塞整体分析。
 """
 from unittest.mock import patch
 
@@ -38,10 +38,31 @@ def test_cn_activity_us_returns_empty():
 
 
 def test_cn_activity_resilient_on_failure():
-    """任一数据源异常 → 返回 {}，不抛出。"""
+    """dragon_tiger 异常 → 降级 dt_count=0（不整体失败）；research 正常返回。"""
     a = HoldingsAnalyzer()
-    with patch.object(a._ak, "get_dragon_tiger_list", side_effect=Exception("net")):
-        assert a._collect_cn_activity("002371", "cn") == {}
+    a._dragon_tiger_cache.clear()
+    with patch.object(a._ak, "get_dragon_tiger_list", side_effect=Exception("net")), \
+         patch.object(a._ak, "get_institutional_research", return_value=[]):
+        result = a._collect_cn_activity("002371", "cn")
+    assert result == {"dragon_tiger_count": 0, "institution_research_count": 0}
+
+
+def test_dragon_tiger_cache_shared_across_calls():
+    """run 级缓存：多只 CN stock 共享一次 dragon_tiger 全市场拉取。"""
+    a = HoldingsAnalyzer()
+    a._dragon_tiger_cache.clear()
+    call_count = {"n": 0}
+
+    def counting(*args, **kwargs):
+        call_count["n"] += 1
+        return [{"symbol": "002371"}]
+
+    with patch.object(a._ak, "get_dragon_tiger_list", side_effect=counting), \
+         patch.object(a._ak, "get_institutional_research", return_value=[]):
+        a._collect_cn_activity("002371", "cn")
+        a._collect_cn_activity("300750", "cn")
+        a._collect_cn_activity("002230", "cn")
+    assert call_count["n"] == 1, f"dragon_tiger 应只拉 1 次（缓存共享），实际 {call_count['n']}"
 
 
 def test_cn_activity_empty_data():

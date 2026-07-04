@@ -57,6 +57,8 @@ class HoldingsAnalyzer:
         self._fh = FinnhubClient()
         self._etf = ETFAnalyzer()
         self._cache: dict[tuple, HoldingResult] = {}
+        # run 级缓存：龙虎榜是全市场数据，多只 CN stock 共享一次拉取（省 ~2min/只）
+        self._dragon_tiger_cache: dict[int, list] = {}
 
     def analyze(self, holdings: list[dict]) -> list[HoldingResult]:
         """分析一组 holdings（[{symbol,market,type}]），同标的只查一次。"""
@@ -183,6 +185,16 @@ class HoldingsAnalyzer:
             logger.warning(f"insider collect failed for {symbol}: {e}")
             return {}
 
+    def _get_dragon_tiger_cached(self, days: int = 30) -> list:
+        """run 级缓存龙虎榜（全市场数据，多只 CN stock 共享一次拉取）。"""
+        if days not in self._dragon_tiger_cache:
+            try:
+                self._dragon_tiger_cache[days] = self._ak.get_dragon_tiger_list(days=days) or []
+            except Exception as e:
+                logger.warning(f"dragon_tiger_list fetch failed: {e}")
+                self._dragon_tiger_cache[days] = []
+        return self._dragon_tiger_cache[days]
+
     def _collect_cn_activity(self, symbol: str, market: str = "cn") -> dict:
         """CN 独有：龙虎榜上榜次数（最近 30 天）+ 机构调研次数（90 天）。US 返回 {}。
 
@@ -195,7 +207,7 @@ class HoldingsAnalyzer:
         if market != "cn":
             return {}
         try:
-            dragon = self._ak.get_dragon_tiger_list(days=30) or []
+            dragon = self._get_dragon_tiger_cached(30)
             dt_count = sum(1 for d in dragon if str(d.get("symbol", "")) == str(symbol))
             research = self._ak.get_institutional_research(symbol, days=90) or []
             return {
@@ -241,6 +253,9 @@ class HoldingsAnalyzer:
             "upgrades": lambda: self._yf.get_upgrades_downgrades(symbol),
             "history": lambda: self._yf.get_history(symbol, period="6mo"),
             "news": lambda: self._fh.get_company_news(symbol, days=7),
+            "events": lambda: self._collect_events(symbol, "us"),
+            "insider": lambda: self._collect_insider(symbol, "us"),
+            "forecast": lambda: self._collect_forecast(symbol, "us"),
         })
         quote = data.get("quote") or {}
         info = data.get("info") or {}
@@ -286,9 +301,9 @@ class HoldingsAnalyzer:
             flow={},  # US 个股资金流无免费数据源
             technicals=_extract_technicals(data.get("history"), uppercase_cols=True),
             news=_extract_news(data.get("news")),
-            events=self._collect_events(symbol, "us"),
-            insider=self._collect_insider(symbol, "us"),
-            forecast=self._collect_forecast(symbol, "us"),
+            events=data.get("events") or {},
+            insider=data.get("insider") or {},
+            forecast=data.get("forecast") or {},
         )
 
     def _analyze_cn_stock(self, symbol: str) -> HoldingResult:
@@ -300,6 +315,9 @@ class HoldingsAnalyzer:
             "flow": lambda: self._ak.get_stock_fund_flow(symbol),
             "history": lambda: self._ak.get_stock_history(symbol, days=180),
             "news": lambda: self._ak.get_stock_news(symbol, limit=5),
+            "events": lambda: self._collect_events(symbol, "cn"),
+            "insider": lambda: self._collect_insider(symbol, "cn"),
+            "cn_activity": lambda: self._collect_cn_activity(symbol, "cn"),
         })
         quote = data.get("quote") or {}
         fin = data.get("fundamentals") or {}
@@ -338,9 +356,9 @@ class HoldingsAnalyzer:
             },
             technicals=_extract_technicals(data.get("history")),
             news=_extract_news(data.get("news")),
-            events=self._collect_events(symbol, "cn"),
-            insider=self._collect_insider(symbol, "cn"),
-            cn_activity=self._collect_cn_activity(symbol, "cn"),
+            events=data.get("events") or {},
+            insider=data.get("insider") or {},
+            cn_activity=data.get("cn_activity") or {},
         )
 
     def _analyze_cn_etf(self, symbol: str) -> HoldingResult:
