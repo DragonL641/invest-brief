@@ -108,7 +108,8 @@ class CNMarketProvider(MarketProvider):
     # ==================== Rendering ====================
 
     def render_section(self, data: dict[str, Any], config: dict[str, Any], *,
-                       macro_summary: str | None = None, risk_html: str = "") -> str:
+                       macro_summary: str | None = None, risk_html: str = "",
+                       regime_html: str = "") -> str:
         """渲染 A 股市场宏观区块。
 
         Macro view: ② economic calendar, ③ monetary policy, ④ asset performance.
@@ -135,6 +136,7 @@ class CNMarketProvider(MarketProvider):
       </div>
       {monetary_html}
       {econ_html}
+      {regime_html}
       {risk_html}
     </div>'''
 
