@@ -36,6 +36,11 @@ class HoldingResult:
     signals: list = field(default_factory=list)
     technicals: dict = field(default_factory=dict)
     news: list = field(default_factory=list)
+    events: dict = field(default_factory=dict)
+    insider: dict = field(default_factory=dict)
+    cn_activity: dict = field(default_factory=dict)
+    forecast: dict = field(default_factory=dict)
+    fund_meta: dict = field(default_factory=dict)
     ai_conclusion: str = ""
     error: str = ""              # 非空 → 该标的整体分析失败
 
