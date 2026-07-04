@@ -33,7 +33,6 @@ from dotenv import load_dotenv
 
 PROJECT_DIR = Path(__file__).resolve().parent
 ENV_FILE = PROJECT_DIR / ".env"
-CONFIG_FILE = PROJECT_DIR / "config.json"
 
 load_dotenv(ENV_FILE, override=False)
 

@@ -1,4 +1,6 @@
 """Smoke test for the merged core.config module."""
+import pytest
+
 from investbrief.core.config import (
     load_config, validate_config, DB_PATH, API_RETRY_COUNT, API_RETRY_DELAY,
     US_GDP_BASE_YEAR, US_GDP_BASE_VALUE,
@@ -14,6 +16,5 @@ def test_constants_present():
 
 
 def test_validate_config_rejects_missing_email_service():
-    import pytest
     with pytest.raises(ValueError, match="email_service"):
         validate_config({"recipients": [{"email": "a@b.c"}]})
