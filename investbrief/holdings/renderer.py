@@ -238,3 +238,73 @@ def _fmt_pct(v) -> str:
 
 def _fmt_num(v, digits: int = 2) -> str:
     return f"{v:,.{digits}f}" if v is not None else "—"
+
+
+def _pick_key_signals(r: HoldingResult) -> list[dict]:
+    """从各维度挑最强 1-3 个信号，按优先级排序，cap 3。
+
+    Priority (spec §3.3):
+      1. insider sell/buy (when direction != flat and net_amount present)
+      2. latest rating action (up/down based on grade)
+      3. RSI > 70 (down 超买) / < 30 (up 超卖)
+      4. MACD golden (up) / dead (down)
+      5. dragon-tiger count > 0 (up, CN only)
+      6. days_to_next ≤ 7 (warn)
+      7. price_target upside_pct > 20 (up)
+    """
+    sigs: list[dict] = []
+    # 1. insider sell/buy
+    ins = r.insider or {}
+    if ins.get("direction") == "sell" and ins.get("net_amount"):
+        sigs.append({"label": f"高管减持 {_fmt_short_money(ins['net_amount'])}", "cls": "down"})
+    elif ins.get("direction") == "buy" and ins.get("net_amount"):
+        sigs.append({"label": f"高管增持 {_fmt_short_money(ins['net_amount'])}", "cls": "up"})
+    # 2. latest rating action
+    for a in (r.rating.get("actions") or [])[:1]:
+        if r.market == "us":
+            grade = a.get("to_grade", "") or ""
+            if a.get("from_grade") and a.get("to_grade"):
+                g_low = grade.lower()
+                cls = "up" if ("buy" in g_low or "outperform" in g_low or "overweight" in g_low) else "down"
+                sigs.append({"label": f"评级{a['from_grade']}→{grade}", "cls": cls})
+        else:
+            rating_txt = a.get("rating", "") or ""
+            cls = "up" if ("买" in rating_txt or "增" in rating_txt) else (
+                "down" if ("减" in rating_txt or "卖" in rating_txt) else "up")
+            sigs.append({"label": f"评级{rating_txt}", "cls": cls})
+    # 3. RSI overbought/oversold
+    rsi = (r.technicals or {}).get("rsi")
+    if rsi is not None and rsi > 70:
+        sigs.append({"label": "RSI超买", "cls": "down"})
+    elif rsi is not None and rsi < 30:
+        sigs.append({"label": "RSI超卖", "cls": "up"})
+    # 4. MACD cross
+    macd = (r.technicals or {}).get("macd_cross")
+    if macd == "golden":
+        sigs.append({"label": "MACD金叉", "cls": "up"})
+    elif macd == "dead":
+        sigs.append({"label": "MACD死叉", "cls": "down"})
+    # 5. dragon-tiger (CN)
+    dt = (r.cn_activity or {}).get("dragon_tiger_count", 0)
+    if dt:
+        sigs.append({"label": f"龙虎榜×{dt}", "cls": "up"})
+    # 6. earnings near
+    days = (r.events or {}).get("days_to_next")
+    if days is not None and days <= 7:
+        sigs.append({"label": f"{days}天后财报", "cls": "warn"})
+    # 7. price-target upside
+    pt = (r.rating.get("price_target") or {}).get("upside_pct")
+    if pt is not None and pt > 20:
+        sigs.append({"label": f"目标空间{pt:+.0f}%", "cls": "up"})
+    return sigs[:3]
+
+
+def _fmt_short_money(v: float) -> str:
+    """数字 → 万/亿 简写。"""
+    if v is None:
+        return ""
+    if abs(v) >= 1e8:
+        return f"{v/1e8:.1f}亿"
+    if abs(v) >= 1e4:
+        return f"{v/1e4:.0f}万"
+    return f"{v:.0f}"
