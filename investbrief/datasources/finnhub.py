@@ -36,7 +36,13 @@ class FinnhubClient:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            logger.warning(f"Finnhub API error ({endpoint}): {e}")
+            # 403 on free tier (price-target/recommendation) is expected and
+            # has yfinance fallback in holdings analyzer → debug, not warning.
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            if status == 403:
+                logger.debug(f"Finnhub 403 ({endpoint}) — yfinance fallback will be used")
+            else:
+                logger.warning(f"Finnhub API error ({endpoint}): {e}")
             return None
 
     def get_quote(self, symbol: str) -> Optional[Dict[str, Any]]:

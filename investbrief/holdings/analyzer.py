@@ -233,9 +233,11 @@ class HoldingsAnalyzer:
         data = self._parallel({
             "quote": lambda: self._yf.get_quote(symbol),
             "info": lambda: self._yf.get_info(symbol),
-            "recommendation": lambda: self._fh.get_recommendation(symbol),
-            "price_target": lambda: self._fh.get_price_target(symbol),
-            "yf_price_target": lambda: self._yf.get_price_targets(symbol),
+            # 评级：yfinance 为主（免费、稳定），finnhub 为辅（提供 trend，但 free tier 常 403）
+            "recommendation_yf": lambda: self._yf.get_recommendations(symbol),
+            "recommendation_fh": lambda: self._fh.get_recommendation(symbol),
+            "price_target_fh": lambda: self._fh.get_price_target(symbol),
+            "price_target_yf": lambda: self._yf.get_price_targets(symbol),
             "upgrades": lambda: self._yf.get_upgrades_downgrades(symbol),
             "history": lambda: self._yf.get_history(symbol, period="6mo"),
             "news": lambda: self._fh.get_company_news(symbol, days=7),
@@ -243,10 +245,13 @@ class HoldingsAnalyzer:
         quote = data.get("quote") or {}
         info = data.get("info") or {}
         current = quote.get("price")
+        recommendation = self._merge_us_recommendation(
+            data.get("recommendation_fh"), data.get("recommendation_yf"),
+        )
         # finnhub price-target may 403 on free tier → fallback to yfinance
-        price_target = data.get("price_target") or {}
+        price_target = data.get("price_target_fh") or {}
         if not price_target.get("target_mean"):
-            yf_pt = data.get("yf_price_target") or {}
+            yf_pt = data.get("price_target_yf") or {}
             if yf_pt.get("mean"):
                 price_target = {
                     "target_mean": yf_pt.get("mean"),
@@ -267,7 +272,7 @@ class HoldingsAnalyzer:
                 "market_cap": quote.get("market_cap") or info.get("market_cap"),
             },
             rating=self._build_us_rating(
-                data.get("recommendation"), price_target,
+                recommendation, price_target,
                 data.get("upgrades"), current,
             ),
             fundamentals={
@@ -388,6 +393,37 @@ class HoldingsAnalyzer:
         )
 
     # ==================== 评级结构标准化 ====================
+
+    @staticmethod
+    def _merge_us_recommendation(fh_rec, yf_rec) -> dict | None:
+        """US 评级分布合并：finnhub 优先（带 trend），yfinance 兜底（仅当期分布）。
+
+        - finnhub 成功 → 直接返回（含 latest/previous/change/periods，信息更全）。
+        - finnhub 失败/空（如 free tier 403）→ yfinance flat dict 归一化为
+          {latest: {strong_buy/buy/hold/sell/strong_sell}, change: {}, periods: []}。
+          yfinance 无 previous 期数据，trend 留空 dict（renderer 已优雅降级）。
+        - 两者都失败 → None（_build_us_rating 会产出空 distribution）。
+
+        设计目标：finnhub 403 时评级维度仍可从 yfinance 构造，不依赖 finnhub。
+        """
+        if fh_rec and fh_rec.get("latest"):
+            return fh_rec
+        yf = yf_rec or {}
+        if not any(yf.get(k) for k in ("strong_buy", "buy", "hold", "sell", "strong_sell")):
+            return None
+        return {
+            "latest": {
+                "strong_buy": yf.get("strong_buy"),
+                "buy": yf.get("buy"),
+                "hold": yf.get("hold"),
+                "sell": yf.get("sell"),
+                "strong_sell": yf.get("strong_sell"),
+                "period": None,
+            },
+            "previous": None,
+            "change": {},
+            "periods": [],
+        }
 
     @staticmethod
     def _build_us_rating(recommendation, price_target, upgrades, current) -> dict:
