@@ -1,229 +1,232 @@
-"""持仓卡片 HTML 生成。
+"""持仓卡片 HTML 生成（重构版）。
 
-复用 email_base.html 的 CSS class（stock-up/down, analyst-section, fundamental-section,
-rating-bar, upgrade-item, summary-box, metrics-row），保证与宏观邮件视觉一致。
-按 type 动态渲染可用维度，缺失维度优雅降级（返回空片段）。
+新版结构（Task 10+11）：
+- 场内外分组渲染（场内 = stock/etf，场外 = fund）
+- 卡片头部：名称 + symbol/type/现价 + 涨跌幅
+- 关键信号 tag 行（_pick_key_signals，最多 3 个）
+- 维度表格行（_render_dimensions：基本面/技术/资金筹码/机构态度/事件/预估/新闻）
+- CSS bar（中性灰条 + 包裹值的 span 控红绿）
+- 场外基金卡片（_render_fund_card：净值/收益/规模/经理/评级）
+- AI 结论 box
+
+CSS class（signal-tag-* / bar-* / dim-* / cell / cl / ai-box / group-title）由模板 Task 12 定义。
 """
 from investbrief.holdings.analyzer import HoldingResult
 
-_RATING_CN = {
-    "strong_buy": "强烈买入", "buy": "买入", "outperform": "增持",
-    "neutral": "中性", "underperform": "减持", "sell": "卖出",
-    "strong_sell": "强烈卖出",
-}
 _TYPE_CN = {"stock": "股票", "etf": "ETF", "fund": "基金"}
 
 
 def render_holdings_section(results: list[HoldingResult]) -> str:
-    """拼接所有持仓标的卡片。"""
+    """场内外分组渲染。"""
     if not results:
         return '<div class="no-data">暂无持仓数据</div>'
-    return "\n".join(_render_card(r) for r in results)
+    on_market = [r for r in results if r.type in ("stock", "etf")]
+    off_market = [r for r in results if r.type == "fund"]
+
+    def _sort_key(r):
+        chg = (r.price or {}).get("change_pct") or 0
+        return (0 if r.market == "us" else 1, -chg)
+
+    parts = []
+    if on_market:
+        parts.append(f'<h3 class="group-title">🏛 场内持仓（{len(on_market)} 只）</h3>')
+        parts += [_render_card(r) for r in sorted(on_market, key=_sort_key)]
+    if off_market:
+        parts.append(f'<h3 class="group-title">💰 场外基金（{len(off_market)} 只）</h3>')
+        parts += [_render_fund_card(r) for r in sorted(off_market, key=_sort_key)]
+    else:
+        parts.append('<h3 class="group-title">💰 场外基金</h3>')
+        parts.append('<div class="no-data" style="padding:10px;font-size:13px;">暂无场外基金</div>')
+    return "\n".join(parts)
 
 
-# ==================== 单标的卡片 ====================
+# ==================== 场内标的卡片 ====================
 
 def _render_card(r: HoldingResult) -> str:
+    """场内标的卡片：头部 + 关键信号 + 维度表格行 + AI。"""
     name = r.name or r.symbol
-    trend_cls = _trend_class(r.price.get("change_pct"))
-    change_txt = _fmt_pct(r.price.get("change_pct"))
-    badge = f'{_market_flag(r.market)} {name} <span style="float:right;font-weight:400;font-size:12px;color:#7f8c8d;">{r.symbol} · {_TYPE_CN.get(r.type, r.type)} · <span class="{trend_cls}">{change_txt}</span></span>'
+    chg = (r.price or {}).get("change_pct")
+    p = r.price or {}
+    cur = p.get("current")
+    cur_txt = f'<strong>{_fmt_num(cur)}</strong>' if cur is not None else ""
+    head = (f'<div class="card-head"><span class="card-name">{_market_flag(r.market)} {name}</span>'
+            f'<span class="card-meta">{r.symbol} · {_TYPE_CN.get(r.type, r.type)} · {cur_txt} '
+            f'<span class="{_trend_class(chg)}">{_fmt_pct(chg)}</span></span></div>')
     if r.error:
-        return f'<div class="card"><div class="card-header">{badge}</div><div class="card-body"><div class="no-data">{r.symbol} 分析失败 — {r.error}</div></div></div>'
-    body = "".join(filter(None, [
-        _render_price(r), _render_rating(r), _render_fundamentals(r),
-        _render_technicals(r), _render_flow(r), _render_signals(r),
-        _render_news(r), _render_ai(r),
-    ]))
-    return f'<div class="card"><div class="card-header">{badge}</div><div class="card-body">{body}</div></div>'
+        return f'<div class="card">{head}<div class="card-body no-data">{r.symbol} 分析失败 — {r.error}</div></div>'
+    sigs = _pick_key_signals(r)
+    sig_html = '<div class="signal-row">' + "".join(
+        f'<span class="signal-tag signal-tag-{s["cls"]}">{s["label"]}</span>' for s in sigs) + '</div>' if sigs else ""
+    dims = _render_dimensions(r)
+    ai = f'<div class="ai-box">🤖 {r.ai_conclusion}</div>' if r.ai_conclusion else ""
+    return f'<div class="card">{head}<div class="card-body">{sig_html}{dims}{ai}</div></div>'
 
 
-# ==================== 维度片段 ====================
+# ==================== 维度表格行 ====================
 
-def _render_price(r: HoldingResult) -> str:
-    p = r.price
-    if not p or p.get("current") is None:
-        return ""
-    extras = []
-    for label, key, digits in [("前收", "previous_close", 2), ("高", "high", 2),
-                               ("低", "low", 2), ("成交量", "volume", 0),
-                               ("市值", "market_cap", 0), ("成交额", "amount", 0),
-                               ("累计净值", "acc_nav", 4)]:
-        v = p.get(key)
-        if v is not None:
-            extras.append(f'<span class="metric"><span class="label">{label}</span> {_fmt_num(v, digits)}</span>')
-    if p.get("iopv") is not None:
-        extras.append(f'<span class="metric"><span class="label">IOPV</span> {_fmt_num(p["iopv"])}</span>')
-    if p.get("premium_rate") is not None:
-        extras.append(f'<span class="metric"><span class="label">溢价率</span> {_fmt_pct(p["premium_rate"])}</span>')
-    extra_html = f'<div class="metrics-row">{"".join(extras)}</div>' if extras else ""
-    return (f'<div class="stock-detail"><div class="stock-detail-header">'
-            f'<span class="stock-name">现价</span><span class="stock-price">{_fmt_num(p["current"])}</span>'
-            f'</div>{extra_html}</div>')
+def _render_dimensions(r: HoldingResult) -> str:
+    """维度表格行：每个维度一行 emoji+name+对齐数据。缺数据维度省略。"""
+    rows = []
 
-
-def _render_rating(r: HoldingResult) -> str:
-    rt = r.rating
-    if not rt:
-        return ""
-    parts = []
-    dist = rt.get("distribution") or {}
-    if dist:
-        total = rt.get("total") or sum(dist.values()) or 1
-        bar = "".join(
-            f'<span class="{_bucket_class(k)}" style="width:{v / total * 100:.0f}%"></span>'
-            for k, v in dist.items() if v
-        )
-        labels = " · ".join(f"{_RATING_CN.get(k, k)} {v}" for k, v in dist.items())
-        parts.append(
-            f'<div class="analyst-section"><div class="analyst-label">评级分布（共 {total} 票）</div>'
-            f'<div class="rating-bar">{bar}</div><div class="rating-labels">{labels}</div></div>'
-        )
-    trend = rt.get("trend") or {}
-    if trend:
-        significant = sorted([(k, v) for k, v in trend.items() if abs(v) >= 3],
-                             key=lambda x: -abs(x[1]))
-        if significant:
-            note = "vs 上月" if r.market == "us" else f"vs 上 {rt.get('days') or ''} 天"
-            items = " · ".join(f"{_RATING_CN.get(k, k)} {v:+.1f}pp" for k, v in significant)
-            parts.append(
-                f'<div class="analyst-section"><div class="analyst-label">评级变化（{note}）</div>'
-                f'<div class="analyst-row">{items}</div></div>'
-            )
-    pt = rt.get("price_target") or {}
-    if pt.get("mean") is not None:
-        bits = [f"目标均 {_fmt_num(pt['mean'])}"]
-        if pt.get("upside_pct") is not None:
-            bits.append(f"空间 <strong>{_fmt_pct(pt['upside_pct'])}</strong>")
-        if pt.get("high") is not None and pt.get("low") is not None:
-            bits.append(f"区间 {_fmt_num(pt['low'])}–{_fmt_num(pt['high'])}")
-        if pt.get("num_analysts"):
-            bits.append(f"{pt['num_analysts']} 位分析师")
-        parts.append(f'<div class="analyst-section"><div class="analyst-row">{ " · ".join(bits)}</div></div>')
-    actions = rt.get("actions") or []
-    if actions:
-        items = []
-        for a in actions[:3]:
-            if r.market == "us":
-                grade = a.get("to_grade") or ""
-                if a.get("from_grade"):
-                    grade = f"{a['from_grade']}→{a.get('to_grade', '')}"
-                core = f'{a.get("firm", "")} <span class="upgrade-grade">{grade}</span>'
-            else:
-                core = f'{a.get("institution", "")} <span class="upgrade-grade">{a.get("rating", "")}</span>'
-            items.append(f'<div class="upgrade-item"><span class="upgrade-firm">{core}</span><span class="upgrade-date">{a.get("date", "")}</span></div>')
-        parts.append(f'<div class="analyst-section"><div class="analyst-label">近期机构动作</div>{"".join(items)}</div>')
-    return "".join(parts)
-
-
-def _render_fundamentals(r: HoldingResult) -> str:
+    # 估值基本面
     f = r.fundamentals
-    if not f:
-        return ""
-    bits = []
-    for label, key, digits in [("PE", "pe", 1), ("ROE%", "roe", 1), ("营收增长%", "revenue_growth", 1),
-                               ("净利增长%", "profit_growth", 1), ("毛利率%", "gross_margin", 1),
-                               ("净利率%", "net_margin", 1), ("EPS", "eps", 2),
-                               ("周收益%", "return_1w", 2), ("月收益%", "return_1m", 2),
-                               ("季收益%", "return_3m", 2)]:
-        v = f.get(key)
-        if v is not None:
-            bits.append(f'<span class="metric"><span class="label">{label}</span> {_fmt_num(v, digits)}</span>')
-    if not bits:
-        return ""
-    return f'<div class="fundamental-section"><div class="metrics-row">{"".join(bits)}</div></div>'
+    if f:
+        cells = _cells([("PE", f.get("pe"), 1), ("ROE%", f.get("roe"), 1),
+                        ("营收%", f.get("revenue_growth"), 1),
+                        ("毛利%", f.get("gross_margin"), 1),
+                        ("净利%", f.get("net_margin"), 1), ("EPS", f.get("eps"), 2)])
+        # 兼容旧字段名 profit_growth
+        if not any(c for c in [f.get("revenue_growth")]):
+            pg = f.get("profit_growth")
+            if pg is not None:
+                cells = (cells + _cells([("净利%", pg, 1)])) if "净利%" not in cells else cells
+        if cells:
+            rows.append(_dim_row("📊 估值基本面", cells))
 
-
-def _render_technicals(r: HoldingResult) -> str:
-    """技术面：均线排列/RSI/MACD 交叉/近期收益/60 日区间位置。"""
+    # 技术面
     t = r.technicals
-    if not t:
-        return ""
-    align_cn = {"bullish": "多头排列", "bearish": "空头排列", "mixed": "纠缠"}
-    bits = []
-    if t.get("ma_alignment"):
-        bits.append(f'<span class="metric"><span class="label">均线</span> {align_cn.get(t["ma_alignment"], t["ma_alignment"])}</span>')
-    if t.get("rsi") is not None:
-        bits.append(f'<span class="metric"><span class="label">RSI</span> {t["rsi"]}</span>')
-    if t.get("macd_cross") and t["macd_cross"] != "none":
-        is_gold = t["macd_cross"] == "golden"
-        cls = "stock-up" if is_gold else "stock-down"
-        bits.append(f'<span class="metric"><span class="label">MACD</span> <span class="{cls}">{"金叉" if is_gold else "死叉"}</span></span>')
-    for label, key in [("20日", "return_20d"), ("60日", "return_60d")]:
-        v = t.get(key)
-        if v is not None:
-            bits.append(f'<span class="metric"><span class="label">{label}</span> <span class="{_trend_class(v)}">{v:+}%</span></span>')
-    if t.get("position_60d") is not None:
-        bits.append(f'<span class="metric"><span class="label">60日位置</span> {t["position_60d"]}%</span>')
-    if not bits:
-        return ""
-    return f'<div class="fundamental-section"><div class="metrics-row">{"".join(bits)}</div></div>'
+    if t:
+        cells = []
+        if t.get("rsi") is not None:
+            over = "超买" if t["rsi"] > 70 else ("超卖" if t["rsi"] < 30 else "")
+            cells.append(f'<span class="cell"><span class="cl">RSI</span> {t["rsi"]}{("(" + over + ")") if over else ""}</span>')
+        if t.get("ma_alignment"):
+            align_cn = {"bullish": "多头", "bearish": "空头", "mixed": "纠缠"}
+            cells.append(f'<span class="cell"><span class="cl">均线</span> {align_cn.get(t["ma_alignment"], t["ma_alignment"])}</span>')
+        if t.get("macd_cross") and t["macd_cross"] != "none":
+            cells.append(f'<span class="cell"><span class="cl">MACD</span> {"金叉" if t["macd_cross"] == "golden" else "死叉"}</span>')
+        if cells:
+            rows.append(_dim_row("📈 技术面", "".join(cells)))
 
-
-def _render_news(r: HoldingResult) -> str:
-    """标的级新闻（top 3，紧凑展示）。"""
-    if not r.news:
-        return ""
-    items = []
-    for n in r.news[:3]:
-        title = (n.get("title") or "")[:60]
-        date = str(n.get("date", ""))[:10]
-        items.append(
-            f'<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #f0f0f0;">'
-            f'<span style="color:#2c3e50;">{title}</span> '
-            f'<span style="color:#999;font-size:11px;">{date}</span></div>'
-        )
-    return f'<div style="margin-top:8px;">{"".join(items)}</div>'
-
-
-def _render_flow(r: HoldingResult) -> str:
+    # 资金筹码
     fl = r.flow
-    if not fl:
-        return ""
-    bits = []
-    main = fl.get("main_net")
-    if main is None:
-        main = fl.get("main_net_flow")
-    if main is not None:
-        cls = "stock-up" if main > 0 else "stock-down"
-        bits.append(f'<span class="metric"><span class="label">主力净流入</span> <span class="{cls}">{_fmt_num(main, 0)}</span></span>')
-    if fl.get("main_pct") is not None:
-        bits.append(f'<span class="metric"><span class="label">占比</span> {_fmt_pct(fl["main_pct"])}</span>')
-    if not bits:
-        return ""
-    return f'<div class="institution-section"><div class="metrics-row">{"".join(bits)}</div></div>'
+    cn_act = r.cn_activity
+    if fl or cn_act:
+        cells = []
+        main = (fl or {}).get("main_net")
+        if main is None:
+            main = (fl or {}).get("main_net_flow")
+        if main is not None:
+            cls = "stock-up" if main > 0 else "stock-down"
+            bar = _bar_html(abs(main), 5e8)
+            cells.append(f'<span class="cell"><span class="cl">主力</span> <span class="{cls}">{_fmt_short_money(main)}</span>{bar}</span>')
+        dt = (cn_act or {}).get("dragon_tiger_count", 0)
+        if dt:
+            cells.append(f'<span class="cell"><span class="cl">龙虎榜</span>×{dt}</span>')
+        rc = (cn_act or {}).get("institutional_research_count", 0)
+        if rc:
+            cells.append(f'<span class="cell"><span class="cl">机构调研</span>×{rc}</span>')
+        if cells:
+            rows.append(_dim_row("💰 资金筹码", "".join(cells)))
+
+    # 机构态度
+    rt = r.rating
+    if rt and (rt.get("distribution") or rt.get("price_target")):
+        cells = []
+        dist = rt.get("distribution") or {}
+        if dist:
+            total = rt.get("total") or sum(dist.values()) or 1
+            buy_pct = (dist.get("buy", 0) + dist.get("strong_buy", 0) + dist.get("outperform", 0)) / total * 100
+            cells.append(f'<span class="cell"><span class="cl">买入共识</span> {buy_pct:.0f}% {_bar_html(buy_pct, 100)}</span>')
+        pt = rt.get("price_target") or {}
+        if pt.get("upside_pct") is not None:
+            cls = "stock-up" if pt["upside_pct"] > 0 else "stock-down"
+            cells.append(f'<span class="cell"><span class="cl">目标空间</span> <span class="{cls}">{pt["upside_pct"]:+.0f}%</span></span>')
+        if cells:
+            rows.append(_dim_row("🏛 机构态度", "".join(cells)))
+
+    # 事件日历
+    ev = r.events
+    ins = r.insider
+    if ev or ins:
+        cells = []
+        if ev.get("next_earnings"):
+            days = ev.get("days_to_next")
+            warn = ' ⚠️' if days is not None and days <= 7 else ''
+            cells.append(f'<span class="cell"><span class="cl">财报</span> {ev["next_earnings"]}{warn}</span>')
+        if ins.get("direction") and ins.get("direction") != "flat":
+            cls = "stock-up" if ins["direction"] == "buy" else "stock-down"
+            verb = "增持" if ins["direction"] == "buy" else "减持"
+            cells.append(f'<span class="cell"><span class="cl">高管{verb}</span> <span class="{cls}">{_fmt_short_money(ins.get("net_amount", 0))}</span></span>')
+        if cells:
+            rows.append(_dim_row("📅 事件日历", "".join(cells)))
+
+    # 盈利预估
+    fc = r.forecast
+    if fc and fc.get("eps_next") is not None:
+        cells = [f'<span class="cell"><span class="cl">下季EPS</span> {fc["eps_next"]:.2f}</span>']
+        if fc.get("yoy_pct") is not None:
+            cls = "stock-up" if fc["yoy_pct"] > 0 else "stock-down"
+            cells.append(f'<span class="cell"><span class="cl">同比</span> <span class="{cls}">{fc["yoy_pct"]:+.0f}%</span></span>')
+        rows.append(_dim_row("🌐 盈利预估", "".join(cells)))
+
+    # 新闻
+    if r.news:
+        items = "".join(
+            f'<div class="news-item">• {(n.get("title", ""))[:50]} <span class="news-date">{str(n.get("date", ""))[:10]}</span></div>'
+            for n in r.news[:3])
+        rows.append(f'<div class="dim-row"><span class="dim-name">📰 新闻</span><div class="dim-cells">{items}</div></div>')
+
+    return f'<div class="dims">{"".join(rows)}</div>' if rows else ""
 
 
-def _render_signals(r: HoldingResult) -> str:
-    if not r.signals:
-        return ""
-    items = []
-    for s in r.signals[:4]:
-        sig = s.get("signal", "")
-        cls = "stock-up" if sig == "bullish" else ("stock-down" if sig == "bearish" else "stock-neutral")
-        items.append(f'<span class="metric"><span class="{cls}">{s.get("dimension", "")}/{s.get("name", "")}: {sig}</span></span>')
-    return f'<div class="metrics-row" style="margin-top:8px;">{"".join(items)}</div>' if items else ""
+# ==================== 场外基金卡片 ====================
+
+def _render_fund_card(r: HoldingResult) -> str:
+    """场外基金卡片：净值/收益/规模/经理/评级/AI。"""
+    name = r.name or r.symbol
+    p = r.price or {}
+    chg = p.get("change_pct")
+    head = (f'<div class="card-head"><span class="card-name">💰 {name}</span>'
+            f'<span class="card-meta">{r.symbol} · 基金 · 单位净值 <strong>{_fmt_num(p.get("current"))}</strong> '
+            f'<span class="{_trend_class(chg)}">{_fmt_pct(chg)}</span></span></div>')
+    if r.error:
+        return f'<div class="card">{head}<div class="card-body no-data">{r.error}</div></div>'
+    cells = []
+    if p.get("acc_nav") is not None:
+        cells.append(f'<span class="cell"><span class="cl">累计净值</span> {_fmt_num(p["acc_nav"], 4)}</span>')
+    f = r.fundamentals
+    for label, key in [("近1周%", "return_1w"), ("近1月%", "return_1m"), ("近3月%", "return_3m")]:
+        v = (f or {}).get(key)
+        if v is not None:
+            cells.append(f'<span class="cell"><span class="cl">{label}</span> <span class="{_trend_class(v)}">{v:+.2f}%</span></span>')
+    fm = r.fund_meta
+    for label, key in [("规模(亿)", "scale"), ("经理", "manager"), ("评级", "rating")]:
+        v = (fm or {}).get(key)
+        if v is not None:
+            cells.append(f'<span class="cell"><span class="cl">{label}</span> {v}</span>')
+    dims = f'<div class="dims"><div class="dim-row"><span class="dim-name">📋 概况</span><div class="dim-cells">{"".join(cells)}</div></div></div>' if cells else ""
+    ai = f'<div class="ai-box">🤖 {r.ai_conclusion}</div>' if r.ai_conclusion else ""
+    return f'<div class="card">{head}<div class="card-body">{dims}{ai}</div></div>'
 
 
-def _render_ai(r: HoldingResult) -> str:
-    if not r.ai_conclusion:
+# ==================== 行/单元格/条 工具 ====================
+
+def _dim_row(name: str, cells_html: str) -> str:
+    return f'<div class="dim-row"><span class="dim-name">{name}</span><div class="dim-cells">{cells_html}</div></div>'
+
+
+def _cells(specs) -> str:
+    """[(label, value, digits), ...] → cells html，跳过 None。"""
+    out = []
+    for label, v, d in specs:
+        if v is not None:
+            out.append(f'<span class="cell"><span class="cl">{label}</span> {v:.{d}f}</span>')
+    return "".join(out)
+
+
+def _bar_html(value: float, max_val: float, width_px: int = 60) -> str:
+    """水平 CSS 条（中性灰；红绿由调用方 span class 包裹值）。"""
+    if max_val <= 0 or value is None:
         return ""
-    return f'<div class="summary-box" style="margin-top:8px;padding:10px;font-size:13px;">{r.ai_conclusion}</div>'
+    pct = min(100, max(0, abs(value) / max_val * 100))
+    return f'<span class="bar-track" style="width:{width_px}px;"><span class="bar-fill-neutral" style="width:{pct:.0f}%;"></span></span>'
 
 
 # ==================== 工具 ====================
 
 def _market_flag(market: str) -> str:
     return "🇺🇸" if market == "us" else "🇨🇳"
-
-
-def _bucket_class(k: str) -> str:
-    """评级桶名 → rating-bar CSS class（buy/hold/sell，绑定红涨绿跌色）。"""
-    if k in ("buy", "strong_buy", "outperform"):
-        return "buy"
-    if k in ("sell", "strong_sell", "underperform"):
-        return "sell"
-    return "hold"
 
 
 def _trend_class(pct) -> str:

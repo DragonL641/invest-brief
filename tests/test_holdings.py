@@ -204,8 +204,11 @@ def test_renderer_4_types():
         HoldingResult(symbol="000001", market="cn", type="fund", name="华夏成长", error="P2"),
     ]
     html = render_holdings_section(rs)
-    assert "AAPL" in html and "Apple" in html and "GS" in html
-    assert "510300" in html and "IOPV" in html and "估值低位" in html
+    # 新版分组：场内 stock+etf 一组，fund 走场外
+    assert "场内持仓" in html and "场外基金" in html
+    assert "AAPL" in html and "Apple" in html
+    assert "买入共识" in html  # rating distribution 走机构态度维度行
+    assert "510300" in html and "沪深300ETF" in html and "估值低位" in html
     assert "000001" in html and "P2" in html
 
 
