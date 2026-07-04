@@ -1,6 +1,6 @@
 """brief prompt 包含新维度字段。"""
 from investbrief.holdings.analyzer import HoldingResult
-from investbrief.holdings.brief import _build_prompt
+from investbrief.holdings.brief import _build_prompt, _format_holding
 
 
 def test_prompt_includes_insider():
@@ -29,3 +29,20 @@ def test_prompt_includes_forecast():
                       forecast={"eps_next": 2.1, "yoy_pct": 18.0})
     prompt = _build_prompt([r])
     assert "EPS" in prompt or "盈利" in prompt or "2.1" in prompt
+
+
+def test_format_holding_includes_key_dimensions():
+    r = HoldingResult(
+        symbol="601138", market="cn", type="stock", name="工业富联",
+        price={"current": 64.72, "change_pct": 1.09},
+        rating={"distribution": {"buy": 5, "sell": 1}, "total": 6, "price_target": {"mean": 70, "upside_pct": 8.2}},
+        fundamentals={"pe": 30.3, "roe": 18.5, "revenue_growth": 15.0},
+        technicals={"ma_alignment": "bullish", "rsi": 55, "macd_cross": "golden", "return_60d": 12.3},
+    )
+    text = _format_holding(r)
+    assert "601138" in text and "工业富联" in text
+    assert "64.72" in text
+    assert "buy" in text or "评级分布" in text
+    assert "bullish" in text
+    assert "30.3" in text
+    assert "ai_conclusion" not in text
