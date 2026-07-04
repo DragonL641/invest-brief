@@ -104,3 +104,91 @@ class TestJudgeFromSeries:
         r = _judge_from_series([], [], "us")
         assert r["quadrant"] == "中性"
         assert r["growth_axis"] == "未知"
+
+
+import pandas as pd
+
+from investbrief.regime.engine import RegimeEngine
+
+
+class _FakeData:
+    """Mock data_source:query 返回预设 macro_data DataFrame。
+
+    rows: list of (indicator, country, date, value)。query 用 indicator+country 过滤。
+    """
+
+    def __init__(self, rows):
+        self._df = pd.DataFrame(rows, columns=["indicator", "country", "date", "value"])
+
+    def query(self, sql, params=()):
+        indicator, country = params[0], params[1]
+        sub = self._df[(self._df["indicator"] == indicator)
+                       & (self._df["country"] == country)
+                       & self._df["value"].notna()]
+        return sub[["value"]].sort_index()  # 保持插入顺序(测试数据按日期升序构造)
+
+
+class TestRegimeEngine:
+    def _us_rows(self):
+        """构造 US:GDP 月度加速上行(24 月,二次式保证同比单调升)+ CPI 下行(5 月)→ 繁荣。
+
+        注:线性绝对值因基数效应会让同比下降(已由 test_us_prosperity_scenario 记录),
+        故采用二次式。CPI 取 5 期以保证切换确认去掉末值后仍余 4 期(≥ window+1=4)。
+        """
+        gdp = [("GDP", "us", f"2024-{m:02d}-01", 100.0 + 0.1 * i * i)
+               for i, m in enumerate(range(1, 13))] + \
+              [("GDP", "us", f"2025-{m:02d}-01", 100.0 + 0.1 * (12 + i) * (12 + i))
+               for i, m in enumerate(range(1, 13))]
+        cpi = [("CPI", "us", "2025-03-01", 3.1),
+               ("CPI", "us", "2025-04-01", 3.0),
+               ("CPI", "us", "2025-05-01", 2.9),
+               ("CPI", "us", "2025-06-01", 2.8),
+               ("CPI", "us", "2025-07-01", 2.7)]
+        return gdp + cpi
+
+    def test_judge_us_prosperity(self):
+        eng = RegimeEngine(_FakeData(self._us_rows()))
+        r = eng.judge("us")
+        assert r["quadrant"] == "繁荣"
+        assert r["market"] == "us"
+        assert "GDP_YOY" in r["indicators"]
+
+    def test_judge_empty_data_neutral(self):
+        eng = RegimeEngine(_FakeData([]))
+        r = eng.judge("us")
+        assert r["quadrant"] == "中性"
+        assert r["confidence"] == 30
+
+    def test_switch_confirmation_downgrades(self):
+        """含末值与不含末值判定不一致 → 切换确认降级中性。
+
+        将 _us_rows 末两期 CPI 替换为急升([3.5, 4.5]):
+        - 含末值:最近 4 期 [3.0,2.9,3.5,4.5],diffs=[-0.1,+0.6,+1.0],up=2 → 通胀上行
+          且 CPI 末值 4.5 > INFLATION_UP_THRESHOLD → 象限=通胀。
+        - 去末值:最近 4 期 [3.1,3.0,2.9,3.5],diffs=[-0.1,-0.1,+0.6],up=1/down=2 → 下行 → 繁荣。
+        两者(通胀 vs 繁荣)不一致 → 降级中性。
+        """
+        rows = [r for r in self._us_rows()
+                if not (r[0] == "CPI" and r[2] in ("2025-06-01", "2025-07-01"))]
+        rows += [("CPI", "us", "2025-06-01", 3.5),
+                 ("CPI", "us", "2025-07-01", 4.5)]
+        eng = RegimeEngine(_FakeData(rows))
+        r = eng.judge("us")
+        assert r["quadrant"] == "中性"
+
+    def test_judge_cn_uses_quarterly_period(self):
+        """CN GDP 季度(period=4):构造 8 个季度加速上行(二次式)+ CPI 下行(5 月)→ 繁荣。
+
+        二次式保证同比单调升;CPI 取 5 期以保证切换确认去掉末值后仍余 4 期。
+        """
+        gdp = [("GDP", "cn", f"2024-Q{n}", 100.0 + 2 * i * i) for i, n in enumerate(range(1, 5))] + \
+              [("GDP", "cn", f"2025-Q{n}", 100.0 + 2 * (4 + i) * (4 + i)) for i, n in enumerate(range(1, 5))]
+        cpi = [("CPI", "cn", "2025-04-01", 1.1),
+               ("CPI", "cn", "2025-05-01", 1.0),
+               ("CPI", "cn", "2025-06-01", 0.9),
+               ("CPI", "cn", "2025-07-01", 0.8),
+               ("CPI", "cn", "2025-08-01", 0.7)]
+        eng = RegimeEngine(_FakeData(gdp + cpi))
+        r = eng.judge("cn")
+        assert r["quadrant"] == "繁荣"
+        assert r["market"] == "cn"

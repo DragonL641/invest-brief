@@ -10,6 +10,9 @@ from investbrief.regime.config import (
     VOTE_WINDOW_MONTHLY, VOTE_WINDOW_QUARTERLY,
     GDP_PERIOD_CN, GDP_PERIOD_US,
 )
+from investbrief.regime.config import (
+    SWITCH_CONFIRMATION_RUNS, GROWTH_INDICATOR, INFLATION_INDICATOR,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,3 +111,49 @@ def _judge_from_series(gdp_values: list[float], cpi_values: list[float], market:
         "inflation_axis": _INFLATION_LABEL.get(inflation_dir, "未知"),
         "indicators": indicators,
     }
+
+
+class RegimeEngine:
+    """经济环境四象限判定引擎。
+
+    data_source 须实现 query(sql, params) → DataFrame(复用 BaseData)。
+    judge() 取 GDP/CPI 序列 → 纯函数判定 → 切换确认(去噪层 3)。
+    """
+
+    def __init__(self, data_source):
+        self.data = data_source
+
+    def judge(self, market: str) -> dict:
+        gdp_values = self._fetch_series(GROWTH_INDICATOR, market)
+        cpi_values = self._fetch_series(INFLATION_INDICATOR, market)
+
+        result = _judge_from_series(gdp_values, cpi_values, market)
+
+        # 去噪层 3:切换确认期(无状态回看)
+        # lookback = RUNS - 1:RUNS=2 → 去掉最近 1 期重判,比较 2 次判定
+        # 若象限不一致 → 降级中性(避免单期噪音触发切换)
+        lookback = SWITCH_CONFIRMATION_RUNS - 1
+        if (lookback > 0 and result["quadrant"] != "中性"
+                and len(gdp_values) > lookback and len(cpi_values) > lookback):
+            prev = _judge_from_series(gdp_values[:-lookback], cpi_values[:-lookback], market)
+            if prev["quadrant"] != result["quadrant"]:
+                result["quadrant"] = "中性"
+                result["confidence"] = 30
+
+        result["market"] = market
+        return result
+
+    def _fetch_series(self, indicator: str, country: str) -> list[float]:
+        """从 macro_data 取某 (indicator, country) 的全部值序列(按日期升序)。"""
+        try:
+            df = self.data.query(
+                "SELECT value FROM macro_data WHERE indicator=? AND country=? "
+                "AND value IS NOT NULL ORDER BY date",
+                (indicator, country),
+            )
+        except Exception as e:
+            logger.warning(f"Regime fetch {indicator}/{country} failed: {e}")
+            return []
+        if df.empty:
+            return []
+        return [float(v) for v in df["value"].tolist() if v is not None]
