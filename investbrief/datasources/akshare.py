@@ -40,6 +40,23 @@ class _DataFrameCache:
 _df_cache = _DataFrameCache()
 
 
+def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 0.8):
+    """运行 akshare 调用，带重试 + 指数退避（应对 eastmoney 偶发断开/限流）。
+
+    成功返回 fn() 结果（可能为 None/空 df，由调用方判断）；
+    全部失败返回 None 并记录 warning。
+    """
+    for attempt in range(attempts):
+        try:
+            return fn()
+        except Exception as e:
+            if attempt < attempts - 1:
+                time.sleep(base_delay * (attempt + 1))
+                continue
+            logger.warning(f"AKShare {label} failed after {attempts} attempts: {e}")
+            return None
+
+
 def _safe_float(val) -> float | None:
     """安全转换为 float。"""
     if val is None or val == "-" or val == "":
@@ -124,7 +141,7 @@ class AKShareClient:
         df = _df_cache.get("zh_a_spot", 300)
         if df is not None:
             return df
-        df = ak.stock_zh_a_spot_em()
+        df = _with_retry(lambda: ak.stock_zh_a_spot_em(), label="stock_zh_a_spot_em")
         if df is not None and not df.empty:
             _df_cache.set("zh_a_spot", df)
         return df
@@ -182,32 +199,28 @@ class AKShareClient:
 
     def get_stock_history(self, symbol: str, days: int = 180) -> pd.DataFrame | None:
         """获取个股日K线（前复权）。"""
-        try:
-            end_date = datetime.now().strftime("%Y%m%d")
-            start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
-            df = ak.stock_zh_a_hist(
-                symbol=symbol,
-                period="daily",
-                start_date=start_date,
-                end_date=end_date,
-                adjust="qfq",
-            )
-            if df is None or df.empty:
-                return None
-            df = df.rename(columns={
-                "日期": "date", "股票代码": "symbol",
-                "开盘": "open", "收盘": "close",
-                "最高": "high", "最低": "low",
-                "成交量": "volume", "成交额": "amount",
-                "振幅": "amplitude", "涨跌幅": "change_pct",
-                "涨跌额": "change", "换手率": "turnover",
-            })
-            df["date"] = pd.to_datetime(df["date"])
-            df = df.set_index("date")
-            return df
-        except Exception as e:
-            logger.warning(f"AKShare get_stock_history failed for {symbol}: {e}")
+        end_date = datetime.now().strftime("%Y%m%d")
+        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+        df = _with_retry(
+            lambda: ak.stock_zh_a_hist(
+                symbol=symbol, period="daily",
+                start_date=start_date, end_date=end_date, adjust="qfq",
+            ),
+            label=f"stock_zh_a_hist({symbol})",
+        )
+        if df is None or df.empty:
             return None
+        df = df.rename(columns={
+            "日期": "date", "股票代码": "symbol",
+            "开盘": "open", "收盘": "close",
+            "最高": "high", "最低": "low",
+            "成交量": "volume", "成交额": "amount",
+            "振幅": "amplitude", "涨跌幅": "change_pct",
+            "涨跌额": "change", "换手率": "turnover",
+        })
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.set_index("date")
+        return df
 
     # ---- 研报与财务 ----
 
