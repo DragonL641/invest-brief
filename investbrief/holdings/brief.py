@@ -64,6 +64,15 @@ def _build_prompt(results: list[HoldingResult]) -> str:
         if r.technicals:
             t = r.technicals
             lines.append(f"  技术面: 均线={t.get('ma_alignment')} RSI={t.get('rsi')} MACD={t.get('macd_cross')} 60日涨跌={t.get('return_60d')}%")
+        if r.insider and r.insider.get("direction") and r.insider.get("direction") != "flat":
+            verb = "增持" if r.insider["direction"] == "buy" else "减持"
+            lines.append(f"  高管/大股东{verb}: 净额 {r.insider.get('net_amount')} ({r.insider.get('count')} 笔)")
+        if r.events and r.events.get("next_earnings"):
+            lines.append(f"  下次财报: {r.events['next_earnings']} (距 {r.events.get('days_to_next')} 天)")
+        if r.cn_activity and (r.cn_activity.get("dragon_tiger_count") or r.cn_activity.get("institution_research_count")):
+            lines.append(f"  龙虎榜×{r.cn_activity.get('dragon_tiger_count', 0)} 机构调研×{r.cn_activity.get('institution_research_count', 0)}")
+        if r.forecast and r.forecast.get("eps_next") is not None:
+            lines.append(f"  盈利预估: 下季EPS {r.forecast['eps_next']} (同比 {r.forecast.get('yoy_pct')}%)")
         if r.news:
             lines.append(f"  近期新闻: {r.news[0].get('title', '')}（共{len(r.news)}条）")
         if r.ai_conclusion:
