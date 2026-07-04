@@ -38,6 +38,15 @@ def _safe_risk_score(model, market):
         return {}
 
 
+def _safe_regime_judge(engine, market):
+    """Regime judge with resilience — returns {} on failure (renders empty card)."""
+    try:
+        return engine.judge(market)
+    except Exception as e:
+        logger.warning(f"Regime judge for {market} failed: {e}")
+        return {}
+
+
 def run_macro_report(args):
     """Build ONE merged US+CN macro report and send to all active recipients."""
     logger.info("=" * 60)
@@ -119,6 +128,17 @@ def run_macro_report(args):
     cn_risk_html = render_risk_card(risk_scores["cn"])
     gold_section_html = render_gold_section(risk_scores["gold"])
 
+    # 经济环境四象限(resilient — empty dict renders empty card)
+    from investbrief.regime.engine import RegimeEngine
+    from investbrief.regime.render import render_regime_card
+    regime_engine = RegimeEngine(us.data)
+    regime_data = {
+        "us": _safe_regime_judge(regime_engine, "us"),
+        "cn": _safe_regime_judge(regime_engine, "cn"),
+    }
+    us_regime_html = render_regime_card(regime_data["us"])
+    cn_regime_html = render_regime_card(regime_data["cn"])
+
     # Claude ①⑥（一次调用同时生成核心观点 + 风险）
     if skip_summary:
         logger.info("Skipping Claude brief (--skip-summary)")
@@ -127,7 +147,9 @@ def run_macro_report(args):
     else:
         logger.info("Generating macro brief via Claude (①⑥)")
         from investbrief.market.macro_brief import generate_macro_brief
-        macro_summary, risk_outlook = generate_macro_brief(us_data, cn_data, news, risk_scores=risk_scores)
+        macro_summary, risk_outlook = generate_macro_brief(
+            us_data, cn_data, news,
+            risk_scores=risk_scores, regime_data=regime_data)
 
     # Research views (sell-side market commentary) — Tavily fetch + Claude synthesis
     research_views_html = ""
@@ -149,8 +171,10 @@ def run_macro_report(args):
             logger.warning(f"Research views failed: {e}")
 
     # Render sections
-    us_html = us.render_section(us_data, render_config, risk_html=us_risk_html)
-    cn_html = cn.render_section(cn_data, render_config, risk_html=cn_risk_html)
+    us_html = us.render_section(us_data, render_config,
+                                risk_html=us_risk_html, regime_html=us_regime_html)
+    cn_html = cn.render_section(cn_data, render_config,
+                                risk_html=cn_risk_html, regime_html=cn_regime_html)
 
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
     report_data = {
