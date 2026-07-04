@@ -87,6 +87,12 @@ class HoldingsAnalyzer:
             logger.warning(f"analyze_one failed {market}/{type_} {symbol}: {e}")
             return HoldingResult(symbol=symbol, market=market, type=type_, error=str(e))
 
+    def _with_ai(self, result: HoldingResult) -> HoldingResult:
+        """填充单标的 ai_conclusion。lazy import brief 避免循环依赖。"""
+        from investbrief.holdings.brief import generate_stock_conclusion
+        result.ai_conclusion = generate_stock_conclusion(result)
+        return result
+
     # ==================== 分发实现 ====================
 
     def _collect_events(self, symbol: str, market: str) -> dict:
@@ -274,7 +280,7 @@ class HoldingsAnalyzer:
                     "target_low": yf_pt.get("low"),
                     "number_of_analysts": None,
                 }
-        return HoldingResult(
+        result = HoldingResult(
             symbol=symbol, market="us", type="stock",
             name=str(info.get("longName") or info.get("shortName") or symbol),
             price={
@@ -305,6 +311,7 @@ class HoldingsAnalyzer:
             insider=data.get("insider") or {},
             forecast=data.get("forecast") or {},
         )
+        return self._with_ai(result)
 
     def _analyze_cn_stock(self, symbol: str) -> HoldingResult:
         data = self._parallel({
@@ -322,7 +329,7 @@ class HoldingsAnalyzer:
         quote = data.get("quote") or {}
         fin = data.get("fundamentals") or {}
         flow = data.get("flow") or {}
-        return HoldingResult(
+        result = HoldingResult(
             symbol=symbol, market="cn", type="stock",
             name=quote.get("name", symbol),
             price={
@@ -360,6 +367,7 @@ class HoldingsAnalyzer:
             insider=data.get("insider") or {},
             cn_activity=data.get("cn_activity") or {},
         )
+        return self._with_ai(result)
 
     def _analyze_cn_etf(self, symbol: str) -> HoldingResult:
         result: ETFAnalysisResult = self._etf.analyze(symbol)

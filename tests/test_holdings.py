@@ -252,3 +252,14 @@ def test_ratio_conversion():
     assert _ratio(0.15) == 15.0      # 小数比率
     assert _ratio(1.45) == 145.0     # ROE 可 >100%
     assert _ratio(None) is None
+
+
+def test_with_ai_fills_conclusion():
+    from unittest.mock import patch
+    analyzer = HoldingsAnalyzer()
+    r = HoldingResult(symbol="601138", market="cn", type="stock", name="工业富联",
+                      price={"current": 64.72})
+    with patch("investbrief.holdings.brief.generate_stock_conclusion", return_value="偏多。") as mock_gen:
+        result = analyzer._with_ai(r)
+    assert result.ai_conclusion == "偏多。"
+    mock_gen.assert_called_once_with(r)
