@@ -325,8 +325,6 @@ class DataProvider:
     def search_news(
         self,
         query: str,
-        markets: List[str] = None,
-        industries: List[str] = None,
         max_results: int = 10
     ) -> Optional[List[Dict[str, Any]]]:
         """
@@ -336,8 +334,6 @@ class DataProvider:
 
         Args:
             query: Search query
-            markets: List of markets to filter
-            industries: List of industries to filter
             max_results: Maximum number of results
 
         Returns:
@@ -346,15 +342,6 @@ class DataProvider:
         if not self.tavily.enabled:
             return None
 
-        # If markets or industries specified, use specialized search
-        if markets or industries:
-            return self.tavily.search_market_news(
-                markets=markets,
-                industries=industries,
-                max_results=max_results
-            )
-
-        # Otherwise use direct search
         return self.tavily.search_news(query, max_results=max_results)
 
     # ==================== Market Indices ====================
@@ -393,44 +380,23 @@ class DataProvider:
     # ==================== News Methods (Unified) ====================
 
     def get_financial_news(self, tickers: List[str] = None, limit: int = 50,
-                           user_tickers: List[str] = None, industries: List[str] = None) -> List[Dict[str, Any]]:
+                           user_tickers: List[str] = None) -> List[Dict[str, Any]]:
         """
         Get financial news with scoring and sorting.
 
-        Priority: Tavily industry search → Alpha Vantage (with tickers) → Finnhub
+        Priority: Alpha Vantage (with tickers) → Finnhub
 
         Args:
             tickers: Ticker symbols to filter news (from holdings union)
             limit: Maximum number of results
             user_tickers: User's actual holdings for relevance scoring
-            industries: Industry list for topic-based filtering
 
         Returns:
             Sorted list of news items (within 7 days, scored)
         """
         news = []
 
-        # 1. Tavily industry search (highest quality, industry-relevant)
-        if self.tavily.enabled and industries:
-            tavily_news = self.tavily.search_market_news(industries=industries, max_results=limit)
-            if tavily_news:
-                for item in tavily_news:
-                    # Extract domain as source
-                    url = item.get("url", "")
-                    source = url.split("/")[2] if "/" in url else ""
-                    news.append({
-                        "title": item.get("title", ""),
-                        "summary": item.get("content", ""),
-                        "url": item.get("url", ""),
-                        "source": source,
-                        "time": "",
-                        "published_at": self._parse_tavily_date(item.get("published_date")),
-                        "sentiment": "Neutral",
-                        "sentiment_score": 0.5,
-                        "tickers": []
-                    })
-
-        # 2. Alpha Vantage with ticker filter (supplement)
+        # 1. Alpha Vantage with ticker filter
         if len(news) < limit and self.alphavantage.enabled:
             result = self.alphavantage.get_news_sentiment(
                 tickers=",".join(tickers) if tickers else None,
@@ -439,7 +405,7 @@ class DataProvider:
             if result:
                 news.extend(result)
 
-        # 3. Fallback to Finnhub
+        # 2. Fallback to Finnhub
         if not news and self.finnhub.enabled:
             result = self.finnhub.get_market_news("general")
             if result:
@@ -464,23 +430,6 @@ class DataProvider:
         news = self._score_and_sort_news(news, user_tickers or [])
 
         return news[:limit]
-
-    def _parse_tavily_date(self, date_str: str) -> Optional[datetime]:
-        """Parse Tavily published_date string to datetime"""
-        if not date_str:
-            return None
-        for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ",
-                    "%a, %d %b %Y %H:%M:%S %Z", "%a, %d %b %Y %H:%M:%S"):
-            try:
-                return datetime.strptime(date_str, fmt)
-            except (ValueError, TypeError):
-                continue
-        # Try stripping timezone suffix
-        try:
-            return datetime.strptime(date_str.split(" GMT")[0] if " GMT" in date_str else date_str,
-                                     "%a, %d %b %Y %H:%M:%S")
-        except (ValueError, TypeError):
-            return None
 
     def _filter_recent(self, news: List[Dict], days: int = 7) -> List[Dict]:
         """Filter news to only include items within N days"""
