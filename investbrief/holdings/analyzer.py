@@ -355,7 +355,12 @@ class HoldingsAnalyzer:
         )
 
     def _analyze_cn_fund(self, symbol: str) -> HoldingResult:
-        """场外基金：净值代替现价，近期收益代替基本面；无资金流/评级（接口不提供）。"""
+        """场外基金：净值代替现价，近期收益代替基本面；无资金流/评级（接口不提供）。
+
+        fund_meta（scale/manager/rating）：get_open_fund_nav 当前不提供这三个字段，
+        统一返回 {scale: None, manager: None, rating: None}，键固定存在以供 renderer
+        优雅降级。后续若源扩展（如 fund_individual_basic_info_xq），可在此直接映射。
+        """
         data = self._parallel({"nav": lambda: self._ak.get_open_fund_nav(symbol)})
         nav = data.get("nav") or {}
         if not nav:
@@ -374,6 +379,11 @@ class HoldingsAnalyzer:
                 "return_1w": nav.get("return_1w"),
                 "return_1m": nav.get("return_1m"),
                 "return_3m": nav.get("return_3m"),
+            },
+            fund_meta={
+                "scale": nav.get("scale"),
+                "manager": nav.get("manager"),
+                "rating": nav.get("rating"),
             },
         )
 
