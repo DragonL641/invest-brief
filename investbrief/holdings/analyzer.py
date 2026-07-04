@@ -87,6 +87,43 @@ class HoldingsAnalyzer:
 
     # ==================== 分发实现 ====================
 
+    def _collect_events(self, symbol: str, market: str) -> dict:
+        """业绩日历。US=yfinance；CN=季报披露窗口规则推算。失败返回 {}。
+
+        Field structure: {"next_earnings": "YYYY-MM-DD", "days_to_next": int, "is_in_window": bool}
+        """
+        from datetime import date
+        try:
+            if market == "us":
+                # yfinance get_earnings_dates → [{"date": "YYYY-MM-DD"}, ...]（无 type 字段）
+                dates = self._yf.get_earnings_dates(symbol) or []
+                today_iso = date.today().isoformat()
+                upcoming = [d for d in dates
+                            if d.get("date", "") >= today_iso]
+                if not upcoming:
+                    return {}
+                next_d = sorted(d["date"] for d in upcoming)[0]
+            else:
+                # CN 季报披露窗口：Q1 4-30、半年报 8-31、Q3 10-31、年报 次年 4-30
+                today = date.today()
+                windows = []
+                year = today.year
+                for _ in range(2):
+                    windows += [
+                        date(year, 4, 30), date(year, 8, 31),
+                        date(year, 10, 31), date(year + 1, 4, 30),
+                    ]
+                    year += 1
+                upcoming = sorted(w for w in windows if w >= today)
+                if not upcoming:
+                    return {}
+                next_d = upcoming[0].isoformat()
+            days = (date.fromisoformat(next_d) - date.today()).days
+            return {"next_earnings": next_d, "days_to_next": days, "is_in_window": days <= 7}
+        except Exception as e:
+            logger.warning(f"events collect failed for {symbol}: {e}")
+            return {}
+
     def _analyze_us_stock(self, symbol: str) -> HoldingResult:
         data = self._parallel({
             "quote": lambda: self._yf.get_quote(symbol),
@@ -139,6 +176,7 @@ class HoldingsAnalyzer:
             flow={},  # US 个股资金流无免费数据源
             technicals=_extract_technicals(data.get("history"), uppercase_cols=True),
             news=_extract_news(data.get("news")),
+            events=self._collect_events(symbol, "us"),
         )
 
     def _analyze_cn_stock(self, symbol: str) -> HoldingResult:
@@ -188,6 +226,7 @@ class HoldingsAnalyzer:
             },
             technicals=_extract_technicals(data.get("history")),
             news=_extract_news(data.get("news")),
+            events=self._collect_events(symbol, "cn"),
         )
 
     def _analyze_cn_etf(self, symbol: str) -> HoldingResult:
