@@ -2,10 +2,9 @@
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from investbrief.core.config import load_config
+from investbrief.core.config import load_config, REPORTS_DIR
 from investbrief.market import create_provider
 
 logger = logging.getLogger(__name__)
@@ -187,11 +186,10 @@ def run_macro_report(args):
     # Save local preview
     try:
         from investbrief.mail.render import load_template, render_template
-        preview_dir = Path(__file__).resolve().parents[2] / "reports"
-        preview_dir.mkdir(exist_ok=True)
+        REPORTS_DIR.mkdir(exist_ok=True)
         template = load_template()
         preview_html = render_template(template, report_data, "zh-CN")
-        preview_path = preview_dir / "preview_macro.html"
+        preview_path = REPORTS_DIR / "preview_macro.html"
         preview_path.write_text(preview_html, encoding="utf-8")
         logger.info(f"Preview saved to {preview_path}")
     except Exception as e:

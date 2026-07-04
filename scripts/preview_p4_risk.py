@@ -13,8 +13,8 @@ import pandas as pd  # noqa: F401  (some imports need pandas in ns)
 from investbrief.data.us_data import USData
 from investbrief.data.cn_data import CNData
 from investbrief.data.gold_data import GoldData
-from investbrief.us.provider import USMarketProvider
-from investbrief.cn.provider import CNMarketProvider
+from investbrief.market.us.provider import USMarketProvider
+from investbrief.market.cn.provider import CNMarketProvider
 from investbrief.risk.models import RiskModel
 from investbrief.risk.render import render_risk_card, render_gold_section
 from investbrief.mail.render import load_template, render_template

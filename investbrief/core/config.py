@@ -11,6 +11,7 @@ DB_PATH = os.environ.get(
     str(BASE_DIR / "data" / "macro_data.db"),
 )
 CONFIG_FILE = BASE_DIR / "config.json"
+REPORTS_DIR = BASE_DIR / "reports"
 
 # === API Settings（供 BaseData._retry_api 使用）===
 API_RETRY_COUNT = 3

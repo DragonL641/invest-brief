@@ -15,13 +15,6 @@ def send_report(report_data: dict, config: dict, recipients: list):
 
     template = load_template()
 
-    # Build render config from email_service section for color settings
-    email_cfg = config.get("email_service", {})
-    render_config = {
-        "color_up": "#e74c3c",
-        "color_down": "#27ae60",
-    }
-
     sender = EmailSender(str(CONFIG_FILE))
 
     failed = []

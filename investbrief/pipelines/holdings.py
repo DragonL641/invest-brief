@@ -2,10 +2,9 @@
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from investbrief.core.config import load_config, CONFIG_FILE
+from investbrief.core.config import load_config, CONFIG_FILE, REPORTS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +70,8 @@ def run_holdings_report(args):
                  "holdings_sections": render_holdings_section(sub)},
                 first.get("language", "zh-CN"),
             )
-            preview_dir = Path(__file__).resolve().parents[2] / "reports"
-            preview_dir.mkdir(exist_ok=True)
-            (preview_dir / "preview_holdings.html").write_text(preview_html, encoding="utf-8")
+            REPORTS_DIR.mkdir(exist_ok=True)
+            (REPORTS_DIR / "preview_holdings.html").write_text(preview_html, encoding="utf-8")
             logger.info("Holdings preview saved to reports/preview_holdings.html")
         except Exception as e:
             logger.warning(f"Failed to render holdings preview: {e}")
@@ -113,9 +111,8 @@ def run_holdings_report(args):
     # Save preview of the last rendered email
     if last_html:
         try:
-            preview_dir = Path(__file__).resolve().parents[2] / "reports"
-            preview_dir.mkdir(exist_ok=True)
-            (preview_dir / "preview_holdings.html").write_text(last_html, encoding="utf-8")
+            REPORTS_DIR.mkdir(exist_ok=True)
+            (REPORTS_DIR / "preview_holdings.html").write_text(last_html, encoding="utf-8")
             logger.info("Holdings preview saved to reports/preview_holdings.html")
         except Exception as e:
             logger.warning(f"Failed to save holdings preview: {e}")
