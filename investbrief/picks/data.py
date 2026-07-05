@@ -81,11 +81,12 @@ def fetch_history(symbol: str, market: str, days: int = 250) -> pd.DataFrame:
     返回 DataFrame 列名统一为小写(close/volume/...),与 factors 读取约定一致。
     """
     key = f"hist:{market}:{symbol}"
-    if cache() and cache().fresh(key, ttl_days=1):
-        return cache().get(key) or pd.DataFrame()
+    c = cache()
+    if c and c.fresh(key, ttl_days=1):
+        return c.get(key) or pd.DataFrame()
     df = _do_fetch_history(symbol, market, days)
-    if cache() and not df.empty:
-        cache().set(key, df, ttl_days=1)
+    if c and not df.empty:
+        c.set(key, df, ttl_days=1)
     return df
 
 
@@ -112,12 +113,13 @@ def _do_fetch_history(symbol: str, market: str, days: int) -> pd.DataFrame:
 def fetch_fundamentals(symbol: str, market: str) -> dict:
     """归一化后的基本面 dict。失败返回 {}。"""
     key = f"fund:{market}:{symbol}"
-    if cache() and cache().fresh(key, ttl_days=7):
-        return cache().get(key) or {}
+    c = cache()
+    if c and c.fresh(key, ttl_days=7):
+        return c.get(key) or {}
     raw = _do_fetch_fundamentals(symbol, market)
     out = normalize_fundamentals(raw) if market == "cn" else _normalize_us_fund(raw)
-    if cache() and out:
-        cache().set(key, out, ttl_days=7)
+    if c and out:
+        c.set(key, out, ttl_days=7)
     return out
 
 
