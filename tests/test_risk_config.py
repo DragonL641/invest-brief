@@ -99,5 +99,24 @@ class TestCalcUtils:
         assert safe_divide(10, 0, default=-1) == -1
 
 
+def test_score_to_risk_level_thresholds():
+    """score_to_risk_level maps score ranges to low/moderate/high/extreme."""
+    from investbrief.risk.config import score_to_risk_level
+    assert score_to_risk_level(0) == "low"
+    assert score_to_risk_level(19.9) == "low"
+    assert score_to_risk_level(20) == "moderate"
+    assert score_to_risk_level(39.9) == "moderate"
+    assert score_to_risk_level(40) == "high"
+    assert score_to_risk_level(69.9) == "high"
+    assert score_to_risk_level(70) == "extreme"
+    assert score_to_risk_level(100) == "extreme"
+
+
+def test_score_to_risk_level_out_of_range():
+    from investbrief.risk.config import score_to_risk_level
+    # >100 (theoretical) clamps to moderate (no match in RISK_LEVEL_MAP)
+    assert score_to_risk_level(150) == "moderate"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

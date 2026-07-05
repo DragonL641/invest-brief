@@ -58,3 +58,21 @@ FIVE_DIMENSIONS = {
 BACKTEST_BUY_THRESHOLD = 20   # score below this = buy signal
 BACKTEST_SELL_THRESHOLD = 70  # score above this = sell signal
 BACKTEST_EVALUATION_WINDOW = 63  # trading days (~3 months) for subsequent return
+
+# === Risk Level Mapping ===
+# state（绝望冰点/狂热泡沫...）用于报告渲染（人读）；risk_level（low/moderate/high/extreme）
+# 用于决策分支 / Claude prompt / 未来告警阈值。两套口径分离。
+RISK_LEVEL_MAP = [
+    (0, 20, "low"),        # 绝望冰点 / 信心恢复
+    (20, 40, "moderate"),  # 温和常态
+    (40, 70, "high"),      # 乐观扩张
+    (70, 101, "extreme"),  # 狂热泡沫 / 崩盘前夜
+]
+
+
+def score_to_risk_level(score: float) -> str:
+    """0-100 分 → low/moderate/high/extreme。超出范围 clamp 到 moderate。"""
+    for lo, hi, level in RISK_LEVEL_MAP:
+        if lo <= score < hi:
+            return level
+    return "moderate"

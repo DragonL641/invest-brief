@@ -8,6 +8,7 @@ import pandas as pd
 from investbrief.risk.config import (
     CN_ALL_INDICATORS, US_ALL_INDICATORS, GOLD_ALL_INDICATORS, MARKET_STATE_MAP,
     FIVE_DIMENSIONS, BACKTEST_BUY_THRESHOLD, BACKTEST_SELL_THRESHOLD,
+    score_to_risk_level,
 )
 from investbrief.risk.indicators.valuation import ValuationIndicator
 from investbrief.risk.indicators.technical import TechnicalIndicator
@@ -234,6 +235,7 @@ class RiskModel:
                     "crash_prob": crash_prob,
                     "expected_return": expected_return,
                     "action": action,
+                    "risk_level": score_to_risk_level(score),
                 }
         # Unreachable: the last range in MARKET_STATE_MAP always matches
         return None

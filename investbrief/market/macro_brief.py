@@ -83,7 +83,10 @@ def serialize_macro_context(us_data: dict, cn_data: dict, news: list,
         for market, name in (("us", "美股"), ("cn", "A股"), ("gold", "黄金")):
             r = risk_scores.get(market) or {}
             if r.get("total_score") is not None:
-                lines.append(f"- {name}: 风险分 {r['total_score']}（{r['state']}），{r['action']}")
+                level = r.get("risk_level", "?")
+                lines.append(
+                    f"- {name}: 风险分 {r['total_score']}（{r['state']} / {level}），{r['action']}"
+                )
 
     # Priority 4: regime_data (skip if budget tight)
     if regime_data and _used() + 250 < max_chars:
