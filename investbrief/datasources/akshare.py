@@ -38,10 +38,11 @@ logger = logging.getLogger(__name__)
 
 
 class _DataFrameCache:
-    """Thread-safe TTL cache for AKShare full-universe DataFrames."""
+    """Thread-safe TTL cache for AKShare full-universe DataFrames + 负缓存。"""
 
     def __init__(self):
         self._store: dict[str, tuple[float, pd.DataFrame]] = {}
+        self._negative: dict[str, tuple[float, float]] = {}  # key -> (失败时刻, ttl)
         self._lock = threading.Lock()
 
     def get(self, key: str, ttl: int) -> pd.DataFrame | None:
@@ -58,6 +59,22 @@ class _DataFrameCache:
     def set(self, key: str, df: pd.DataFrame):
         with self._lock:
             self._store[key] = (time.monotonic(), df)
+
+    def mark_failed(self, key: str, neg_ttl: float = 60.0):
+        """标记 key 短期内失败，neg_ttl 内不再重试（避免限流窗口反复打）。"""
+        with self._lock:
+            self._negative[key] = (time.monotonic(), neg_ttl)
+
+    def is_recently_failed(self, key: str) -> bool:
+        with self._lock:
+            entry = self._negative.get(key)
+            if entry is None:
+                return False
+            ts, ttl = entry
+            if time.monotonic() - ts > ttl:
+                del self._negative[key]
+                return False
+            return True
 
 
 _df_cache = _DataFrameCache()

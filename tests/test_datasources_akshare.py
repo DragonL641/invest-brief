@@ -60,3 +60,24 @@ def test_with_retry_all_fail_returns_none(monkeypatch):
     assert _with_retry(always_fail, label="test", attempts=3) is None
     assert len(sleeps) == 2
     assert sleeps[-1] >= 10.0  # 最后一次重试前长退避 ≥10s
+
+
+def test_dataframe_cache_negative(monkeypatch):
+    from investbrief.datasources.akshare import _DataFrameCache
+    c = _DataFrameCache()
+    assert not c.is_recently_failed("zh_a_spot")
+    c.mark_failed("zh_a_spot", 60)
+    assert c.is_recently_failed("zh_a_spot")
+
+
+def test_dataframe_cache_negative_expiry(monkeypatch):
+    from investbrief.datasources.akshare import _DataFrameCache
+    import investbrief.datasources.akshare as ak_mod
+    t = [100.0]
+    monkeypatch.setattr(ak_mod.time, "monotonic", lambda: t[0])
+    c = _DataFrameCache()
+    c.mark_failed("k", 60)
+    t[0] = 100.0  # mark 瞬间
+    assert c.is_recently_failed("k")
+    t[0] = 200.0  # 100s 后，超过 ttl 60
+    assert not c.is_recently_failed("k")
