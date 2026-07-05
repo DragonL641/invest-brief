@@ -16,12 +16,12 @@ def test_serialize_handles_empty():
 
 
 def test_generate_macro_brief_parses_fenced_json(monkeypatch):
-    """Regression: markdown-fence stripping (re.sub) must not NameError.
+    """Regression: markdown-fenced JSON must still parse after the call_claude migration.
 
-    Module imports 're' at module level but the move from run.py left '_re.sub'
-    call sites, raising NameError inside the broad except — Claude synthesis
-    silently fell back to the placeholder every run.
+    Previously macro_brief called get_client + json.loads directly; now it goes
+    through call_claude (mocked here to return fenced JSON) + extract_json.
     """
+    from investbrief.core import llm as llm_mod
     from investbrief.market import macro_brief
 
     fenced = (
@@ -29,26 +29,32 @@ def test_generate_macro_brief_parses_fenced_json(monkeypatch):
         '{"summary": "<p>test summary</p>", "risk": "<p>test risk</p>"}\n'
         "```"
     )
-
-    class _Block:
-        def __init__(self, text):
-            self.text = text
-
-    class _Resp:
-        def __init__(self, text):
-            self.content = [_Block(text)]
-
-    class _Messages:
-        @staticmethod
-        def create(**kwargs):
-            return _Resp(fenced)
-
-    class _Client:
-        def __init__(self):
-            self.messages = _Messages()
-
-    monkeypatch.setattr(macro_brief, "get_client", lambda: _Client())
+    monkeypatch.setattr(llm_mod, "call_claude", lambda *a, **kw: fenced)
 
     summary, risk = macro_brief.generate_macro_brief({}, {}, [])
     assert "test summary" in summary
     assert "test risk" in risk
+
+
+def test_serialize_macro_context_budget_truncates_low_priority():
+    """Tight max_chars drops regime/risk (priority 4/3) before news (priority 2)."""
+    news = [{"title": f"headline {i}", "source": "src"} for i in range(5)]
+    risk = {"us": {"total_score": 50, "state": "温和常态", "action": "持有"}}
+    regime = {"us": {"quadrant": "复苏", "confidence": 70, "growth_axis": "上行", "inflation_axis": "温和"}}
+    out = serialize_macro_context({"monetary_policy": {"rate": "5%"}},
+                                  {"monetary_policy": {"rate": "3%"}},
+                                  news, risk_scores=risk, regime_data=regime,
+                                  max_chars=400)
+    assert "美国宏观" in out  # core always present
+    assert "宏观环境四象限" not in out  # priority 4 dropped first
+
+
+def test_serialize_macro_context_large_budget_keeps_everything():
+    news = [{"title": "h", "source": "s"}]
+    risk = {"us": {"total_score": 50, "state": "温和常态", "action": "持有"}}
+    regime = {"us": {"quadrant": "复苏", "confidence": 70, "growth_axis": "上行", "inflation_axis": "温和"}}
+    out = serialize_macro_context({}, {}, news, risk_scores=risk, regime_data=regime,
+                                  max_chars=8000)
+    assert "重要新闻" in out
+    assert "市场周期风险分" in out
+    assert "宏观环境四象限" in out

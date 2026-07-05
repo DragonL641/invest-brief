@@ -4,12 +4,16 @@ from unittest.mock import MagicMock
 
 
 def test_generate_macro_brief_falls_back_on_claude_failure(monkeypatch):
-    """Claude 抛异常 → generate_macro_brief 返回兜底占位，不崩。"""
+    """Claude 失败 → generate_macro_brief 返回兜底占位，不崩。
+
+    Migration: generate_macro_brief now goes through call_claude, which catches
+    network-class errors internally and returns None on failure — so we mock
+    call_claude -> None to exercise the fallback path.
+    """
+    from investbrief.core import llm as llm_mod
     from investbrief.market import macro_brief
 
-    fake_client = MagicMock()
-    fake_client.messages.create.side_effect = RuntimeError("claude down")
-    monkeypatch.setattr(macro_brief, "get_client", lambda: fake_client)
+    monkeypatch.setattr(llm_mod, "call_claude", lambda *a, **kw: None)
 
     summary, risk = macro_brief.generate_macro_brief({"monetary_policy": {}}, {"monetary_policy": {}}, [])
 
