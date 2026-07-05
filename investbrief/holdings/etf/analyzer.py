@@ -104,13 +104,7 @@ class ETFAnalyzer:
         market_data: dict | None,
     ) -> str:
         """调用 Claude 进行综合研判。"""
-        try:
-            from investbrief.core.llm import get_client as _get_client, default_model
-            client = _get_client()
-            model = default_model()
-        except Exception as e:
-            logger.error(f"AI client init failed: {e}")
-            return self._fallback_conclusion(dim_summary)
+        from investbrief.core.llm import call_claude
 
         # 构造规则匹配摘要
         matched_rules = []
@@ -157,16 +151,11 @@ IOPV: {spot.get('iopv')}  溢价率: {spot.get('premium_rate')}%
 4. 150字以内，第一句话直接给结论，不要铺垫和套话
 5. 用中文回答"""
 
-        try:
-            response = client.messages.create(
-                model=model,
-                max_tokens=512,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response.content[0].text.strip()
-        except Exception as e:
-            logger.error(f"AI synthesis failed: {e}")
-            return self._fallback_conclusion(dim_summary)
+        text = call_claude(
+            [{"role": "user", "content": prompt}],
+            max_tokens=512,
+        )
+        return text if text else self._fallback_conclusion(dim_summary)
 
     def _fallback_conclusion(self, dim_summary: dict) -> str:
         """AI 不可用时的 fallback 结论。"""

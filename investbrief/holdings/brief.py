@@ -13,29 +13,18 @@ from investbrief.holdings.analyzer import HoldingResult
 logger = logging.getLogger(__name__)
 
 
-def generate_holdings_brief(results: list[HoldingResult], max_retries: int = 2) -> str:
+def generate_holdings_brief(results: list[HoldingResult]) -> str:
     """生成持仓组合研判（HTML 片段）。失败返回 fallback 摘要，不抛异常。"""
     if not any(not r.error for r in results):
         return "<p>（本期持仓无可用分析数据）</p>"
-    try:
-        from investbrief.core.llm import get_client as _get_client, default_model
-        client = _get_client()
-        model = default_model()
-    except Exception as e:
-        logger.warning(f"holdings brief: llm init failed: {e}")
-        return _fallback(results)
+    from investbrief.core.llm import call_claude
 
     prompt = _build_prompt(results)
-    for attempt in range(max_retries + 1):
-        try:
-            resp = client.messages.create(
-                model=model, max_tokens=800,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return resp.content[0].text.strip()
-        except Exception as e:
-            logger.warning(f"holdings brief attempt {attempt + 1} failed: {e}")
-    return _fallback(results)
+    text = call_claude(
+        [{"role": "user", "content": prompt}],
+        max_tokens=800,
+    )
+    return text if text else _fallback(results)
 
 
 def _format_holding(r: HoldingResult) -> str:
@@ -110,13 +99,7 @@ def generate_stock_conclusion(r: HoldingResult) -> str:
     """
     if r.error:
         return ""
-    try:
-        from investbrief.core.llm import get_client as _get_client, default_model
-        client = _get_client()
-        model = default_model()
-    except Exception as e:
-        logger.warning(f"stock_conclusion: llm init failed: {e}")
-        return _fallback_stock_conclusion(r)
+    from investbrief.core.llm import call_claude
 
     market_label = "A股" if r.market == "cn" else "美股"
     prompt = f"""你是一位{market_label}投资顾问。基于以下信息给出该标的的综合研判。
@@ -129,15 +112,11 @@ def generate_stock_conclusion(r: HoldingResult) -> str:
 3. 给出具体操作建议（买入/持有/观望/减仓）
 4. 150 字以内，中文，不要铺垫套话"""
 
-    try:
-        resp = client.messages.create(
-            model=model, max_tokens=400,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return resp.content[0].text.strip()
-    except Exception as e:
-        logger.warning(f"stock_conclusion failed for {r.symbol}: {e}")
-        return _fallback_stock_conclusion(r)
+    text = call_claude(
+        [{"role": "user", "content": prompt}],
+        max_tokens=400,
+    )
+    return text if text else _fallback_stock_conclusion(r)
 
 
 def _build_prompt(results: list[HoldingResult]) -> str:

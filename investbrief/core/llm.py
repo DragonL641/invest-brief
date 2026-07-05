@@ -56,7 +56,11 @@ def call_claude(
     None immediately.
     """
     from investbrief.core.llm_errors import classify_anthropic_error
-    client = get_client()
+    try:
+        client = get_client()
+    except Exception as e:
+        logger.warning(f"Claude call failed: client init error: {e}")
+        return None
     kwargs: dict = {
         "model": default_model(),
         "max_tokens": max_tokens,
