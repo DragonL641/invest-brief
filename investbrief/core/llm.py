@@ -3,9 +3,14 @@
 供邮件 pipeline 与 ETF 分析包共用，使两者都不再依赖已移除的 web 层。
 """
 import os
+import random
+import time
+import logging
 from functools import lru_cache
 
 import anthropic
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -30,3 +35,53 @@ def default_model() -> str:
     if env_model and "[1m]" not in env_model:
         return env_model
     return "claude-sonnet-4-5-20250929"
+
+
+def call_claude(
+    messages: list[dict],
+    *,
+    system: str | None = None,
+    max_tokens: int = 1024,
+    temperature: float = 0.3,
+    max_retries: int = 2,
+) -> str | None:
+    """Unified Claude call wrapper: error classification + exponential backoff.
+
+    Returns stripped text on success; returns None on non-retryable error or
+    after retries exhausted. Callers handle the None case with their own
+    fallback string.
+
+    Backoff: base 1s × 2^attempt + jitter(0-1s), cap 30s. Only retryable errors
+    (network/timeout/rate-limit/5xx) are retried; auth/4xx/context_window return
+    None immediately.
+    """
+    from investbrief.core.llm_errors import classify_anthropic_error
+    client = get_client()
+    kwargs: dict = {
+        "model": default_model(),
+        "max_tokens": max_tokens,
+        "messages": messages,
+    }
+    if system is not None:
+        kwargs["system"] = system
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+
+    for attempt in range(max_retries + 1):
+        try:
+            resp = client.messages.create(**kwargs)
+            return (resp.content[0].text or "").strip()
+        except Exception as e:
+            err = classify_anthropic_error(e)
+            if not err.retryable or attempt >= max_retries:
+                logger.warning(
+                    f"Claude call failed [{err.code}] (attempt {attempt+1}/{max_retries+1}): {e}"
+                )
+                return None
+            delay = min(30.0, (2 ** attempt) + random.uniform(0, 1))
+            logger.warning(
+                f"Claude call [{err.code}] retrying in {delay:.1f}s "
+                f"(attempt {attempt+1}/{max_retries+1}): {e}"
+            )
+            time.sleep(delay)
+    return None

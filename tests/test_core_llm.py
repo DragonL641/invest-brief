@@ -26,3 +26,52 @@ def test_default_model_passes_through_clean_env(monkeypatch):
 def test_default_model_fallback_when_env_unset(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_DEFAULT_SONNET_MODEL", raising=False)
     assert default_model() == FALLBACK
+
+
+# --- call_claude wrapper tests ---
+from unittest.mock import patch, MagicMock
+
+from investbrief.core import llm as llm_mod
+from investbrief.core.llm import call_claude
+
+
+@patch("investbrief.core.llm.time.sleep")  # skip real backoff sleeps
+def test_call_claude_retries_rate_limit_then_succeeds(mock_sleep):
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = [
+        Exception("429 Too Many Requests"),
+        MagicMock(content=[MagicMock(text="ok")]),
+    ]
+    with patch.object(llm_mod, "get_client", return_value=mock_client):
+        result = call_claude([{"role": "user", "content": "hi"}], max_tokens=100)
+    assert result == "ok"
+    assert mock_client.messages.create.call_count == 2  # 1 fail + 1 success
+
+
+@patch("investbrief.core.llm.time.sleep")
+def test_call_claude_auth_error_not_retried(mock_sleep):
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = Exception("401 Unauthorized")
+    with patch.object(llm_mod, "get_client", return_value=mock_client):
+        result = call_claude([{"role": "user", "content": "hi"}], max_tokens=100)
+    assert result is None
+    assert mock_client.messages.create.call_count == 1  # not retried
+
+
+@patch("investbrief.core.llm.time.sleep")
+def test_call_claude_unknown_error_not_retried(mock_sleep):
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = RuntimeError("something weird")
+    with patch.object(llm_mod, "get_client", return_value=mock_client):
+        result = call_claude([{"role": "user", "content": "hi"}], max_tokens=100)
+    assert result is None
+    assert mock_client.messages.create.call_count == 1
+
+
+def test_call_claude_success_returns_stripped_text():
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = MagicMock(content=[MagicMock(text="  hello  ")])
+    with patch.object(llm_mod, "get_client", return_value=mock_client):
+        result = call_claude([{"role": "user", "content": "hi"}], max_tokens=100)
+    assert result == "hello"
+    assert mock_client.messages.create.call_count == 1
