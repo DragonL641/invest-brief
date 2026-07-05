@@ -56,7 +56,10 @@ def _apply_us(df: pd.DataFrame, u: dict) -> pd.DataFrame:
     amount_col = next((c for c in ("成交额", "amount", "turnover") if c in cols), None)
     if u.get("min_turnover_us") and amount_col:
         df = df[pd.to_numeric(df[amount_col], errors="coerce") >= u["min_turnover_us"]]
-    chg60_col = next((c for c in ("60日涨跌幅", "changepercent", "涨跌幅") if c in cols), None)
+    # 注意:stock_us_spot_em 只有当日涨跌幅(1d),无 60日涨跌幅;若把 "涨跌幅"
+    # 列入候选会误用 1d 数据执行 60d 趋势过滤。这里只接受真正的 60d 列,
+    # 缺失则该条件降级为 no-op(美股粗筛偏松,深拉阶段补 yfinance 历史校验)。
+    chg60_col = next((c for c in ("60日涨跌幅", "changepercent") if c in cols), None)
     if u.get("trend_60d_positive") and chg60_col:
         df = df[pd.to_numeric(df[chg60_col], errors="coerce") > 0]
     cap_col = next((c for c in ("总市值", "marketCap", "marketcap") if c in cols), None)
