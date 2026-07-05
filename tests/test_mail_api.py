@@ -69,3 +69,17 @@ def test_send_bulk_one_connection_partial_failure(monkeypatch):
     assert len(failed) == 1 and failed[0][0] == "fail@x.com"
     assert len(connects) == 1  # only ONE connection for all 3 messages
     assert sends == ["ok1@x.com", "fail@x.com", "ok2@x.com"]  # all attempted despite mid-failure
+
+
+def test_render_picks_template_renders_sections():
+    from investbrief.mail.render import render_picks_template
+    html = render_picks_template(
+        "email_picks.j2",
+        {"data_time": "2026-07-06 18:00",
+         "picks_brief": "<p>综合研判</p>",
+         "picks_sections": "<div class='pick-section'>A股+美股</div>"},
+        "zh-CN",
+    )
+    assert "综合研判" in html
+    assert "pick-section" in html
+    assert "免责" in html or "跟踪信号" in html

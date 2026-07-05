@@ -137,3 +137,16 @@ def render_holdings_template(template_name: str, data: dict, language: str) -> s
         'holdings_sections': data.get('holdings_sections') or '',
     })
     return _env.get_template(template_name).render(**ctx)
+
+
+def render_picks_template(template_name: str, data: dict, language: str) -> str:
+    """Render the stock-picks recommendation email template. First arg is the template NAME."""
+    ctx = _base_context(
+        language, data, '🎯 股票推荐',
+        '⚠️ 免责声明:本邮件为量化跟踪信号,非投资建议。模型基于历史规律,不预测未来。',
+    )
+    ctx.update({
+        'picks_brief': data.get('picks_brief') or '<p>本期暂无综合研判。</p>',
+        'picks_sections': data.get('picks_sections') or '',
+    })
+    return _env.get_template(template_name).render(**ctx)
