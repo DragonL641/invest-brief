@@ -194,6 +194,29 @@ class AKShareClient:
             _df_cache.mark_failed("zh_a_spot", 60)
         return df
 
+    # ---- 全市场 spot(picks 用) ----
+
+    def get_cn_spot_df(self) -> "pd.DataFrame | None":
+        """全量 A 股 spot 快照(5min TTL+负缓存)。picks 粗筛用。"""
+        return self._get_all_stocks_df()
+
+    def get_us_spot_df(self) -> "pd.DataFrame | None":
+        """全量美股 spot 快照(stock_us_spot_em,5min TTL+负缓存)。
+
+        字段覆盖弱于 A 股(可能缺 60日涨跌幅/市值/PE-PB);首跑需校验实际列。
+        """
+        df = _df_cache.get("us_spot", 300)
+        if df is not None:
+            return df
+        if _df_cache.is_recently_failed("us_spot"):
+            return None
+        df = _with_retry(lambda: ak.stock_us_spot_em(), label="stock_us_spot_em")
+        if df is not None and not df.empty:
+            _df_cache.set("us_spot", df)
+        else:
+            _df_cache.mark_failed("us_spot", 60)
+        return df
+
     def _lookup_name(self, symbol: str) -> str | None:
         """从 cached 全量 A 股 df 查 name（stock_bid_ask_em 不返回名称）。
 
