@@ -134,40 +134,32 @@ def serialize_research_views(items: list) -> str:
     return "\n".join(lines)
 
 
-def generate_research_views(items: list, max_retries: int = 2) -> str:
-    """Synthesize research-view items into an HTML fragment via Claude, with retry.
+def generate_research_views(items: list) -> str:
+    """Synthesize research-view items into an HTML fragment via Claude.
 
-    Returns inner HTML (caller wraps in the section). Empty/failure → placeholder.
+    Returns inner HTML (caller wraps in the section). Empty input / Claude
+    failure → placeholder HTML.
     """
     import re as _re
-    from investbrief.core.llm import get_client, default_model
+    from investbrief.core.llm import call_claude
 
     if not items:
         return ""
-    client = get_client()
     context = serialize_research_views(items)
     fallback = "<p>卖方机构观点生成失败。</p>"
 
-    for attempt in range(max_retries + 1):
-        try:
-            response = client.messages.create(
-                model=default_model(),
-                max_tokens=1500,
-                temperature=0.3,
-                system=RESEARCH_VIEWS_PROMPT,
-                messages=[{"role": "user", "content": context}],
-            )
-            text = response.content[0].text.strip()
-            text = _re.sub(r"^\s*```(?:html)?\s*\n?", "", text)
-            text = _re.sub(r"\n?\s*```\s*$", "", text)
-            logger.info(f"Generated research views (attempt {attempt + 1})")
-            return text or fallback
-        except Exception as e:
-            if attempt < max_retries:
-                logger.warning(f"Research views attempt {attempt + 1} failed, retrying: {e}")
-            else:
-                logger.warning(f"Research views failed after {max_retries + 1} attempts: {e}")
-    return fallback
+    text = call_claude(
+        [{"role": "user", "content": context}],
+        system=RESEARCH_VIEWS_PROMPT,
+        max_tokens=1500,
+        temperature=0.3,
+    )
+    if text is None:
+        return fallback
+    # HTML fence stripping (research output is HTML, not JSON — extract_json does not apply)
+    text = _re.sub(r"^\s*```(?:html)?\s*\n?", "", text)
+    text = _re.sub(r"\n?\s*```\s*$", "", text)
+    return text.strip() or fallback
 
 
 def fetch_research_views(*, api_key: str | None = None) -> list[dict]:
