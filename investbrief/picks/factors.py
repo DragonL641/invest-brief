@@ -137,3 +137,19 @@ FACTOR_REGISTRY: dict[str, Callable] = {
     "momentum_12m_ex1m": _momentum_12m_ex1m,
     "moat": _moat,
 }
+
+
+# TODO D: 因子大类(technical/fundamental)。industry_neutralize 仅对 fundamental 因子做行业内中位数减法。
+FACTOR_CATEGORY: dict[str, str] = {
+    "trend_strength": "technical",
+    "momentum_60d_ex5": "technical",
+    "ma20_deviation": "technical",
+    "volume_price": "technical",
+    "low_volatility_20d": "technical",
+    "momentum_12m_ex1m": "technical",
+    "growth": "fundamental",
+    "quality": "fundamental",
+    "industry_prosperity": "fundamental",
+    "valuation": "fundamental",
+    "moat": "fundamental",
+}

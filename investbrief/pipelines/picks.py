@@ -71,7 +71,7 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
                 raw[fkey] = fn(hist, fund, val) if fn else None
             cands.append({"symbol": symbol, "name": str(row.get("名称", symbol)),
                           "market": market, "raw_factors": raw,
-                          "industry": _industry_for(row, market)})
+                          "industry": _industry_for(symbol, market)})
         except Exception as e:
             logger.warning(f"candidate {market}:{symbol} failed: {e}")
             continue
@@ -163,8 +163,15 @@ def _valuation_for(row, market: str) -> dict:
     return {"pe": pe, "pb": pb, "pe_pct_3y": None, "pb_pct_3y": None, "peg": None}
 
 
-def _industry_for(row, market: str):
-    return None  # 首版不接入行业(中性化接口已留)
+def _industry_for(symbol: str, market: str):
+    """候选股行业标签(用于 industry_neutralize)。
+
+    US: yfinance info['sector'](fetch_industry 缓存 30 天)
+    CN: stock_individual_info_em 接口对全市场崩(Length mismatch),返回 None 降级。
+    """
+    if not symbol:
+        return None
+    return _data.fetch_industry(symbol, market)
 
 
 def _num(row, col):

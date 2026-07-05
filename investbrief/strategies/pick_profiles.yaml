@@ -38,7 +38,7 @@ profiles:
       valuation:           {weight: 0.15, invert: true}
       momentum_12m_ex1m:   {weight: 0.10}
     standardize: rank_percentile
-    industry_neutralize: true
+    industry_neutralize: true   # active(US sector via yfinance);CN 降级 no-op(stock_individual_info_em 接口崩)
     top_n: 1
     risk: {max_per_stock: 0.15, max_per_industry: 0.30, stop_break_ma60: true}
 
@@ -55,6 +55,6 @@ profiles:
       growth:     {weight: 0.20}
       valuation:  {weight: 0.20, invert: true}
     standardize: rank_percentile
-    industry_neutralize: true
+    industry_neutralize: true   # active(US sector via yfinance);CN 降级 no-op
     top_n: 1
     risk: {max_per_stock: 0.10}

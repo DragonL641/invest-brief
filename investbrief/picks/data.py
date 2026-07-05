@@ -255,3 +255,35 @@ def _us_net_income_by_year(symbol: str) -> dict[str, float]:
     # 抑制未使用的 import 警告(保留 client 引用以表明该模块的归属)
     _ = client
     return out
+
+
+# ---- TODO D 行业(US sector via yfinance) ----
+
+def fetch_industry(symbol: str, market: str) -> str | None:
+    """行业标签(中性化用)。cached ttl_days=30(季频稳定)。
+
+    US: yfinance Ticker.info['sector'](取 sector,比 industry 更稳定/粗粒度)
+    CN: stock_individual_info_em 当前对所有股票都崩(Length mismatch),
+        行业映射又需要 ~496 板块全量拉取太重 → 暂返回 None(降级,
+        industry_neutralize 在全 None 时退化为无害 no-op)。
+    """
+    key = f"industry:{market}:{symbol}"
+    c = cache()
+    if c and c.fresh(key, ttl_days=30):
+        cached = c.get(key)
+        if cached is not None:
+            return cached
+    try:
+        if market != "us":
+            return None
+        import yfinance as yf
+        info = yf.Ticker(symbol).info or {}
+        sector = info.get("sector")
+        if sector:
+            if c:
+                c.set(key, sector, ttl_days=30)
+            return str(sector)
+        return None
+    except Exception as e:
+        logger.warning(f"fetch_industry {market}:{symbol} failed: {e}")
+        return None

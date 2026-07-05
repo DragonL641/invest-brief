@@ -10,6 +10,8 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from investbrief.picks.factors import FACTOR_CATEGORY  # 同域 picks→picks,OK
+
 
 def rank_picks(candidates: list[dict], profile: dict, market: str) -> list[dict]:
     """对候选池做截面打分排名,返回 pick 列表(已按 composite 降序,带 rank)。"""
@@ -17,9 +19,17 @@ def rank_picks(candidates: list[dict], profile: dict, market: str) -> list[dict]
         return []
     factor_cfg = profile["factors"]
     factor_keys = list(factor_cfg.keys())
+    neutralize = bool(profile.get("industry_neutralize"))
 
-    # 收集每个因子的有效值序列
-    series = {f: [c["raw_factors"].get(f) for c in candidates] for f in factor_keys}
+    # 收集每个因子的有效值序列(可能在行业中性化后被改写)
+    industries = [c.get("industry") for c in candidates]
+    series = {}
+    for f in factor_keys:
+        raw_vals = [c["raw_factors"].get(f) for c in candidates]
+        if (neutralize and FACTOR_CATEGORY.get(f) == "fundamental"
+                and _has_industry_groups(industries)):
+            raw_vals = _neutralize_by_industry(raw_vals, industries)
+        series[f] = raw_vals
 
     # rank percentile(0-100),invert 处理
     pct = {}
@@ -81,3 +91,25 @@ def _triggers(factor_scores: dict, factor_cfg: dict) -> list[str]:
         if p is not None and p >= 70:
             out.append(f"{f} 处于池内前 {100 - p:.0f}%")
     return out
+
+
+# ---- TODO D 行业中性化 ----
+
+def _has_industry_groups(industries: list) -> bool:
+    """是否至少有一个非 None 的行业标签(否则中性化是 no-op,跳过省成本)。"""
+    return any(x is not None for x in industries)
+
+
+def _neutralize_by_industry(values: list, industries: list) -> list:
+    """对每个候选:v' = v - industry_group_median(v)。
+
+    - 行业标签 None 的候选自成一组(或等价地用全局中位数)
+    - NaN 候选保持 NaN(不参与中位数计算)
+    - 全是 NaN 的组:中位数 NaN,减后所有候选变 NaN → rank 时全员无值,等价于稀疏降级
+      (实际不会发生,因为外层先检查 len(valid) < 3)
+    """
+    s = pd.Series(values, dtype="float64")
+    ind = pd.Series(industries, dtype="object")
+    # 按行业分组求中位数(NaN-skipped);None 行业会形成单独的 NaN 组
+    med = s.groupby(ind, dropna=False).transform("median")
+    return (s - med).tolist()
