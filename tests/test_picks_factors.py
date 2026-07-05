@@ -38,3 +38,28 @@ def test_short_history_returns_none():
 def test_low_volatility_returns_positive():
     v = factors.FACTOR_REGISTRY["low_volatility_20d"](_uptrend_hist(), {}, {})
     assert v is not None and v > 0
+
+
+def test_fundamental_factors_in_registry():
+    for k in ("growth", "quality", "valuation", "momentum_12m_ex1m",
+              "moat", "industry_prosperity"):
+        assert k in factors.FACTOR_REGISTRY
+
+
+def test_growth_uses_fundamentals():
+    fund = {"revenue_yoy": 0.20, "profit_yoy": 0.25}
+    v = factors.FACTOR_REGISTRY["growth"](_uptrend_hist(130), fund, {})
+    assert v is not None and v > 0
+
+
+def test_valuation_invert_low_pe_better():
+    """valuation 因子原始值越低越好(engine invert),本身返回 pe_pct_3y。"""
+    v_low = factors.FACTOR_REGISTRY["valuation"](_uptrend_hist(130), {}, {"pe_pct_3y": 10.0, "pb_pct_3y": 10.0})
+    v_high = factors.FACTOR_REGISTRY["valuation"](_uptrend_hist(130), {}, {"pe_pct_3y": 90.0, "pb_pct_3y": 90.0})
+    assert v_low is not None and v_high is not None and v_low < v_high
+
+
+def test_quality_combines_roe_margin_fcf():
+    fund = {"roe": 0.20, "gross_margin": 0.40, "fcf_positive": True}
+    v = factors.FACTOR_REGISTRY["quality"](_uptrend_hist(130), fund, {})
+    assert v is not None and v > 0
