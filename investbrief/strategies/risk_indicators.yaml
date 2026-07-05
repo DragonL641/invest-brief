@@ -1,0 +1,162 @@
+# P4 风险模型指标配置（从 risk/config.py 外置，便于调整/分享/回测对比）
+common:
+  ma50_deviation:
+    name: 50日均线偏离度
+    weight: 0.05
+    category: technical
+    thresholds: {cn: 0.15, us: 0.15}
+    low_thresholds: {cn: 0.0, us: 0.0}
+    description: "(收盘价 - MA50) / MA50"
+    scale: 100
+    unit: "%"
+    explain: "偏离越大=超买或超卖越重"
+  volume_shrinkage:
+    name: 成交量萎缩度
+    weight: 0.04
+    category: technical
+    thresholds: {cn: 0.7, us: 0.7}
+    low_thresholds: {cn: 0.7, us: 0.7}
+    invert: true
+    description: "5日均量 / 30日均量"
+    scale: 100
+    unit: "%"
+    explain: "上涨中缩量=见顶信号"
+
+cn:
+  hsh300_erp:
+    name: 沪深300 ERP
+    weight: 0.30
+    category: valuation
+    thresholds: {cn: 2.0}
+    low_thresholds: {cn: 5.0}
+    invert: true
+    description: "(1/沪深300PE) - 10Y国债, 高=股便宜=低风险"
+    scale: 1
+    unit: "%"
+    explain: "高=股便宜=低风险"
+  zz500_erp:
+    name: 中证500 ERP
+    weight: 0.24
+    category: valuation
+    thresholds: {cn: 0.5}
+    low_thresholds: {cn: 3.0}
+    invert: true
+    description: "(1/中证500PE) - 10Y国债, 中小盘成长ERP"
+    scale: 1
+    unit: "%"
+    explain: "高=中小盘便宜=低风险"
+  structural_divergence:
+    name: "结构分化(等权/加权PE)"
+    weight: 0.18
+    category: valuation
+    thresholds: {cn: 2.5}
+    low_thresholds: {cn: 1.5}
+    description: "沪深300等权PE/加权PE, 高=少数股泡沫(抱团/小盘疯)"
+    scale: 1
+    unit: "倍"
+    explain: "高=少数股泡沫(抱团)"
+  margin_growth:
+    name: 融资余额增速
+    weight: 0.10
+    category: liquidity
+    thresholds: {cn: 0.15}
+    low_thresholds: {cn: 0.0}
+    description: "4周融资余额增速, 杠杆加速度(管2015杠杆顶)"
+    scale: 1
+    unit: "%"
+    explain: "高=杠杆加速冲顶"
+  margin_level:
+    name: 融资余额水平
+    weight: 0.09
+    category: liquidity
+    thresholds: {cn: 20000}
+    low_thresholds: {cn: 5000}
+    description: "融资余额绝对值分位, 杠杆水平(管2021抱团顶)"
+    scale: 1
+    unit: "亿"
+    explain: "高=杠杆仓位重"
+
+us:
+  index_pe:
+    name: 指数PE
+    weight: 0.31
+    category: valuation
+    thresholds: {us: 28}
+    low_thresholds: {us: 15}
+    description: "美股SPY trailing PE"
+    scale: 1
+    unit: ""
+    explain: "高=估值贵=风险"
+  sp500_erp:
+    name: 标普500 ERP
+    weight: 0.15
+    category: valuation
+    thresholds: {us: 2.0}
+    low_thresholds: {us: 5.0}
+    invert: true
+    description: "(1/标普500PE) - 10Y国债, 高=股便宜=低风险(与A股ERP同口径)"
+    scale: 1
+    unit: "%"
+    explain: "高=股便宜=低风险"
+  credit_spread:
+    name: 信用利差
+    weight: 0.20
+    category: liquidity
+    thresholds: {us: 0.05}
+    low_thresholds: {us: -0.02}
+    description: "HYG价格相对国债的偏离"
+    scale: 100
+    unit: "%"
+    explain: "扩大=资金逃风险"
+  yield_curve_inversion:
+    name: 收益率曲线倒挂
+    weight: 0.14
+    category: macro
+    thresholds: {us: 0.5}
+    low_thresholds: {us: -0.5}
+    description: "10年期 - 3个月期利差"
+    scale: 1
+    unit: "%"
+    explain: "倒挂(负值)=衰退信号"
+  vix:
+    name: VIX恐慌指数
+    weight: 0.11
+    category: sentiment
+    thresholds: {us: 30}
+    low_thresholds: {us: 12}
+    description: "VIX收盘值"
+    scale: 1
+    unit: ""
+    explain: "高=市场恐慌"
+
+gold:
+  gold_gdp_ratio:
+    name: 黄金GDP占比
+    weight: 0.25
+    category: valuation
+    thresholds: {gold: 15.0}
+    low_thresholds: {gold: 5.0}
+    description: "全部黄金价值/全球GDP(UP主方法: 全球GDP分母不受单国放水干扰, 均值~9%)"
+    scale: 1
+    unit: "%"
+    explain: "高=金价相对经济偏高"
+  gold_real_price:
+    name: "实际金价 z-score"
+    weight: 0.375
+    category: valuation
+    thresholds: {gold: 2.0}
+    low_thresholds: {gold: -2.0}
+    description: "金价/CPI 实际金价的历史 z-score"
+    scale: 1
+    unit: "σ"
+    explain: "高=实际金价偏贵"
+  gold_ma200_deviation:
+    name: 金价MA200偏离度
+    weight: 0.375
+    category: technical
+    thresholds: {gold: 0.30}
+    low_thresholds: {gold: 0.0}
+    description: "(金价 - MA200) / MA200"
+    scale: 100
+    unit: "%"
+    explain: "高=超买"

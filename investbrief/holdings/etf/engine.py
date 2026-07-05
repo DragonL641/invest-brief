@@ -1,17 +1,16 @@
 """规则匹配引擎。
 
-加载 rules.json，对分析数据逐条评估，返回匹配结果。
+从 strategies/etf_rules.yaml 加载（YAML），对分析数据逐条评估，返回匹配结果。
 使用受限 eval 执行规则条件表达式，仅允许白名单内操作。
 """
-
-import json
 import logging
-from pathlib import Path
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+import yaml
 
-RULES_PATH = Path(__file__).parent / "rules.json"
+from investbrief.core.strategy_loader import load_strategy
+
+logger = logging.getLogger(__name__)
 
 # eval 白名单：只允许基础比较运算
 _SAFE_BUILTINS = {
@@ -33,11 +32,14 @@ class RuleResult:
 
 
 class RuleEngine:
-    def __init__(self, rules_path: str | Path | None = None):
-        path = Path(rules_path) if rules_path else RULES_PATH
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        self.rules = data["rules"]
+    def __init__(self, rules_path: str | None = None):
+        if rules_path:
+            with open(rules_path, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+        else:
+            data = load_strategy("etf_rules")
+        # enabled 字段过滤（缺省视为 True）
+        self.rules = [r for r in data["rules"] if r.get("enabled", True)]
         self._validate_rules()
 
     def _validate_rules(self):
