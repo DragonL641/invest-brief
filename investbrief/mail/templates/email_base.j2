@@ -306,6 +306,16 @@
     /* Earnings surprise */
     .earnings-beat { color: #27ae60; font-weight: 600; }
     .earnings-miss { color: #e74c3c; font-weight: 600; }
+    /* Asset cards (大类资产) — flex 响应式网格：桌面 3 列等高，移动端单列 stack */
+    .asset-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .asset-card {
+      flex: 1 1 30%;
+      min-width: 0;
+      min-height: 96px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
     @media (max-width: 600px) {
       body { padding: 10px; }
       .header h1 { font-size: 22px; }
@@ -315,6 +325,7 @@
       th, td { padding: 4px 5px; font-size: 11px; word-break: break-word; }
       .stock-detail-header { flex-direction: column; align-items: flex-start; }
       .upgrade-item { flex-direction: column; align-items: flex-start; }
+      .asset-card { flex: 1 1 100%; }
     }
   </style>
 </head>

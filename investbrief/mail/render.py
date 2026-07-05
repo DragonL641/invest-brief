@@ -5,12 +5,13 @@ Renders Jinja2 templates (macro / holdings) into Chinese-only email HTML.
 
 Public API: load_template(), render_template(), render_holdings_template().
 """
-import re
 import logging
 from datetime import datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
+
+from investbrief.core.textfmt import md_inline
 
 logger = logging.getLogger(__name__)
 
@@ -25,23 +26,6 @@ _env = Environment(
     autoescape=False,
     keep_trailing_newline=True,
 )
-
-
-def md_inline(text: str) -> str:
-    """Convert common Markdown patterns to inline HTML for email rendering.
-
-    Handles: **bold**, *italic*, ## headings (→ styled bold), - list items (→ bullets).
-    Does NOT produce block elements (no <h2>, <ul>) to avoid CSS font-size inheritance issues.
-    """
-    if not text:
-        return ""
-    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
-    text = re.sub(r'^#{1,3}\s+(.+)$', r'<strong style="display:inline-block;margin:4px 0;">\1</strong>', text, flags=re.MULTILINE)
-    text = re.sub(r'^[\-\*]\s+(.+)$', r'<span style="display:block;padding-left:12px;">• \1</span>', text, flags=re.MULTILINE)
-    text = re.sub(r'^(\d+)\.\s+(.+)$', r'<span style="display:block;padding-left:12px;">\1. \2</span>', text, flags=re.MULTILINE)
-    text = text.replace('\n', '<br>')
-    return text
 
 
 # ============================================================================

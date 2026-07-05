@@ -204,8 +204,8 @@ def test_renderer_4_types():
         HoldingResult(symbol="000001", market="cn", type="fund", name="华夏成长", error="P2"),
     ]
     html = render_holdings_section(rs)
-    # 新版分组：场内 stock+etf 一组，fund 走场外
-    assert "场内持仓" in html and "场外基金" in html
+    # 三层层级：个股 / 场内基金 / 场外基金
+    assert "个股" in html and "场内基金" in html and "场外基金" in html
     assert "AAPL" in html and "Apple" in html
     assert "买入共识" in html  # rating distribution 走机构态度维度行
     assert "510300" in html and "沪深300ETF" in html and "估值低位" in html

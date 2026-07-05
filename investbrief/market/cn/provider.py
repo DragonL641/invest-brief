@@ -157,10 +157,14 @@ class CNMarketProvider(MarketProvider):
             ("社融增量", monetary.get("social_financing"), "亿元"),
             ("中国10Y国债", monetary.get("cn_10y_yield"), "%"),
         ]
-        rows = [
-            f'<div class="metric"><span class="label">{label}:</span> {val}{suffix}</div>'
-            for label, val, suffix in pairs if val is not None
-        ]
+        rows = []
+        for label, val, suffix in pairs:
+            if val is None:
+                continue
+            val_str = f"{val:.2f}" if isinstance(val, (int, float)) else str(val)
+            rows.append(
+                f'<div class="metric"><span class="label">{label}:</span> {val_str}{suffix}</div>'
+            )
         if not rows:
             return ""
         return (
@@ -174,7 +178,7 @@ class CNMarketProvider(MarketProvider):
     def _render_indices_table(
         self, indices: list[dict], config: dict
     ) -> str:
-        """渲染指数行情表格。"""
+        """渲染指数行情卡片（flex 响应式，移动端单列 stack）。"""
         if not indices:
             return '<div class="no-data">暂无指数数据</div>'
 
@@ -189,32 +193,20 @@ class CNMarketProvider(MarketProvider):
             )
             point = idx.get("point", 0)
             amount = idx.get("amount")
-            amount_str = f'<div style="font-size:11px; color:#999;">额 {self._format_amount(amount)}</div>' if amount else ""
+            amount_str = (f'<div style="font-size:11px;color:#999;margin-top:6px;">额 {self._format_amount(amount)}</div>'
+                          if amount else "")
             cards += f'''
-        <td style="padding:8px 6px; width:33.3%; vertical-align:top;">
-          <div style="background:#f8f9fa; border-radius:8px; padding:10px; text-align:center;">
-            <div style="font-size:12px; color:#7f8c8d; margin-bottom:4px;">{idx['name']}</div>
-            <div style="font-size:18px; font-weight:bold; color:#2c3e50;">{point:,.2f}</div>
-            <div style="font-size:14px; font-weight:bold; color:{color};">{change_str}</div>
-            {amount_str}
-          </div>
-        </td>'''
-
-        # Wrap in rows of 3
-        cells = cards.split("</td>")
-        cells = [c + "</td>" for c in cells if c.strip()]
-        rows_html = ""
-        for i in range(0, len(cells), 3):
-            row_cells = "".join(cells[i : i + 3])
-            remaining = 3 - len(cells[i : i + 3])
-            for _ in range(remaining):
-                row_cells += '<td style="width:33.3%;"></td>'
-            rows_html += f"<tr>{row_cells}</tr>"
+        <div class="asset-card" style="background:#f8f9fa;border-radius:8px;padding:12px 10px;text-align:center;">
+          <div style="font-size:12px;color:#7f8c8d;margin-bottom:4px;">{idx['name']}</div>
+          <div style="font-size:18px;font-weight:bold;color:#2c3e50;">{point:,.2f}</div>
+          <div style="font-size:14px;font-weight:bold;color:{color};">{change_str}</div>
+          {amount_str}
+        </div>'''
 
         return f'''
-      <table width="100%" cellpadding="0" cellspacing="6" style="border-collapse:separate;">
-        {rows_html}
-      </table>'''
+      <div class="asset-grid" style="display:flex;flex-wrap:wrap;gap:6px;">
+        {cards.strip()}
+      </div>'''
 
     def _render_economic_calendar(self, calendar: list[dict]) -> str:
         """渲染经济日历。"""

@@ -153,10 +153,14 @@ class USMarketProvider(MarketProvider):
             ("美债13周", monetary.get("us_13w_yield"), "%"),
             ("联邦基金目标", monetary.get("fed_funds_rate"), ""),
         ]
-        rows = [
-            f'<div class="metric"><span class="label">{label}:</span> {val}{suffix}</div>'
-            for label, val, suffix in pairs if val is not None
-        ]
+        rows = []
+        for label, val, suffix in pairs:
+            if val is None:
+                continue
+            val_str = f"{val:.2f}" if isinstance(val, (int, float)) else str(val)
+            rows.append(
+                f'<div class="metric"><span class="label">{label}:</span> {val_str}{suffix}</div>'
+            )
         if not rows:
             return ""
         return (
@@ -213,33 +217,21 @@ class USMarketProvider(MarketProvider):
                 change_str = f"+{change:.2f}%" if change > 0 else f"{change:.2f}%"
                 color = config["color_up"] if change > 0 else (config["color_down"] if change < 0 else "#7f8c8d")
                 vol = idx.get("volume", "-")
+                vol_html = (f'<div style="font-size:11px;color:#999;margin-top:6px;">量 {vol}</div>'
+                            if vol != "-" else "")
                 cards += f'''
-        <td style="padding:8px 6px; width:33%; vertical-align:top;">
-          <div style="background:#f8f9fa; border-radius:8px; padding:10px; text-align:center;">
-            <div style="font-size:12px; color:#7f8c8d; margin-bottom:4px;">{idx['name']}</div>
-            <div style="font-size:18px; font-weight:bold; color:#2c3e50;">{idx['point']:,.2f}</div>
-            <div style="font-size:14px; font-weight:bold; color:{color};">{change_str}</div>
-            {f'<div style="font-size:11px; color:#999;">量 {vol}</div>' if vol != "-" else ""}
-          </div>
-        </td>'''
-            # Wrap in rows of 3 columns
-            cells = cards.split("</td>")
-            cells = [c + "</td>" for c in cells if c.strip()]
-            rows_html = ""
-            for i in range(0, len(cells), 3):
-                row_cells = "".join(cells[i:i+3])
-                # Pad with empty cells if needed
-                remaining = 3 - len(cells[i:i+3])
-                for _ in range(remaining):
-                    row_cells += '<td style="width:33%;"></td>'
-                rows_html += f'<tr>{row_cells}</tr>'
-
+        <div class="asset-card" style="background:#f8f9fa;border-radius:8px;padding:12px 10px;text-align:center;">
+          <div style="font-size:12px;color:#7f8c8d;margin-bottom:4px;">{idx['name']}</div>
+          <div style="font-size:18px;font-weight:bold;color:#2c3e50;">{idx['point']:,.2f}</div>
+          <div style="font-size:14px;font-weight:bold;color:{color};">{change_str}</div>
+          {vol_html}
+        </div>'''
             html += f'''
       <div style="margin-bottom:4px;">
-        <div style="font-size:13px; font-weight:600; color:#555; margin-bottom:6px;">{label}</div>
-        <table width="100%" cellpadding="0" cellspacing="6" style="border-collapse:separate;">
-          {rows_html}
-        </table>
+        <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:6px;">{label}</div>
+        <div class="asset-grid" style="display:flex;flex-wrap:wrap;gap:6px;">
+          {cards.strip()}
+        </div>
       </div>'''
 
         return html

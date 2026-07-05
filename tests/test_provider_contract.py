@@ -157,3 +157,30 @@ def test_cn_render_section_embeds_risk_html(cn_provider):
     assert "<!--RISK-MARKER-->" in html
     last_close = html.rfind("</div>")
     assert html.find("<!--RISK-MARKER-->") < last_close
+
+
+def test_us_monetary_render_formats_yield_to_2dp(us_provider):
+    """问题1回归：收益率渲染统一 ≤2 位小数；联邦基金目标(字符串)原样保留。"""
+    html = us_provider._render_monetary_policy(
+        {"us_10y_yield": 4.327, "us_5y_yield": 4.1, "us_13w_yield": 4.2567,
+         "fed_funds_rate": "5.25% - 5.50%"},
+        {"color_up": "#e74c3c", "color_down": "#27ae60"},
+    )
+    assert "4.33%" in html    # 4.327 → 2 位
+    assert "4.10%" in html    # 4.1 → 2 位
+    assert "4.26%" in html    # 4.2567 → 2 位
+    assert "5.25% - 5.50%" in html   # 字符串原样
+    assert "4.327" not in html and "4.2567" not in html
+
+
+def test_cn_monetary_render_formats_to_2dp(cn_provider):
+    """问题1回归：CN 货币指标渲染统一 ≤2 位小数。"""
+    html = cn_provider._render_monetary_policy(
+        {"lpr_1y": 3.12345, "m2_yoy": 8.5, "social_financing": 50000.0, "cn_10y_yield": 2.3},
+        {"color_up": "#e74c3c", "color_down": "#27ae60"},
+    )
+    assert "3.12%" in html       # 3.12345 → 2 位
+    assert "8.50%" in html
+    assert "2.30%" in html
+    assert "50000.00亿元" in html
+    assert "3.12345" not in html

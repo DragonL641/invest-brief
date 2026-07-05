@@ -331,7 +331,7 @@ class HoldingsAnalyzer:
         flow = data.get("flow") or {}
         result = HoldingResult(
             symbol=symbol, market="cn", type="stock",
-            name=quote.get("name", symbol),
+            name=quote.get("name") or symbol,
             price={
                 "current": quote.get("price"),
                 "change_pct": quote.get("change_pct"),

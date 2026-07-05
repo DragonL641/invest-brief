@@ -194,6 +194,21 @@ class AKShareClient:
             _df_cache.mark_failed("zh_a_spot", 60)
         return df
 
+    def _lookup_name(self, symbol: str) -> str | None:
+        """从 cached 全量 A 股 df 查 name（stock_bid_ask_em 不返回名称）。
+
+        全量 df 5min 缓存（_get_all_stocks_df），命中时近免费；首次 miss
+        （网络/限流）返回 None，调用方用 symbol 兜底。
+        """
+        df = self._get_all_stocks_df()
+        if df is None or df.empty:
+            return None
+        row = df[df["代码"] == symbol]
+        if row.empty:
+            return None
+        name = str(row.iloc[0].get("名称", "")).strip()
+        return name or None
+
     def get_stock_quote(self, symbol: str) -> dict[str, Any] | None:
         """获取个股实时行情。用 stock_bid_ask_em 单股接口（<1s），替代全量 spot_em。"""
         df = _with_retry(
@@ -205,7 +220,7 @@ class AKShareClient:
         data = {row["item"]: row["value"] for _, row in df.iterrows()}
         return {
             "symbol": symbol,
-            "name": None,  # bid_ask 无 name；调用方用 symbol 兜底
+            "name": self._lookup_name(symbol),  # bid_ask 无 name，从 cached 全量 df 补
             "price": _safe_float(data.get("最新")),
             "change": _safe_float(data.get("涨跌")),
             "change_pct": _safe_float(data.get("涨幅")),

@@ -11,32 +11,36 @@
 
 CSS class（signal-tag-* / bar-* / dim-* / cell / cl / ai-box / group-title）由模板 Task 12 定义。
 """
+from investbrief.core.textfmt import md_inline
 from investbrief.holdings.analyzer import HoldingResult
 
 _TYPE_CN = {"stock": "股票", "etf": "ETF", "fund": "基金"}
 
 
 def render_holdings_section(results: list[HoldingResult]) -> str:
-    """场内外分组渲染。"""
+    """三层层级渲染：📈 个股 / 📊 场内基金 / 💰 场外基金。无该类型则整组省略。"""
     if not results:
         return '<div class="no-data">暂无持仓数据</div>'
-    on_market = [r for r in results if r.type in ("stock", "etf")]
-    off_market = [r for r in results if r.type == "fund"]
+    stocks = [r for r in results if r.type == "stock"]
+    etfs = [r for r in results if r.type == "etf"]
+    funds = [r for r in results if r.type == "fund"]
 
     def _sort_key(r):
         chg = (r.price or {}).get("change_pct") or 0
         return (0 if r.market == "us" else 1, -chg)
 
     parts = []
-    if on_market:
-        parts.append(f'<h3 class="group-title">🏛 场内持仓（{len(on_market)} 只）</h3>')
-        parts += [_render_card(r) for r in sorted(on_market, key=_sort_key)]
-    if off_market:
-        parts.append(f'<h3 class="group-title">💰 场外基金（{len(off_market)} 只）</h3>')
-        parts += [_render_fund_card(r) for r in sorted(off_market, key=_sort_key)]
-    else:
-        parts.append('<h3 class="group-title">💰 场外基金</h3>')
-        parts.append('<div class="no-data" style="padding:10px;font-size:13px;">暂无场外基金</div>')
+    if stocks:
+        parts.append(f'<h3 class="group-title">📈 个股（{len(stocks)} 只）</h3>')
+        parts += [_render_card(r) for r in sorted(stocks, key=_sort_key)]
+    if etfs:
+        parts.append(f'<h3 class="group-title">📊 场内基金（{len(etfs)} 只）</h3>')
+        parts += [_render_card(r) for r in sorted(etfs, key=_sort_key)]
+    if funds:
+        parts.append(f'<h3 class="group-title">💰 场外基金（{len(funds)} 只）</h3>')
+        parts += [_render_fund_card(r) for r in sorted(funds, key=_sort_key)]
+    if not (stocks or etfs or funds):
+        parts.append('<div class="no-data">暂无持仓数据</div>')
     return "\n".join(parts)
 
 
@@ -58,7 +62,7 @@ def _render_card(r: HoldingResult) -> str:
     sig_html = '<div class="signal-row">' + "".join(
         f'<span class="signal-tag signal-tag-{s["cls"]}">{s["label"]}</span>' for s in sigs) + '</div>' if sigs else ""
     dims = _render_dimensions(r)
-    ai = f'<div class="ai-box">🤖 {r.ai_conclusion}</div>' if r.ai_conclusion else ""
+    ai = f'<div class="ai-box">🤖 {md_inline(r.ai_conclusion)}</div>' if r.ai_conclusion else ""
     return f'<div class="card">{head}<div class="card-body">{sig_html}{dims}{ai}</div></div>'
 
 
@@ -196,7 +200,7 @@ def _render_fund_card(r: HoldingResult) -> str:
         if v is not None:
             cells.append(f'<span class="cell"><span class="cl">{label}</span> {v}</span>')
     dims = f'<div class="dims"><div class="dim-row"><span class="dim-name">📋 概况</span><div class="dim-cells">{"".join(cells)}</div></div></div>' if cells else ""
-    ai = f'<div class="ai-box">🤖 {r.ai_conclusion}</div>' if r.ai_conclusion else ""
+    ai = f'<div class="ai-box">🤖 {md_inline(r.ai_conclusion)}</div>' if r.ai_conclusion else ""
     return f'<div class="card">{head}<div class="card-body">{dims}{ai}</div></div>'
 
 

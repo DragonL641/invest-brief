@@ -8,6 +8,7 @@
 import logging
 import os
 
+from investbrief.core.textfmt import md_inline
 from investbrief.holdings.analyzer import HoldingResult
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ def generate_holdings_brief(results: list[HoldingResult]) -> str:
         [{"role": "user", "content": prompt}],
         max_tokens=800,
     )
-    return text if text else _fallback(results)
+    return md_inline(text) if text else _fallback(results)
 
 
 def _format_holding(r: HoldingResult) -> str:

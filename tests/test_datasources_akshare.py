@@ -97,6 +97,8 @@ def test_get_stock_quote_bid_ask(monkeypatch):
         {"item": "换手", "value": 0.66},
     ])
     monkeypatch.setattr("investbrief.datasources.akshare.ak.stock_bid_ask_em", lambda symbol: df)
+    # _lookup_name 走 _get_all_stocks_df，直接 mock 避免触网（本测试只验 bid_ask 解析）
+    monkeypatch.setattr(AKShareClient, "_get_all_stocks_df", lambda self: pd.DataFrame())
     client = AKShareClient()
     q = client.get_stock_quote("601138")
     assert q is not None
@@ -105,6 +107,7 @@ def test_get_stock_quote_bid_ask(monkeypatch):
     assert q["change_pct"] == 1.09
     assert q["high"] == 66.22
     assert q["market_cap"] is None  # bid_ask 无市值
+    assert q["name"] is None        # 全量 df mock 为空 → name 兜底 None
 
 
 def test_get_stock_quote_bid_ask_failure_returns_none(monkeypatch):
@@ -117,3 +120,28 @@ def test_get_stock_quote_bid_ask_failure_returns_none(monkeypatch):
     monkeypatch.setattr("investbrief.datasources.akshare.time.sleep", lambda s: None)
     client = AKShareClient()
     assert client.get_stock_quote("601138") is None
+
+
+def test_get_stock_quote_name_from_all_df(monkeypatch):
+    """问题3回归：bid_ask 无 name，应从 cached 全量 A 股 df 补。"""
+    from investbrief.datasources.akshare import AKShareClient
+    bid_ask = pd.DataFrame([{"item": "最新", "value": 10.0}])
+    all_df = pd.DataFrame([{"代码": "601138", "名称": "工业富联"}])
+    monkeypatch.setattr("investbrief.datasources.akshare.ak.stock_bid_ask_em", lambda symbol: bid_ask)
+    monkeypatch.setattr(AKShareClient, "_get_all_stocks_df", lambda self: all_df)
+    client = AKShareClient()
+    q = client.get_stock_quote("601138")
+    assert q is not None
+    assert q["name"] == "工业富联"
+
+
+def test_get_stock_quote_name_none_when_all_df_miss(monkeypatch):
+    """问题3回归：全量 df 也查不到时 name 为 None（调用方 symbol 兜底）。"""
+    from investbrief.datasources.akshare import AKShareClient
+    bid_ask = pd.DataFrame([{"item": "最新", "value": 10.0}])
+    monkeypatch.setattr("investbrief.datasources.akshare.ak.stock_bid_ask_em", lambda symbol: bid_ask)
+    monkeypatch.setattr(AKShareClient, "_get_all_stocks_df", lambda self: pd.DataFrame())
+    client = AKShareClient()
+    q = client.get_stock_quote("999999")
+    assert q is not None
+    assert q["name"] is None
