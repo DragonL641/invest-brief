@@ -134,6 +134,11 @@ def _run_scheduled_macro(cron_expr: str, tz_name: str = "Asia/Shanghai"):
                 run_holdings_report(args)
             except Exception as e:
                 logger.error(f"Scheduled holdings run failed: {e}", exc_info=True)
+            try:
+                from investbrief.pipelines.picks import run_picks_report
+                run_picks_report(args)
+            except Exception as e:
+                logger.error(f"Scheduled picks run failed: {e}", exc_info=True)
 
             cron = croniter(cron_expr, now)
             next_run = cron.get_next(datetime)

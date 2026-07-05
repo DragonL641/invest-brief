@@ -85,15 +85,18 @@ logger = logging.getLogger("run")
 
 
 def run_once(args):
-    """Execute pipeline(s) once. --only controls which; default runs both macro + holdings."""
+    """Execute pipeline(s) once. --only controls which; default runs all enabled."""
     from investbrief.pipelines.macro import run_macro_report
     from investbrief.pipelines.holdings import run_holdings_report
+    from investbrief.pipelines.picks import run_picks_report
     only = getattr(args, "only", None)
     if only in (None, "macro"):
         run_macro_report(args)
     # Holdings pipeline has no update-only mode; skip under --update
     if only in (None, "holdings") and not getattr(args, "update", False):
         run_holdings_report(args)
+    if only in (None, "picks") and not getattr(args, "update", False):
+        run_picks_report(args)
 
 
 def main():
@@ -109,8 +112,8 @@ def main():
     parser.add_argument("--skip-summary", action="store_true", help="Skip Claude API summary, use placeholder")
     parser.add_argument("--update", action="store_true",
                         help="Only refresh macro data into SQLite, no render/email")
-    parser.add_argument("--only", choices=["macro", "holdings"], default=None,
-                        help="Run only one pipeline (default: both macro + holdings)")
+    parser.add_argument("--only", choices=["macro", "holdings", "picks"], default=None,
+                        help="Run only one pipeline (default: all)")
     parser.add_argument("--log-level", default="INFO", help="Log level (DEBUG, INFO, WARNING, ERROR)")
     args = parser.parse_args()
 
