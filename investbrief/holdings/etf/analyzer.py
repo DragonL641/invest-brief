@@ -4,7 +4,6 @@
 """
 
 import logging
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
 
@@ -37,7 +36,7 @@ class ETFAnalyzer:
         self.client = AKShareClient()
         self.engine = RuleEngine()
 
-    def analyze(self, symbol: str, market_data: dict | None = None) -> ETFAnalysisResult:
+    def analyze(self, symbol: str, market_data: dict | None = None, *, with_ai: bool = True) -> ETFAnalysisResult:
         """对单只 ETF 执行完整分析。
 
         symbol: 6 位 ETF 代码。
@@ -77,9 +76,11 @@ class ETFAnalyzer:
         rule_results = self.engine.evaluate(data)
         dim_summary = self.engine.dimension_summary(rule_results)
 
-        # 5. AI 综合研判
-        ai_conclusion = self._ai_synthesize(symbol, spot, rule_results, dim_summary, market_data,
-                                            regime=indicators.get("regime"))
+        # 5. AI 综合研判（dry-run 可跳过省 token）
+        ai_conclusion = ""
+        if with_ai:
+            ai_conclusion = self._ai_synthesize(symbol, spot, rule_results, dim_summary, market_data,
+                                                regime=indicators.get("regime"))
 
         # 6. 构造结果
         return ETFAnalysisResult(

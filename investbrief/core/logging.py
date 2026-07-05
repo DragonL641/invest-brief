@@ -5,6 +5,7 @@ libs (anthropic SDK, urllib3, akshare, yfinance) are pinned to WARNING so their
 INFO output does not drown pipeline logs in logs/run.log.
 """
 import logging
+import logging.handlers
 from pathlib import Path
 
 # Third-party libs that spam INFO and add no signal to daily pipeline logs.
@@ -24,7 +25,8 @@ def setup_logging(level: int = logging.INFO, log_dir: Path | None = None) -> Non
 
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     handlers = [
-        logging.FileHandler(log_dir / "run.log", encoding="utf-8"),
+        logging.handlers.RotatingFileHandler(
+            log_dir / "run.log", maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"),
         logging.StreamHandler(),
     ]
     for h in handlers:

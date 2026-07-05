@@ -8,7 +8,7 @@ of periodic economic releases (CPI, NFP, PCE, retail sales).
 import logging
 from datetime import datetime, timedelta
 from calendar import monthcalendar
-from typing import List, Dict, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ def _nth_weekday_of_month(year: int, month: int, week: int, weekday: int) -> str
     return None
 
 
-def get_upcoming_events(days_ahead: int = 21) -> List[Dict[str, Any]]:
+def get_upcoming_events(days_ahead: int = 21) -> list[dict[str, Any]]:
     """Get upcoming economic events in the next N days."""
     now = datetime.now()
     cutoff = now + timedelta(days=days_ahead)
@@ -120,7 +120,7 @@ def get_upcoming_events(days_ahead: int = 21) -> List[Dict[str, Any]]:
     return events
 
 
-def get_upcoming_events_with_yfinance(days_ahead: int = 21) -> List[Dict[str, Any]]:
+def get_upcoming_events_with_yfinance(days_ahead: int = 21) -> list[dict[str, Any]]:
     """获取未来重大经济事件，聚合为大类（CPI/NFP/PCE/FOMC/GDP）。
 
     yfinance 经济日历返回细粒度指标系列（如 CPI 拆成同比/环比/Core 多条），

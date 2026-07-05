@@ -9,7 +9,8 @@ P1 范围：US 股票 + CN 股票 + CN ETF（复用 etf 包）+ CN 场外基金�
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 from investbrief.datasources.akshare import AKShareClient
 from investbrief.datasources.finnhub import FinnhubClient
@@ -70,7 +71,7 @@ class HoldingsAnalyzer:
             results.append(self._cache[key])
         return results
 
-    def analyze_one(self, symbol: str, market: str, type_: str) -> HoldingResult:
+    def analyze_one(self, symbol: str, market: str, type_: str, *, with_ai: bool = True) -> HoldingResult:
         dispatch = {
             ("us", "stock"): self._analyze_us_stock,
             ("cn", "stock"): self._analyze_cn_stock,
@@ -82,7 +83,7 @@ class HoldingsAnalyzer:
             return HoldingResult(symbol=symbol, market=market, type=type_,
                                  error=f"unsupported market/type: {market}/{type_}")
         try:
-            return handler(symbol)
+            return handler(symbol, with_ai=with_ai)
         except Exception as e:
             logger.warning(f"analyze_one failed {market}/{type_} {symbol}: {e}")
             return HoldingResult(symbol=symbol, market=market, type=type_, error=str(e))
@@ -247,7 +248,7 @@ class HoldingsAnalyzer:
             logger.warning(f"forecast collect failed for {symbol}: {e}")
             return {}
 
-    def _analyze_us_stock(self, symbol: str) -> HoldingResult:
+    def _analyze_us_stock(self, symbol: str, *, with_ai: bool = True) -> HoldingResult:
         data = self._parallel({
             "quote": lambda: self._yf.get_quote(symbol),
             "info": lambda: self._yf.get_info(symbol),
@@ -311,9 +312,9 @@ class HoldingsAnalyzer:
             insider=data.get("insider") or {},
             forecast=data.get("forecast") or {},
         )
-        return self._with_ai(result)
+        return self._with_ai(result) if with_ai else result
 
-    def _analyze_cn_stock(self, symbol: str) -> HoldingResult:
+    def _analyze_cn_stock(self, symbol: str, *, with_ai: bool = True) -> HoldingResult:
         data = self._parallel({
             "quote": lambda: self._ak.get_stock_quote(symbol),
             "rating": lambda: self._ak.get_analyst_rating_summary(symbol),
@@ -367,10 +368,10 @@ class HoldingsAnalyzer:
             insider=data.get("insider") or {},
             cn_activity=data.get("cn_activity") or {},
         )
-        return self._with_ai(result)
+        return self._with_ai(result) if with_ai else result
 
-    def _analyze_cn_etf(self, symbol: str) -> HoldingResult:
-        result: ETFAnalysisResult = self._etf.analyze(symbol)
+    def _analyze_cn_etf(self, symbol: str, *, with_ai: bool = True) -> HoldingResult:
+        result: ETFAnalysisResult = self._etf.analyze(symbol, with_ai=with_ai)
         return HoldingResult(
             symbol=result.symbol, market="cn", type="etf",
             name=result.name,
@@ -385,7 +386,7 @@ class HoldingsAnalyzer:
             ai_conclusion=result.ai_conclusion or "",
         )
 
-    def _analyze_cn_fund(self, symbol: str) -> HoldingResult:
+    def _analyze_cn_fund(self, symbol: str, *, with_ai: bool = True) -> HoldingResult:
         """场外基金：净值代替现价，近期收益代替基本面；无资金流/评级（接口不提供）。
 
         fund_meta（scale/manager/rating）：get_open_fund_nav 当前不提供这三个字段，

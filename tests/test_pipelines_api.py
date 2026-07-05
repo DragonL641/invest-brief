@@ -1,7 +1,7 @@
 """Smoke for pipelines public API."""
-from investbrief.pipelines.macro import run_macro_report, fetch_news, _safe_risk_score
+from investbrief.pipelines.macro import run_macro_report
 from investbrief.pipelines.holdings import run_holdings_report
-from investbrief.pipelines.scheduler import run_scheduler, first_enabled_cron, request_shutdown
+from investbrief.pipelines.scheduler import run_scheduler, first_enabled_cron
 from investbrief.pipelines._send import send_report
 
 

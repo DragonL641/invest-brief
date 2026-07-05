@@ -12,7 +12,8 @@ import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
-from datetime import datetime
+
+from investbrief.core.timeutil import now_cn
 
 logger = logging.getLogger(__name__)
 from pathlib import Path
@@ -56,7 +57,7 @@ class EmailSender:
         if config_path is None:
             config_path = Path(__file__).resolve().parent.parent / "config.json"
 
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, encoding='utf-8') as f:
             config = json.load(f)
 
         email_config = config['email_service']
@@ -116,7 +117,7 @@ class EmailSender:
         msg['From'] = formataddr((self.sender_name, self.sender_email))
         msg['To'] = to_email
         msg['Subject'] = subject
-        msg['Date'] = datetime.now().strftime('%a, %d %b %Y %H:%M:%S %z')
+        msg['Date'] = now_cn().strftime('%a, %d %b %Y %H:%M:%S %z')
 
         # Add plain text part if provided
         if plain_text:
@@ -183,25 +184,33 @@ class EmailSender:
                 if not self.use_ssl:
                     server.ehlo(); server.starttls(); server.ehlo()
                 server.login(self.sender_email, self.app_password)
+                consecutive_fail = 0
                 for m in messages:
                     try:
                         msg = MIMEMultipart('alternative')
                         msg['From'] = formataddr((self.sender_name, self.sender_email))
                         msg['To'] = m["to"]
                         msg['Subject'] = m["subject"]
-                        msg['Date'] = datetime.now().strftime('%a, %d %b %Y %H:%M:%S %z')
+                        msg['Date'] = now_cn().strftime('%a, %d %b %Y %H:%M:%S %z')
                         if m.get("plain"):
                             msg.attach(MIMEText(m["plain"], 'plain', 'utf-8'))
                         msg.attach(MIMEText(m["html"], 'html', 'utf-8'))
                         server.sendmail(self.sender_email, m["to"], msg.as_string())
                         sent += 1
+                        consecutive_fail = 0
                         logger.info(f"Email sent to {m['to']}")
                     except Exception as e:
                         failed.append((m["to"], str(e)))
+                        consecutive_fail += 1
                         logger.warning(f"send to {m['to']} failed: {e}")
+                        if consecutive_fail >= 3:
+                            logger.warning("3 consecutive send failures — connection likely dead, stopping batch")
+                            for rest in messages[sent + len(failed):]:
+                                failed.append((rest["to"], "skipped: connection dropped after 3 failures"))
+                            break
             finally:
                 server.quit()
-        except smtplib.SMTPAuthenticationError as e:
+        except smtplib.SMTPAuthenticationError:
             raise Exception("SMTP authentication failed. Check your email and app password.")
         except Exception as e:
             # Connection/login-level failure — remaining messages all failed
@@ -220,7 +229,7 @@ def test_connection(config_path=None):
     if config_path is None:
         config_path = Path(__file__).parent.parent / "config.json"
 
-    with open(config_path, 'r', encoding='utf-8') as f:
+    with open(config_path, encoding='utf-8') as f:
         config = json.load(f)
 
     email_config = config['email_service']

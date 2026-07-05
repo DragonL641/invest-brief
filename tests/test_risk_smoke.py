@@ -4,7 +4,6 @@
 目的：验证移植后的指标链端到端跑通、且确实在算（非全回退 5.0 → 总分 50）。
 """
 import os
-from pathlib import Path
 
 import pytest
 

@@ -1,8 +1,8 @@
 """Shared send helper for the macro and holdings pipelines."""
 import logging
-from datetime import datetime
 
 from investbrief.core.config import CONFIG_FILE
+from investbrief.core.timeutil import now_cn
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def send_report(report_data: dict, config: dict, recipients: list):
         language = r.get("language", "zh-CN")
         logger.info(f"Processing: {name} ({email}) - Language: {language}")
         html = render_template("email_base.j2", report_data, language)
-        subject = report_data.get("subject", f"【投资日报】{datetime.now().strftime('%Y年%m月%d日')}")
+        subject = report_data.get("subject", f"【投资日报】{now_cn().strftime('%Y年%m月%d日')}")
         messages.append({"to": email, "subject": subject, "html": html})
 
     sent, failed = sender.send_bulk(messages)

@@ -7,7 +7,7 @@ Provides a unified interface for fetching stock data with fallback priorities:
 """
 
 import logging
-from typing import Optional, Dict, List, Any
+from typing import Any
 from datetime import datetime
 
 from investbrief.datasources.finnhub import FinnhubClient
@@ -32,7 +32,7 @@ class DataProvider:
         Finnhub > WebSearch
     """
 
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         """
         Initialize DataProvider with configuration
 
@@ -52,7 +52,7 @@ class DataProvider:
 
     # ==================== Stock Price Methods ====================
 
-    def get_stock_price(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_stock_price(self, symbol: str) -> dict[str, Any] | None:
         """
         Get stock price with fallback priority
 
@@ -106,7 +106,7 @@ class DataProvider:
         logger.info(f"No API available for stock price: {symbol}")
         return None
 
-    def get_stock_prices(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
+    def get_stock_prices(self, symbols: list[str]) -> dict[str, dict[str, Any]]:
         """
         Get prices for multiple stocks
 
@@ -125,7 +125,7 @@ class DataProvider:
 
     # ==================== Technical Indicators ====================
 
-    def get_technical_indicators(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_technical_indicators(self, symbol: str) -> dict[str, Any] | None:
         """
         Get technical indicators (SMA, RSI)
 
@@ -167,7 +167,7 @@ class DataProvider:
 
     # ==================== Analyst Recommendations ====================
 
-    def get_analyst_recommendation(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_analyst_recommendation(self, symbol: str) -> dict[str, Any] | None:
         """
         Get analyst recommendations
 
@@ -218,7 +218,7 @@ class DataProvider:
             "source": "finnhub"
         }
 
-    def get_price_target(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_price_target(self, symbol: str) -> dict[str, Any] | None:
         """
         Get analyst price target
 
@@ -252,7 +252,7 @@ class DataProvider:
 
     # ==================== News Methods ====================
 
-    def get_market_news(self, market: str = "general", max_results: int = 10) -> Optional[List[Dict[str, Any]]]:
+    def get_market_news(self, market: str = "general", max_results: int = 10) -> list[dict[str, Any]] | None:
         """
         Get general market news
 
@@ -294,7 +294,7 @@ class DataProvider:
 
         return None
 
-    def get_company_news(self, symbol: str, days: int = 7) -> Optional[List[Dict[str, Any]]]:
+    def get_company_news(self, symbol: str, days: int = 7) -> list[dict[str, Any]] | None:
         """
         Get news for a specific company
 
@@ -326,7 +326,7 @@ class DataProvider:
         self,
         query: str,
         max_results: int = 10
-    ) -> Optional[List[Dict[str, Any]]]:
+    ) -> list[dict[str, Any]] | None:
         """
         Search for news with custom query
 
@@ -346,7 +346,7 @@ class DataProvider:
 
     # ==================== Market Indices ====================
 
-    def get_market_indices(self) -> Optional[Dict[str, Dict[str, Any]]]:
+    def get_market_indices(self) -> dict[str, dict[str, Any]] | None:
         """
         Get major market indices prices
 
@@ -379,8 +379,8 @@ class DataProvider:
 
     # ==================== News Methods (Unified) ====================
 
-    def get_financial_news(self, tickers: List[str] = None, limit: int = 50,
-                           user_tickers: List[str] = None) -> List[Dict[str, Any]]:
+    def get_financial_news(self, tickers: list[str] = None, limit: int = 50,
+                           user_tickers: list[str] = None) -> list[dict[str, Any]]:
         """
         Get financial news with scoring and sorting.
 
@@ -431,7 +431,7 @@ class DataProvider:
 
         return news[:limit]
 
-    def _filter_recent(self, news: List[Dict], days: int = 7) -> List[Dict]:
+    def _filter_recent(self, news: list[dict], days: int = 7) -> list[dict]:
         """Filter news to only include items within N days"""
         from datetime import timedelta
         cutoff = datetime.now() - timedelta(days=days)
@@ -445,7 +445,7 @@ class DataProvider:
                 filtered.append(item)
         return filtered
 
-    def _score_and_sort_news(self, news: List[Dict], user_tickers: List[str]) -> List[Dict]:
+    def _score_and_sort_news(self, news: list[dict], user_tickers: list[str]) -> list[dict]:
         """
         Score each news item and sort by composite score.
 
@@ -528,7 +528,7 @@ class DataProvider:
 
     # ==================== Status Methods ====================
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """
         Get status of all data sources
 
@@ -583,7 +583,7 @@ class DataProvider:
 
         return status
 
-    def should_use_websearch(self) -> Dict[str, bool]:
+    def should_use_websearch(self) -> dict[str, bool]:
         """
         Determine which data types need WebSearch fallback
 
@@ -602,7 +602,7 @@ class DataProvider:
 
 
 # Convenience function for quick setup
-def create_provider(config_path: str = None, config_dict: Dict = None) -> DataProvider:
+def create_provider(config_path: str = None, config_dict: dict = None) -> DataProvider:
     """
     Create a DataProvider instance
 
@@ -618,7 +618,7 @@ def create_provider(config_path: str = None, config_dict: Dict = None) -> DataPr
 
     if config_path:
         import json
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, encoding='utf-8') as f:
             config = json.load(f)
         return DataProvider(config)
 

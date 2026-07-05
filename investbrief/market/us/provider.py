@@ -5,7 +5,7 @@ Provides macro data: indices, monetary policy, asset performance, economic calen
 """
 
 import logging
-from typing import Dict, List, Any
+from typing import Any
 
 import pandas as pd
 
@@ -66,7 +66,7 @@ class USMarketProvider(MarketProvider):
             change = 0.0
         return point, change, volume
 
-    def get_indices(self) -> List[Dict[str, Any]]:
+    def get_indices(self) -> list[dict[str, Any]]:
         results = []
         for name, code in _INDEX_SYMBOLS.items():
             point, change, volume = self._bar_point_change(code)
@@ -108,7 +108,7 @@ class USMarketProvider(MarketProvider):
 
     # ==================== Rendering ====================
 
-    def render_section(self, data: Dict[str, Any], config: Dict[str, Any], *,
+    def render_section(self, data: dict[str, Any], config: dict[str, Any], *,
                        macro_summary: str | None = None, risk_html: str = "",
                        regime_html: str = "") -> str:
         """Render US market macro section.
@@ -171,32 +171,7 @@ class USMarketProvider(MarketProvider):
             f'{"".join(rows)}</div></div></div>'
         )
 
-    def _render_economic_calendar(self, calendar: List[Dict]) -> str:
-        if not calendar:
-            return ""
-        rows = ""
-        for e in calendar:
-            importance = e.get("importance", "medium")
-            badge_color = "#e74c3c" if importance == "high" else "#f39c12"
-            days = e["days_away"]
-            rows += f'''
-      <tr>
-        <td>{e["name"]}</td>
-        <td>{e["date"]}</td>
-        <td><span style="background:{badge_color}; color:#fff; padding:2px 6px; border-radius:3px; font-size:11px;">{days}天后</span></td>
-      </tr>'''
-        return f'''
-      <div class="card">
-        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">🏛️ 经济日历</div>
-        <div class="card-body">
-          <table>
-<thead><tr><th>事件</th><th>日期</th><th>倒计时</th></tr></thead>
-<tbody>{rows}</tbody>
-</table>
-        </div>
-      </div>'''
-
-    def _render_indices_table(self, indices: List[Dict], config: Dict) -> str:
+    def _render_indices_table(self, indices: list[dict], config: dict) -> str:
         # Categorize indices
         stock_names = {"S&P 500", "NASDAQ", "Dow Jones"}
         macro_names = {"10Y国债", "WTI原油", "美元指数"}

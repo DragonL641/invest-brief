@@ -1,7 +1,7 @@
 """Alpha Vantage API Client."""
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
 
@@ -20,11 +20,11 @@ class AlphaVantageClient:
 
     BASE_URL = "https://www.alphavantage.co/query"
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         self.api_key = _resolve_api_key(api_key, ENV_KEYS["alphavantage"])
         self.enabled = bool(self.api_key)
 
-    def _request(self, params: Dict) -> Optional[Dict]:
+    def _request(self, params: dict) -> dict | None:
         """Make authenticated request to Alpha Vantage API"""
         if not self.enabled:
             return None
@@ -45,7 +45,7 @@ class AlphaVantageClient:
             logger.warning(f"Alpha Vantage API error: {e}")
             return None
 
-    def get_daily_prices(self, symbol: str, outputsize: str = "compact") -> Optional[Dict[str, Any]]:
+    def get_daily_prices(self, symbol: str, outputsize: str = "compact") -> dict[str, Any] | None:
         """
         Get daily price data
 
@@ -96,7 +96,7 @@ class AlphaVantageClient:
             "prices": prices
         }
 
-    def get_quote(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_quote(self, symbol: str) -> dict[str, Any] | None:
         """
         Get real-time quote (Global Quote)
 
@@ -136,7 +136,7 @@ class AlphaVantageClient:
             "change_percent": quote.get("10. change percent", "0%").replace("%", "")
         }
 
-    def get_sma(self, symbol: str, interval: str = "daily", time_period: int = 20) -> Optional[Dict[str, Any]]:
+    def get_sma(self, symbol: str, interval: str = "daily", time_period: int = 20) -> dict[str, Any] | None:
         """
         Get Simple Moving Average
 
@@ -173,7 +173,7 @@ class AlphaVantageClient:
             "values": values
         }
 
-    def get_rsi(self, symbol: str, interval: str = "daily", time_period: int = 14) -> Optional[Dict[str, Any]]:
+    def get_rsi(self, symbol: str, interval: str = "daily", time_period: int = 14) -> dict[str, Any] | None:
         """
         Get Relative Strength Index
 
@@ -210,7 +210,7 @@ class AlphaVantageClient:
             "values": values
         }
 
-    def get_news_sentiment(self, tickers: str = None, limit: int = 50) -> Optional[List[Dict[str, Any]]]:
+    def get_news_sentiment(self, tickers: str = None, limit: int = 50) -> list[dict[str, Any]] | None:
         """
         Get news with sentiment analysis
 

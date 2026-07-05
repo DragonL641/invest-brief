@@ -1,7 +1,6 @@
 """Shared helpers for datasources API key resolution."""
 import os
 from pathlib import Path
-from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -16,6 +15,6 @@ ENV_KEYS = {
 }
 
 
-def _resolve_api_key(config_key: Optional[str], env_name: str) -> Optional[str]:
+def _resolve_api_key(config_key: str | None, env_name: str) -> str | None:
     """Resolve API key: env var takes priority over config value."""
     return os.environ.get(env_name) or config_key

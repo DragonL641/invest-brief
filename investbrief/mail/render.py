@@ -6,7 +6,8 @@ Renders Jinja2 templates (macro / holdings) into Chinese-only email HTML.
 Public API: load_template(), render_template(), render_holdings_template().
 """
 import logging
-from datetime import datetime
+
+from investbrief.core.timeutil import now_cn
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -49,7 +50,7 @@ def load_template(name: str = "email_base.j2") -> str:
     """Load raw template string by name. Kept for existence checks (test_mail_api).
     Uses direct file read rather than Jinja2 internals. For rendering, call
     render_template / render_holdings_template directly with a template name."""
-    with open(TEMPLATES_DIR / name, 'r', encoding='utf-8') as f:
+    with open(TEMPLATES_DIR / name, encoding='utf-8') as f:
         return f.read()
 
 
@@ -98,12 +99,12 @@ def _base_context(language: str, data: dict, title: str, disclaimer: str) -> dic
         'color_up': cfg['color_up'],
         'color_down': cfg['color_down'],
         'title': title,
-        'date': datetime.now().strftime('%Y年%m月%d日'),
+        'date': now_cn().strftime('%Y年%m月%d日'),
         'data_time_label': '数据截止',
-        'data_time': data.get('data_time', datetime.now().strftime('%H:%M:%S')),
+        'data_time': data.get('data_time', now_cn().strftime('%H:%M:%S')),
         'disclaimer': disclaimer,
         'generated_by': '由 Claude Code 自动生成',
-        'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'generated_at': now_cn().strftime('%Y-%m-%d %H:%M:%S'),
     }
 
 

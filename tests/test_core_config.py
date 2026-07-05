@@ -2,7 +2,7 @@
 import pytest
 
 from investbrief.core.config import (
-    load_config, validate_config, DB_PATH, API_RETRY_COUNT, API_RETRY_DELAY,
+    validate_config, DB_PATH, API_RETRY_COUNT, API_RETRY_DELAY,
     US_GDP_BASE_YEAR, US_GDP_BASE_VALUE,
 )
 

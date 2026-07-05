@@ -1,6 +1,6 @@
 """Tavily Search API Client."""
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
 
@@ -19,11 +19,11 @@ class TavilyClient:
 
     BASE_URL = "https://api.tavily.com"
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         self.api_key = _resolve_api_key(api_key, ENV_KEYS["tavily"])
         self.enabled = bool(self.api_key)
 
-    def _request(self, payload: Dict) -> Optional[Dict]:
+    def _request(self, payload: dict) -> dict | None:
         """Make authenticated request to Tavily API"""
         if not self.enabled:
             return None
@@ -45,7 +45,7 @@ class TavilyClient:
             logger.warning(f"Tavily API error: {e}")
             return None
 
-    def search_news(self, query: str, max_results: int = 10, days: int = 7) -> Optional[List[Dict[str, Any]]]:
+    def search_news(self, query: str, max_results: int = 10, days: int = 7) -> list[dict[str, Any]] | None:
         """
         Search for news articles
 

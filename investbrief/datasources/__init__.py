@@ -2,7 +2,7 @@
 from typing import Dict
 
 
-def get_available_apis(config: Dict) -> Dict[str, bool]:
+def get_available_apis(config: dict) -> dict[str, bool]:
     """
     Check which APIs are configured and available.
 

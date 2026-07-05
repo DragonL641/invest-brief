@@ -61,7 +61,7 @@ class TechnicalIndicator(BaseIndicator):
                 threshold = config.get("thresholds", {}).get(market, 0.7)
                 invert = config.get("invert", True)
                 from investbrief.risk.calc_utils import normalize_score
-                score = normalize_score(ratio, threshold * 1.5, threshold, invert=True)
+                score = normalize_score(ratio, threshold * 1.5, threshold, invert=invert)
             else:
                 score = 0.0  # Not near highs, no volume risk signal
 

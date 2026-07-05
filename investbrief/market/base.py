@@ -27,9 +27,31 @@ class MarketProvider(ABC):
         """大类资产表现（宏观板块④）。"""
 
     @abstractmethod
-    def fetch_all(self) -> dict[str, Any]:
-        """获取该市场宏观数据（monetary_policy / asset_performance / economic_calendar）。"""
-
-    @abstractmethod
     def render_section(self, data: dict[str, Any], config: dict[str, Any], **kwargs) -> str:
         """渲染该市场的 HTML 区块。"""
+
+    def _render_economic_calendar(self, calendar: list[dict]) -> str:
+        """渲染经济日历卡片（US/CN 共用，消除两份逐字重复的副本）。"""
+        if not calendar:
+            return ""
+        rows = ""
+        for e in calendar:
+            importance = e.get("importance", "medium")
+            badge_color = "#e74c3c" if importance == "high" else "#f39c12"
+            days = e["days_away"]
+            rows += f'''
+      <tr>
+        <td>{e["name"]}</td>
+        <td>{e["date"]}</td>
+        <td><span style="background:{badge_color}; color:#fff; padding:2px 6px; border-radius:3px; font-size:11px;">{days}天后</span></td>
+      </tr>'''
+        return f'''
+      <div class="card">
+        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">🏛️ 经济日历</div>
+        <div class="card-body">
+          <table>
+<thead><tr><th>事件</th><th>日期</th><th>倒计时</th></tr></thead>
+<tbody>{rows}</tbody>
+</table>
+        </div>
+      </div>'''

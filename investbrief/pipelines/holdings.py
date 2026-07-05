@@ -44,9 +44,10 @@ def run_holdings_report(args):
     logger.info(f"Analyzing {len(all_holdings)} unique holdings for {len(recipients)} recipient(s)")
     analyzer = HoldingsAnalyzer()
     by_key: dict = {}
+    dry_run = getattr(args, "dry_run", False)
     for h in all_holdings:
         by_key[(h["symbol"], h["market"], h["type"])] = analyzer.analyze_one(
-            h["symbol"], h["market"], h["type"]
+            h["symbol"], h["market"], h["type"], with_ai=not dry_run
         )
 
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
@@ -85,19 +86,22 @@ def run_holdings_report(args):
     messages = []
     last_html = ""
     for r in recipients:
-        email, name = r["email"], r.get("name", r["email"])
-        language = r.get("language", "zh-CN")
-        sub = _subset(r)
-        summary_html = "<p>（已跳过 AI 研判）</p>" if skip_summary else generate_holdings_brief(sub)
-        report_data = {
-            "data_time": data_time,
-            "holdings_summary": summary_html,
-            "holdings_sections": render_holdings_section(sub),
-        }
-        html = render_holdings_template("email_holdings.j2", report_data, language)
-        last_html = html
-        subject = f"【持仓分析】{now.strftime('%Y年%m月%d日')} — {name}"
-        messages.append({"to": email, "subject": subject, "html": html})
+        try:
+            email, name = r["email"], r.get("name", r["email"])
+            language = r.get("language", "zh-CN")
+            sub = _subset(r)
+            summary_html = "<p>（已跳过 AI 研判）</p>" if skip_summary else generate_holdings_brief(sub)
+            report_data = {
+                "data_time": data_time,
+                "holdings_summary": summary_html,
+                "holdings_sections": render_holdings_section(sub),
+            }
+            html = render_holdings_template("email_holdings.j2", report_data, language)
+            last_html = html
+            subject = f"【持仓分析】{now.strftime('%Y年%m月%d日')} — {name}"
+            messages.append({"to": email, "subject": subject, "html": html})
+        except Exception as e:
+            logger.warning(f"Recipient {r.get('email')} holdings render failed, skipping: {e}")
 
     sent, failed = sender.send_bulk(messages)
     if failed:

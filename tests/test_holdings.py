@@ -14,7 +14,7 @@ from investbrief.holdings.renderer import render_holdings_section
 from investbrief.holdings.etf.analyzer import ETFAnalysisResult
 
 BASE_CFG = {
-    "email_service": {"smtp_server": "s", "smtp_port": 465, "sender_email": "a@b.c"},
+    "email_service": {"smtp_server": "s", "smtp_port": 465, "sender_email": "a@b.c", "sender_name": "测试"},
     "recipients": [{"email": "a@b.c"}],
 }
 
@@ -108,7 +108,7 @@ def test_analyze_cn_stock_mock():
 
 def test_analyze_cn_etf_mock():
     an = _mock_analyzer()
-    an._etf.analyze = lambda s: ETFAnalysisResult(
+    an._etf.analyze = lambda s, with_ai=True, **kw: ETFAnalysisResult(
         symbol="510300", name="沪深300ETF", price=4.5, change_pct=0.8,
         iopv=4.49, premium_rate=0.1, main_net_flow=1000000,
         rule_results=[{"dimension": "估值", "name": "PE", "signal": "bullish"}],

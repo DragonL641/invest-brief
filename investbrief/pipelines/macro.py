@@ -83,15 +83,21 @@ def run_macro_report(args):
     us = create_provider("us")
     cn = create_provider("cn")
     # P1: 增量取数落盘（失败不阻塞，get_* 回退库内最新值）
-    us.refresh()
-    cn.refresh()
-    # P4: refresh gold data daily (resilient — fallback to stored values on failure)
+    # US/CN/Gold 三个 refresh 互相独立，并行执行（各持自己的 BaseData 连接）
     from investbrief.data.gold_data import GoldData
+    from concurrent.futures import ThreadPoolExecutor
     gold_data = GoldData()
-    try:
-        gold_data.update_incremental()
-    except Exception as e:
-        logger.warning(f"Gold data refresh failed, falling back to stored values: {e}")
+
+    def _safe_refresh(fn, label):
+        try:
+            fn()
+        except Exception as e:
+            logger.warning(f"{label} data refresh failed, falling back to stored values: {e}")
+
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        ex.submit(lambda: _safe_refresh(us.refresh, "US"))
+        ex.submit(lambda: _safe_refresh(cn.refresh, "CN"))
+        ex.submit(lambda: _safe_refresh(gold_data.update_incremental, "Gold"))
     from investbrief.market.us.calendar import get_upcoming_events_with_yfinance
     from investbrief.market.cn.calendar import get_upcoming_events as get_cn_events
     us_data = {
@@ -193,6 +199,8 @@ def run_macro_report(args):
         print(json.dumps(report_data, ensure_ascii=False, indent=2, default=str))
         try:
             gold_data.close()
+            us.data.close()
+            cn.data.close()
         except Exception:
             pass
         return
@@ -200,9 +208,11 @@ def run_macro_report(args):
     from investbrief.pipelines._send import send_report
     send_report(report_data, config, recipients)
 
-    # Release gold data resources
+    # Release SQLite connections (us/cn/gold each hold one)
     try:
         gold_data.close()
+        us.data.close()
+        cn.data.close()
     except Exception:
         pass
 

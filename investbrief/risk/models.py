@@ -7,8 +7,7 @@ import pandas as pd
 
 from investbrief.risk.config import (
     CN_ALL_INDICATORS, US_ALL_INDICATORS, GOLD_ALL_INDICATORS, MARKET_STATE_MAP,
-    FIVE_DIMENSIONS, BACKTEST_BUY_THRESHOLD, BACKTEST_SELL_THRESHOLD,
-    score_to_risk_level,
+    FIVE_DIMENSIONS, score_to_risk_level,
 )
 from investbrief.risk.indicators.valuation import ValuationIndicator
 from investbrief.risk.indicators.technical import TechnicalIndicator

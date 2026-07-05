@@ -3,7 +3,7 @@ import math
 import threading
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import logging
 
@@ -24,7 +24,7 @@ def _classify_economic_importance(event_name: str) -> str:
     return "medium"
 
 
-def _fmt_econ_value(val) -> Optional[str]:
+def _fmt_econ_value(val) -> str | None:
     if val is None:
         return None
     if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
@@ -78,7 +78,7 @@ class YFinanceClient:
 
     # ==================== Price ====================
 
-    def get_quote(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_quote(self, symbol: str) -> dict[str, Any] | None:
         """Get current price and basic info via fast_info + history."""
         if not self.enabled:
             return None
@@ -106,13 +106,13 @@ class YFinanceClient:
             logger.warning(f"yfinance quote error ({symbol}): {e}")
             return None
 
-    def get_index_quote(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_index_quote(self, symbol: str) -> dict[str, Any] | None:
         """Get index quote (e.g., ^GSPC, ^KS11)."""
         return self.get_quote(symbol)
 
     # ==================== Analyst ====================
 
-    def get_price_targets(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_price_targets(self, symbol: str) -> dict[str, Any] | None:
         """Get analyst price targets {current, low, high, mean, median}."""
         if not self.enabled:
             return None
@@ -134,7 +134,7 @@ class YFinanceClient:
             logger.warning(f"yfinance price_targets error ({symbol}): {e}")
             return None
 
-    def get_upgrades_downgrades(self, symbol: str, limit: int = 10) -> Optional[List[Dict[str, Any]]]:
+    def get_upgrades_downgrades(self, symbol: str, limit: int = 10) -> list[dict[str, Any]] | None:
         """Get analyst upgrade/downgrade history (last 30 days)."""
         if not self.enabled:
             return None
@@ -164,7 +164,7 @@ class YFinanceClient:
             logger.warning(f"yfinance upgrades_downgrades error ({symbol}): {e}")
             return None
 
-    def get_recommendations(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_recommendations(self, symbol: str) -> dict[str, Any] | None:
         """Get analyst recommendation distribution."""
         if not self.enabled:
             return None
@@ -189,7 +189,7 @@ class YFinanceClient:
 
     # ==================== Fundamentals ====================
 
-    def get_info(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_info(self, symbol: str) -> dict[str, Any] | None:
         """Get comprehensive stock info (PE, margins, growth, etc.)."""
         if not self.enabled:
             return None
@@ -201,7 +201,7 @@ class YFinanceClient:
             logger.warning(f"yfinance info error ({symbol}): {e}")
             return None
 
-    def get_earnings_estimate(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_earnings_estimate(self, symbol: str) -> dict[str, Any] | None:
         """Get EPS estimates for current/next quarter/year."""
         if not self.enabled:
             return None
@@ -225,7 +225,7 @@ class YFinanceClient:
             logger.warning(f"yfinance earnings_estimate error ({symbol}): {e}")
             return None
 
-    def get_earnings_history(self, symbol: str) -> Optional[List[Dict[str, Any]]]:
+    def get_earnings_history(self, symbol: str) -> list[dict[str, Any]] | None:
         """Get recent earnings history with actual vs estimate."""
         if not self.enabled:
             return None
@@ -248,7 +248,7 @@ class YFinanceClient:
             logger.warning(f"yfinance earnings_history error ({symbol}): {e}")
             return None
 
-    def get_insider_transactions(self, symbol: str, limit: int = 10) -> Optional[List[Dict[str, Any]]]:
+    def get_insider_transactions(self, symbol: str, limit: int = 10) -> list[dict[str, Any]] | None:
         """Get recent insider buy transactions (last 30 days)."""
         if not self.enabled:
             return None
@@ -289,7 +289,7 @@ class YFinanceClient:
             logger.warning(f"yfinance insider_transactions error ({symbol}): {e}")
             return None
 
-    def get_history(self, symbol: str, period: str = "6mo") -> Optional[Any]:
+    def get_history(self, symbol: str, period: str = "6mo") -> Any | None:
         """
         Get historical OHLCV data.
 
@@ -313,7 +313,7 @@ class YFinanceClient:
             logger.warning(f"yfinance history error ({symbol}): {e}")
             return None
 
-    def get_premarket_data(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_premarket_data(self, symbol: str) -> dict[str, Any] | None:
         """Get pre-market price data."""
         if not self.enabled:
             return None
@@ -336,7 +336,7 @@ class YFinanceClient:
             logger.warning(f"yfinance premarket error ({symbol}): {e}")
             return None
 
-    def get_earnings_dates(self, symbol: str) -> Optional[List[Dict[str, Any]]]:
+    def get_earnings_dates(self, symbol: str) -> list[dict[str, Any]] | None:
         """Get upcoming earnings dates from yfinance calendar."""
         if not self.enabled:
             return None
@@ -375,13 +375,12 @@ class YFinanceClient:
 
     def get_economic_calendar(
         self, start: str = None, end: str = None, limit: int = 30
-    ) -> Optional[List[Dict[str, Any]]]:
+    ) -> list[dict[str, Any]] | None:
         """Fetch US economic events calendar via yfinance Calendars API."""
         if not self.enabled:
             return None
         try:
             self._throttle()
-            import pandas as pd
             cal = self._yf.Calendars(start=start, end=end)
             df = cal.get_economic_events_calendar(limit=limit)
             if df is None or df.empty:
@@ -419,7 +418,7 @@ class YFinanceClient:
             logger.warning(f"yfinance economic calendar error: {e}")
             return None
 
-    def get_technical_indicators(self, symbol: str, period: str = "1y", history_df=None) -> Optional[Dict[str, Any]]:
+    def get_technical_indicators(self, symbol: str, period: str = "1y", history_df=None) -> dict[str, Any] | None:
         """Calculate RSI(14), SMA(50/200), MACD from yfinance history."""
         if not self.enabled:
             return None

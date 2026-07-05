@@ -1,7 +1,6 @@
 """Base class for indicator calculations."""
 
 from abc import ABC, abstractmethod
-from datetime import datetime
 
 import pandas as pd
 

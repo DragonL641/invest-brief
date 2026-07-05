@@ -47,6 +47,25 @@ def first_enabled_cron(config: dict) -> str | None:
     return None
 
 
+def _first_enabled_timezone(config: dict) -> str:
+    """与 first_enabled_cron 同源 market 的 timezone（默认 Asia/Shanghai）。
+
+    schedule[].timezone 此前被忽略（硬编码上海），现在由调用方传入 _run_scheduled_macro。
+    """
+    markets_cfg = config.get("markets", {})
+    for market in ("us", "cn"):
+        cfg = markets_cfg.get(market, {})
+        if not cfg.get("enabled", False):
+            continue
+        raw = cfg.get("schedule")
+        if isinstance(raw, list):
+            if raw:
+                return raw[0].get("timezone") or "Asia/Shanghai"
+        elif isinstance(raw, dict):
+            return raw.get("timezone") or "Asia/Shanghai"
+    return "Asia/Shanghai"
+
+
 def run_scheduler(config):
     """Run as a long-lived process, executing ONE merged macro report at cron-scheduled times.
 
@@ -57,26 +76,32 @@ def run_scheduler(config):
     if cron_expr is None:
         logger.error("No enabled markets found in config; nothing to schedule")
         return
+    tz_name = _first_enabled_timezone(config)
 
     t = threading.Thread(
         target=_run_scheduled_macro,
-        args=(cron_expr,),
+        args=(cron_expr, tz_name),
         name="scheduler-macro",
-        daemon=True,
     )
     t.start()
 
-    while not _shutdown:
-        time.sleep(1)
+    try:
+        while not _shutdown:
+            time.sleep(1)
+    finally:
+        # SIGTERM 到达时，等子线程跑完当前 macro（避免邮件半成品/SMTP 未关）
+        if t.is_alive():
+            logger.info("Waiting for in-flight macro run to finish before exit...")
+            t.join()
 
 
-def _run_scheduled_macro(cron_expr: str):
+def _run_scheduled_macro(cron_expr: str, tz_name: str = "Asia/Shanghai"):
     """Run the merged macro report loop on a single cron schedule."""
     if not croniter.is_valid(cron_expr):
         logger.error(f"Invalid cron expression: {cron_expr}")
         return
 
-    tz = ZoneInfo("Asia/Shanghai")
+    tz = ZoneInfo(tz_name)
     now = datetime.now(tz)
     cron = croniter(cron_expr, now)
     next_run = cron.get_next(datetime)

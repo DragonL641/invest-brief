@@ -612,7 +612,6 @@ class AKShareClient:
             results = []
             seen_dates: set[str] = set()
             end = datetime.now()
-            cutoff = (end - timedelta(days=days)).strftime("%Y%m%d")
             # 遍历最近 days 天，逐日查询
             for i in range(days):
                 d = end - timedelta(days=i)

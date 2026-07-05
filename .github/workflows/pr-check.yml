@@ -13,7 +13,11 @@ jobs:
         uses: astral-sh/setup-uv@v4
       - name: Verify lockfile consistency
         run: uv sync --frozen
-      - name: Lint (fatal errors only)
-        run: uv run ruff check --select E9,F7,F82,F811 .
+      - name: Lint (ruff — pyproject select: E9/F/UP)
+        run: uv run ruff check .
+      - name: Type check (pyright, non-blocking — 现有存量警告多，先采集不阻断)
+        run: uv run pyright || true
       - name: Run tests
         run: uv run pytest tests/ -q -m "not network"
+      - name: Build Docker image (catch Dockerfile breakage pre-merge)
+        run: docker build -f Dockerfile.scheduler .

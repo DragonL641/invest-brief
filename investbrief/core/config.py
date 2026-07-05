@@ -26,7 +26,7 @@ _VALID_HOLDING_TYPES = {"stock", "etf", "fund"}
 
 
 def load_config() -> dict:
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+    with open(CONFIG_FILE, encoding="utf-8") as f:
         config = json.load(f)
     validate_config(config)
     return config
@@ -37,9 +37,11 @@ def validate_config(config: dict):
     if "email_service" not in config:
         raise ValueError("config.json missing 'email_service' section")
     email_cfg = config["email_service"]
-    for key in ("smtp_server", "smtp_port", "sender_email"):
-        if key not in email_cfg:
-            raise ValueError(f"config.json email_service missing '{key}'")
+    for key in ("smtp_server", "smtp_port", "sender_email", "sender_name"):
+        if not email_cfg.get(key):
+            raise ValueError(f"config.json email_service missing or empty '{key}'")
+    if not isinstance(email_cfg["smtp_port"], int):
+        raise ValueError("config.json email_service smtp_port must be an integer")
     if "recipients" not in config or not config["recipients"]:
         raise ValueError("config.json missing or empty 'recipients' list")
 

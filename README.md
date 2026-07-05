@@ -15,7 +15,7 @@
 
 ### 环境要求
 
-- Python 3.10+
+- Python 3.10+（CI 与 Docker 使用 3.12）
 - [uv](https://docs.astral.sh/uv/) 包管理器
 
 ### 本地运行
@@ -39,7 +39,7 @@ uv run run.py
 ### 命令行参数
 
 ```bash
-uv run run.py [--now] [--dry-run] [--skip-summary] [--log-level LEVEL]
+uv run run.py [--now] [--dry-run] [--skip-summary] [--update] [--only {macro,holdings}] [--log-level LEVEL]
 ```
 
 | 参数 | 说明 |
@@ -47,6 +47,8 @@ uv run run.py [--now] [--dry-run] [--skip-summary] [--log-level LEVEL]
 | `--now` | 立即执行一次（默认进入调度模式）|
 | `--dry-run` | 构建合并宏观报告但不发邮件，输出 JSON 到 stdout |
 | `--skip-summary` | 跳过 Claude ①⑥（更快，仅结构）|
+| `--update` | 仅刷新 SQLite 宏观数据，不渲染不发信（日常补数）|
+| `--only {macro,holdings}` | 限制本次只跑单条管线（默认两条都跑）|
 | `--log-level` | 日志级别：DEBUG / INFO / WARNING / ERROR |
 | `--market {us,cn,all}` | **已废弃** — 报告始终为 US+CN 合并单封，参数仅为兼容保留 |
 
@@ -118,10 +120,10 @@ TAVILY_KEY=                              # Tavily 新闻搜索 API Key
 
 ## 架构
 
-按**业务域**而非技术层拆分。依赖严格单向：`run.py → pipelines → {market, holdings, risk, mail} → {data, datasources} → core`，域与域之间无横向依赖（如 `market/` 不 import `holdings/` 或 `mail/`，只通过 `pipelines/` 协作）。
+按**业务域**而非技术层拆分。依赖严格单向：`run.py → pipelines → {market, holdings, risk, regime, mail} → {data, datasources} → core`，`strategies/*.yaml` 为静态配置（由 `core/strategy_loader.py` 加载，非业务域）。域与域之间无横向依赖（如 `market/` 不 import `risk/` 或 `mail/`，只通过 `pipelines/` 协作）。
 
 ```
-run.py                              # CLI 入口（~145 行）：argparse + 代理/环境引导 + run_once 分发
+run.py                              # CLI 入口（~150 行）：argparse + 代理/环境引导 + run_once 分发
 
 investbrief/
   core/         llm.py / config.py                    # Anthropic client + 配置加载/校验 + 常量
@@ -136,16 +138,19 @@ investbrief/
                 research.py (卖方机构观点：Tavily 抓取 + Claude 综合)
   holdings/     analyzer / brief / renderer           # 持仓邮件管道（per-recipient）
                 etf/{analyzer,engine,indicators,rules.json}  # CN ETF 分析（原顶层 etf/ 包）
-  risk/         models / config / calc_utils / render / indicators/  # 市场周期风险评分模型
-  mail/         sender.py (EmailSender) / render.py   # SMTP 发送 + HTML 模板渲染（原 report.py）
-                templates/{email_base,email_holdings}.html
+  risk/         models / config / calc_utils / render / indicators/  # 市场周期风险评分模型（指标外置到 strategies/risk_indicators.yaml）
+  regime/       engine / config / render              # 经济环境四象限判定（growth×inflation，与 risk 同构）
+  strategies/   risk_indicators.yaml / etf_rules.yaml # 外置策略 YAML（由 core/strategy_loader 加载）
+  core/         llm.py / config.py / strategy_loader.py / llm_errors.py / llm_json.py  # LLM 客户端 + 配置 + YAML 加载 + JSON 容错
+  mail/         sender.py (EmailSender) / render.py   # SMTP 发送 + Jinja2 模板渲染（原 report.py）
+                templates/{email_base,email_holdings}.j2
   pipelines/    macro.py (run_macro_report + fetch_news + _safe_risk_score)
                 holdings.py (run_holdings_report)
                 scheduler.py (run_scheduler + first_enabled_cron)
                 _send.py (send_report)
 ```
 
-**Pipeline 流程（宏观）：** `pipelines/macro.py:run_macro_report` 加载配置 → 刷新 US+CN+黄金数据（失败回退库内最新值）→ 抓取 US/CN 宏观 + 新闻 → 计算 P4 风险评分 → Claude 生成 ① 核心观点 + ⑥ 风险展望（`market.macro_brief.generate_macro_brief`）→ 卖方机构观点（`market.research`）→ `render_section`（US + CN，含风险卡片）+ 黄金段 → `mail.render.render_template` 合并 HTML → `pipelines._send.send_report` 发送单封邮件。`--dry-run` 时打印 JSON 而非发信。
+**Pipeline 流程（宏观）：** `pipelines/macro.py:run_macro_report` 加载配置 → 刷新 US+CN+黄金数据（失败回退库内最新值）→ 抓取 US/CN 宏观 + 新闻 → 计算 P4 风险评分（`risk.RiskModel`）→ 判定经济环境四象限（`regime.RegimeEngine`）→ Claude 生成 ① 核心观点 + ⑥ 风险展望（`market.macro_brief.generate_macro_brief`）→ 卖方机构观点（`market.research`）→ `render_section`（US + CN，含风险卡片 + 四象限卡片）+ 黄金段 → `mail.render.render_template` 渲染 Jinja2 模板 → `pipelines._send.send_report` 发送单封邮件。`--dry-run` 时打印 JSON 而非发信。
 
 **扩展方式：**
 - 新增市场 → 在 `market/<mkt>/` 实现 `MarketProvider` 子类 + 在 `market/__init__.py:MARKET_PROVIDERS` 注册一行（无需改 `run.py`）。
@@ -172,7 +177,7 @@ investbrief/
 
 ### 报告结构
 
-`mail/templates/email_base.html`：页头（宏观日报标题）→ ① 核心观点（`.summary-box`，Claude）→ `{{market_sections}}`（US 段 + CN 段，各含 大类资产 / 货币政策 / 经济日历）→ ⑥ 风险提示与下周关注 → 新闻 → 页脚。
+`mail/templates/email_base.j2`：页头（宏观日报标题）→ ① 核心观点（`.summary-box`，Claude）→ `{{market_sections}}`（US 段 + CN 段，各含 大类资产 / 货币政策 / 经济日历 + P4 风险卡片 + 经济四象限卡片）→ ⑥ 风险提示与下周关注 → 新闻 → 页脚。模板为 Jinja2（`.j2`）。
 
 ## 部署
 
@@ -225,7 +230,7 @@ docker compose up --build -d
 
 | 组件 | 技术 |
 |------|------|
-| 语言/包管理 | Python 3.12 + uv |
+| 语言/包管理 | Python 3.10+（CI 与 Docker 使用 3.12）+ uv |
 | 美股数据 | yfinance, Finnhub, Alpha Vantage |
 | A 股数据 | AKShare |
 | 新闻 | Tavily Search |

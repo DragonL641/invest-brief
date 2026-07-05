@@ -28,7 +28,14 @@ class BaseData(ABC):
             parent = os.path.dirname(self.db_path)
             if parent:
                 os.makedirs(parent, exist_ok=True)
-            self._conn = sqlite3.connect(self.db_path)
+            # check_same_thread=False：macro pipeline 并行 refresh 时连接在子线程使用。
+            # WAL + busy_timeout + 应用层"refresh 完再串行 get_*"保证无并发写同一连接。
+            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            # WAL 提升并发读写（多个 BaseData 实例共享同一 db 文件）；
+            # NORMAL 同步 + 5s busy_timeout 避免"database is locked"。
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA synchronous=NORMAL")
+            self._conn.execute("PRAGMA busy_timeout=5000")
         return self._conn
 
     def _validate_table(self, table_name: str):
@@ -85,8 +92,8 @@ class BaseData(ABC):
 
         rows = df[cols].where(df[cols].notna(), None).values.tolist()
         cursor = self.conn.cursor()
-        cursor.executemany(sql, rows)
-        self.conn.commit()
+        with self.conn:  # 异常自动 rollback，正常自动 commit
+            cursor.executemany(sql, rows)
         inserted = cursor.rowcount
         logger.info(f"Upserted {inserted} rows into {table_name}")
         return inserted
@@ -162,12 +169,12 @@ class BaseData(ABC):
     def set_update_date(self, table_name: str, date: str):
         """Record last update date for a table."""
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.conn.execute(
-            "INSERT OR REPLACE INTO update_log (table_name, last_update_date, update_time) "
-            "VALUES (?, ?, ?)",
-            (table_name, date, now),
-        )
-        self.conn.commit()
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO update_log (table_name, last_update_date, update_time) "
+                "VALUES (?, ?, ?)",
+                (table_name, date, now),
+            )
 
     def query(self, sql: str, params: tuple = ()) -> pd.DataFrame:
         """Execute a SELECT query and return DataFrame."""
@@ -196,6 +203,12 @@ class BaseData(ABC):
         if df.empty or pd.isna(df.iloc[0]["max_date"]):
             return None
         return str(df.iloc[0]["max_date"])[:10]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
 
     def close(self):
         if self._conn:

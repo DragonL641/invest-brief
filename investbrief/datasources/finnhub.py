@@ -1,7 +1,7 @@
 """Finnhub API Client."""
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
 
@@ -20,11 +20,11 @@ class FinnhubClient:
 
     BASE_URL = "https://finnhub.io/api/v1"
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         self.api_key = _resolve_api_key(api_key, ENV_KEYS["finnhub"])
         self.enabled = bool(self.api_key)
 
-    def _request(self, endpoint: str, params: Dict = None) -> Optional[Dict]:
+    def _request(self, endpoint: str, params: dict = None) -> dict | None:
         """Make authenticated request to Finnhub API"""
         if not self.enabled:
             return None
@@ -45,7 +45,7 @@ class FinnhubClient:
                 logger.warning(f"Finnhub API error ({endpoint}): {e}")
             return None
 
-    def get_quote(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_quote(self, symbol: str) -> dict[str, Any] | None:
         """
         Get real-time quote for a stock
 
@@ -76,7 +76,7 @@ class FinnhubClient:
             "timestamp": data.get("t", 0)  # Timestamp
         }
 
-    def get_recommendation(self, symbol: str, periods: int = 3) -> Optional[Dict[str, Any]]:
+    def get_recommendation(self, symbol: str, periods: int = 3) -> dict[str, Any] | None:
         """Get analyst recommendation trend over recent monthly periods.
 
         Finnhub returns monthly buckets; we compare the latest two to surface
@@ -102,7 +102,7 @@ class FinnhubClient:
         latest = normed[0] if normed else None
         previous = normed[1] if len(normed) > 1 else None
 
-        change: Dict[str, float] = {}
+        change: dict[str, float] = {}
         if latest and previous:
             lt_tot = sum(latest.get(k, 0) for k in buckets) or 1
             pv_tot = sum(previous.get(k, 0) for k in buckets) or 1
@@ -112,7 +112,7 @@ class FinnhubClient:
 
         return {"latest": latest, "previous": previous, "change": change, "periods": normed}
 
-    def get_price_target(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_price_target(self, symbol: str) -> dict[str, Any] | None:
         """
         Get price target from analysts
 
@@ -137,7 +137,7 @@ class FinnhubClient:
             "number_of_analysts": data.get("numberOfAnalysts", 0)
         }
 
-    def get_company_news(self, symbol: str, days: int = 7) -> Optional[List[Dict[str, Any]]]:
+    def get_company_news(self, symbol: str, days: int = 7) -> list[dict[str, Any]] | None:
         """
         Get company news
 
@@ -177,7 +177,7 @@ class FinnhubClient:
 
         return news_items
 
-    def get_market_news(self, category: str = "general") -> Optional[List[Dict[str, Any]]]:
+    def get_market_news(self, category: str = "general") -> list[dict[str, Any]] | None:
         """
         Get market news by category
 

@@ -1,16 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = [
-#   "yfinance",
-#   "requests",
-#   "anthropic",
-#   "python-dotenv",
-#   "croniter",
-#   "akshare",
-#   "jinja2",
-# ]
-# ///
-
 """
 Entry point for invest-brief.
 
@@ -84,6 +71,15 @@ else:
 # Ensure ANTHROPIC_AUTH_TOKEN is available as ANTHROPIC_API_KEY for anthropic SDK
 if not os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("ANTHROPIC_AUTH_TOKEN"):
     os.environ["ANTHROPIC_API_KEY"] = os.environ["ANTHROPIC_AUTH_TOKEN"]
+
+# 配置层清洗 [1m] 等 context 标记（Claude Code runtime 会泄漏如 glm-5.2[1m]，
+# 兼容端点不识别）。default_model() 仍保留同样过滤作防御深度。
+_model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "")
+if _model and "[" in _model:
+    import re
+    _cleaned = re.sub(r"\[.*\]", "", _model).strip()
+    if _cleaned and _cleaned != _model:
+        os.environ["ANTHROPIC_DEFAULT_SONNET_MODEL"] = _cleaned
 
 logger = logging.getLogger("run")
 
