@@ -19,7 +19,7 @@ from investbrief.holdings.etf.indicators import compute_indicators
 
 logger = logging.getLogger(__name__)
 
-_pool = ThreadPoolExecutor(max_workers=6)
+_pool = ThreadPoolExecutor(max_workers=2)  # CN stock 专题接口多，高并发加速触发 eastmoney 限流
 
 
 @dataclass
