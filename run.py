@@ -117,18 +117,9 @@ def main():
     parser.add_argument("--log-level", default="INFO", help="Log level (DEBUG, INFO, WARNING, ERROR)")
     args = parser.parse_args()
 
-    # Setup logging
-    log_dir = Path(__file__).parent / "logs"
-    log_dir.mkdir(exist_ok=True)
-
-    logging.basicConfig(
-        level=getattr(logging, args.log_level.upper(), logging.INFO),
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.FileHandler(log_dir / "run.log", encoding="utf-8"),
-            logging.StreamHandler(),
-        ],
-    )
+    # Setup logging (centralized: format + third-party noise suppression)
+    from investbrief.core.logging import setup_logging
+    setup_logging(level=getattr(logging, args.log_level.upper(), logging.INFO))
 
     if args.now or args.dry_run or args.update:
         run_once(args)
