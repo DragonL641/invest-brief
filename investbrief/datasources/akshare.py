@@ -10,6 +10,29 @@ os.environ["TQDM_DISABLE"] = "1"
 
 import akshare as ak
 import pandas as pd
+import random
+import requests
+
+# eastmoney 反爬：默认 UA 是 python-requests 几乎必拦。注入浏览器 UA + Referer。
+# 只对 eastmoney 域名生效，不影响 yfinance/tavily/finnhub（它们自设 headers 会覆盖）。
+_DEFAULT_EM_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Referer": "https://quote.eastmoney.com/",
+}
+_orig_session_request = requests.Session.request
+
+
+def _patched_session_request(self, method, url, **kwargs):
+    if "eastmoney.com" in url:
+        headers = kwargs.get("headers") or {}
+        for k, v in _DEFAULT_EM_HEADERS.items():
+            headers.setdefault(k, v)
+        kwargs["headers"] = headers
+    return _orig_session_request(self, method, url, **kwargs)
+
+
+requests.Session.request = _patched_session_request
 
 logger = logging.getLogger(__name__)
 
