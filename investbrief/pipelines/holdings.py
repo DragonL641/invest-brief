@@ -80,7 +80,6 @@ def run_holdings_report(args):
         return
 
     # Send per recipient
-    from investbrief.mail.render import translate_html
     from investbrief.mail.sender import EmailSender
     sender = EmailSender(str(CONFIG_FILE))
     failed: list = []
@@ -96,8 +95,6 @@ def run_holdings_report(args):
             "holdings_sections": render_holdings_section(sub),
         }
         html = render_holdings_template("email_holdings.j2", report_data, language)
-        if language != "zh-CN":
-            html = translate_html(html, language)
         last_html = html
         subject = f"【持仓分析】{now.strftime('%Y年%m月%d日')} — {name}"
         try:
