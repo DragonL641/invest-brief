@@ -30,3 +30,33 @@ def test_patched_session_request_skips_non_eastmoney(monkeypatch):
     monkeypatch.setattr(ak_mod, "_orig_session_request", fake_orig)
     ak_mod._patched_session_request(object(), "GET", "https://api.github.com/x")
     assert "headers" not in captured or "User-Agent" not in (captured.get("headers") or {})
+
+
+def test_with_retry_succeeds_after_retries(monkeypatch):
+    from investbrief.datasources.akshare import _with_retry
+    sleeps = []
+    monkeypatch.setattr("investbrief.datasources.akshare.time.sleep", lambda s: sleeps.append(s))
+    state = {"n": 0}
+
+    def flaky():
+        state["n"] += 1
+        if state["n"] < 3:
+            raise RuntimeError("x")
+        return "ok"
+
+    assert _with_retry(flaky, label="test") == "ok"
+    assert state["n"] == 3
+    assert len(sleeps) == 2
+
+
+def test_with_retry_all_fail_returns_none(monkeypatch):
+    from investbrief.datasources.akshare import _with_retry
+    sleeps = []
+    monkeypatch.setattr("investbrief.datasources.akshare.time.sleep", lambda s: sleeps.append(s))
+
+    def always_fail():
+        raise RuntimeError("x")
+
+    assert _with_retry(always_fail, label="test", attempts=3) is None
+    assert len(sleeps) == 2
+    assert sleeps[-1] >= 10.0  # 最后一次重试前长退避 ≥10s

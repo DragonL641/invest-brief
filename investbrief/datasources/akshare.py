@@ -63,18 +63,22 @@ class _DataFrameCache:
 _df_cache = _DataFrameCache()
 
 
-def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 0.8):
-    """运行 akshare 调用，带重试 + 指数退避（应对 eastmoney 偶发断开/限流）。
+def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
+    """运行 akshare 调用，带随机退避 + 最后一次长退避。
 
-    成功返回 fn() 结果（可能为 None/空 df，由调用方判断）；
-    全部失败返回 None 并记录 warning。
+    随机延时（uniform base_delay~2x × attempt）规避 eastmoney 节奏识别；
+    最后一次重试前 max(delay, 10s) 给限流窗口冷却。
+    成功返回 fn() 结果（可能为 None/空 df）；全部失败返回 None 并记录 warning。
     """
     for attempt in range(attempts):
         try:
             return fn()
         except Exception as e:
             if attempt < attempts - 1:
-                time.sleep(base_delay * (attempt + 1))
+                delay = random.uniform(base_delay, base_delay * 2) * (attempt + 1)
+                if attempt == attempts - 2:
+                    delay = max(delay, 10.0)
+                time.sleep(delay)
                 continue
             logger.warning(f"AKShare {label} failed after {attempts} attempts: {e}")
             return None
