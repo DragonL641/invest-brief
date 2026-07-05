@@ -15,19 +15,19 @@ def compute_indicators(hist_df: pd.DataFrame) -> dict:
     close = hist_df["close"]
     volume = hist_df["volume"] if "volume" in hist_df.columns else pd.Series(dtype=float)
     result: dict = {}
-    for fn, args in (
-        (ta.ma_set, (close,)),
-        (ta.macd, (close,)),
-        (lambda c: {"rsi": ta.rsi(c)}, (close,)),
-        (ta.bollinger, (close,)),
-        (ta.returns, (close,)),
-        (lambda v: {"volume_ratio": ta.volume_ratio(v)}, (volume,)),
-        (ta.high_low, (close,)),
+    for label, fn, args in (
+        ("ma", ta.ma_set, (close,)),
+        ("macd", ta.macd, (close,)),
+        ("rsi", lambda c: {"rsi": ta.rsi(c)}, (close,)),
+        ("bollinger", ta.bollinger, (close,)),
+        ("returns", ta.returns, (close,)),
+        ("volume", lambda v: {"volume_ratio": ta.volume_ratio(v)}, (volume,)),
+        ("high_low", ta.high_low, (close,)),
     ):
         try:
             result.update(fn(*args) or {})
         except Exception as e:
-            logger.warning(f"TA calc failed: {e}")
+            logger.warning(f"{label} calc failed: {e}")
     _calc_regime(result)
     return result
 

@@ -14,7 +14,7 @@ def _syn_hist(n=80, seed=42):
     return pd.DataFrame({"close": closes, "volume": vols}, index=idx)
 
 
-def test_indicators_baseline_unchanged():
+def test_indicators_keys_present():
     """抽取 ta 后,compute_indicators 仍产出与基线一致的关键字段。"""
     out = compute_indicators(_syn_hist())
     for k in ("ma5", "ma10", "ma20", "ma60", "ma_alignment",

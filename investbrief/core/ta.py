@@ -4,12 +4,11 @@
 holdings/picks 都从这里 import,避免重复实现。
 """
 from __future__ import annotations
-import logging
+
+from typing import Any
 
 import numpy as np
 import pandas as pd
-
-logger = logging.getLogger(__name__)
 
 
 def _last(series: pd.Series):
@@ -60,7 +59,7 @@ def macd(close: pd.Series) -> dict:
     dif = ema12 - ema26
     dea = dif.ewm(span=9, adjust=False).mean()
     bar = (dif - dea) * 2
-    out = {
+    out: dict[str, Any] = {
         "macd_dif": _last(dif), "macd_dea": _last(dea), "macd_bar": _last(bar),
         "macd_dif_prev": _prev(dif), "macd_dea_prev": _prev(dea),
     }
