@@ -57,3 +57,22 @@ def test_missing_profile_rejected(tmp_path, monkeypatch):
     profiles.load_profiles.cache_clear()
     with pytest.raises(ValueError):
         profiles.load_profiles()
+
+
+def test_universe_numeric_thresholds_are_not_strings():
+    """Regression: PyYAML parses bare exponent notation like `1.0e8` as a str
+    (not float), which crashes coarse_filter's `>=` comparison. Universe
+    thresholds must load as int/float — use plain integers in the YAML."""
+    import yaml
+    from pathlib import Path
+    raw = yaml.safe_load(
+        Path("investbrief/strategies/pick_profiles.yaml").read_text(encoding="utf-8"))
+    swing_u = raw["profiles"]["swing"]["universe"]
+    medium_u = raw["profiles"]["medium"]["universe"]
+    assert isinstance(swing_u["min_turnover_cn"], (int, float)), \
+        f"min_turnover_cn must be numeric, got {type(swing_u['min_turnover_cn']).__name__}"
+    assert isinstance(swing_u["min_turnover_us"], (int, float)), \
+        f"min_turnover_us must be numeric, got {type(swing_u['min_turnover_us']).__name__}"
+    band = medium_u["market_cap_cn"]
+    assert all(isinstance(x, (int, float)) for x in band), \
+        f"market_cap_cn entries must be numeric, got {band!r}"

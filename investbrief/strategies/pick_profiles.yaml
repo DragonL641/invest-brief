@@ -5,8 +5,8 @@ profiles:
     holding_period: "2周~3个月"
     universe:
       exclude_st: true
-      min_turnover_cn: 1.0e8
-      min_turnover_us: 1.0e7
+      min_turnover_cn: 100000000   # 1亿(用纯整数,避免 1.0e8 指数记法被 PyYAML 解析为 str)
+      min_turnover_us: 10000000    # $10M
       min_listed_days: 250
       trend_60d_positive: true
       max_5d_gain: 0.30            # 在深拉阶段(③)用历史校验,spot 无此字段
@@ -25,7 +25,7 @@ profiles:
     holding_period: "3个月~1年"
     universe:
       exclude_st: true
-      market_cap_cn: [5.0e9, 1.0e11]
+      market_cap_cn: [5000000000, 100000000000]   # 50亿~1000亿(纯整数,避免指数记法)
       market_cap_us: mid
       min_listed_days: 250
       fundamental_gates:
