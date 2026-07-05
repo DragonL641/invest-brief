@@ -53,3 +53,16 @@ def test_count_profitable_years_basic():
     assert data.count_profitable_years({"2020": "abc"}) == 0
     # 全负
     assert data.count_profitable_years({"2020": -1.0, "2021": -2.0}) == 0
+
+
+def test_cn_amount_to_float_parses_suffixes():
+    """TODO B 辅助: CN 金额简写(亿/万/纯数字/负值/破折号)。"""
+    assert data._cn_amount_to_float("1.47亿") == 1.47e8
+    assert data._cn_amount_to_float("5000万") == 5e7
+    assert data._cn_amount_to_float("123.45") == 123.45
+    assert data._cn_amount_to_float("-0.5亿") == -5e7
+    # 缺失值
+    import math
+    assert math.isnan(data._cn_amount_to_float("-"))
+    assert math.isnan(data._cn_amount_to_float(""))
+    assert math.isnan(data._cn_amount_to_float(None))

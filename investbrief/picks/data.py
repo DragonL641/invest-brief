@@ -209,10 +209,32 @@ def fetch_profitable_years(symbol: str, market: str) -> int | None:
     return years
 
 
+def _cn_amount_to_float(val) -> float:
+    """解析 CN 财报金额字符串(如 '1.47亿' / '5000万' / '123.45')。
+
+    akshare 同花顺财务摘要的 净利润 列用中文金额简写,需展开成实际数值。
+    """
+    if val is None or val == "" or val == "-":
+        return float("nan")
+    try:
+        s = str(val).strip()
+        multiplier = 1.0
+        if s.endswith("亿"):
+            multiplier = 1e8
+            s = s[:-1]
+        elif s.endswith("万"):
+            multiplier = 1e4
+            s = s[:-1]
+        return float(s) * multiplier
+    except (TypeError, ValueError):
+        return float("nan")
+
+
 def _cn_net_income_by_year(symbol: str) -> dict[str, float]:
     """从 stock_financial_abstract_ths 取年度(12-31)报告期的净利润。
 
     akshare 帧顺序不稳定,显式按报告期排序后再过滤 12-31。
+    净利润 列是中文金额简写('1.47亿'),用 _cn_amount_to_float 解析。
     """
     from investbrief.datasources.akshare import AKShareClient
     df = AKShareClient().get_financial_abstract_df(symbol)
@@ -224,11 +246,7 @@ def _cn_net_income_by_year(symbol: str) -> dict[str, float]:
     out: dict[str, float] = {}
     for _, r in df.iterrows():
         year = r["_period"][:4]
-        v = r.get("净利润")
-        try:
-            out[year] = float(v) if v is not None and v != "" and v != "-" else float("nan")
-        except (TypeError, ValueError):
-            out[year] = float("nan")
+        out[year] = _cn_amount_to_float(r.get("净利润"))
     return out
 
 
@@ -255,6 +273,53 @@ def _us_net_income_by_year(symbol: str) -> dict[str, float]:
     # 抑制未使用的 import 警告(保留 client 引用以表明该模块的归属)
     _ = client
     return out
+
+
+# ---- TODO A 上市时间代理(earliest report period) ----
+
+def fetch_earliest_report_period(symbol: str, market: str) -> str | None:
+    """最早可得报告期(YYYY-MM-DD 字符串)。作为 listing-time 代理(cached 90d)。
+
+    代理逻辑: stock_individual_info_em 已对全市场崩(Length mismatch);
+    使用同花顺财务摘要的最早报告期作为"上市≥该时长"的下界代理。
+    已经验证该代理有区分度: 老股(600519→1998, 000001→1989)远早于
+    新股(688185→2016, 001308→2018, 300750→2014)。报告期通常早于上市日
+    (含 pre-IPO 报告期),故本代理偏保守(高估上市时长)。
+
+    CN: stock_financial_abstract_ths 第一行报告期(已按时间升序)
+    US: yfinance financials 最早列日期
+    失败 → None(gate 跳过)。
+    """
+    key = f"earliest_period:{market}:{symbol}"
+    c = cache()
+    if c and c.fresh(key, ttl_days=90):
+        cached = c.get(key)
+        if cached is not None:
+            return cached
+    try:
+        if market == "cn":
+            from investbrief.datasources.akshare import AKShareClient
+            df = AKShareClient().get_financial_abstract_df(symbol)
+            if df is None or df.empty or "报告期" not in df.columns:
+                return None
+            first = str(df.iloc[0]["报告期"])
+            if c and first:
+                c.set(key, first, ttl_days=90)
+            return first or None
+        # US
+        import yfinance as yf
+        fin = yf.Ticker(symbol).financials
+        if fin is None or fin.empty:
+            return None
+        earliest_col = min(fin.columns)
+        # yfinance 列是 Timestamp → ISO 字符串
+        first = earliest_col.strftime("%Y-%m-%d") if hasattr(earliest_col, "strftime") else str(earliest_col)[:10]
+        if c and first:
+            c.set(key, first, ttl_days=90)
+        return first or None
+    except Exception as e:
+        logger.warning(f"fetch_earliest_report_period {market}:{symbol} failed: {e}")
+        return None
 
 
 # ---- TODO D 行业(US sector via yfinance) ----

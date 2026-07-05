@@ -48,6 +48,8 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     u = prof.get("universe", {})
     gates = u.get("fundamental_gates") or {}
     max_5d_gain = u.get("max_5d_gain")
+    min_listed_days = u.get("min_listed_days")
+    min_listed_years = u.get("min_listed_years")
     cands = []
     for _, row in candidates_df.iterrows():
         symbol = str(row.get("代码") if market == "cn" else row.get("代码", row.get("symbol", "")))
@@ -63,6 +65,10 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
                 continue
             # 深拉阶段校验:5 日涨幅上限(swing)
             if max_5d_gain and not _passes_price_gates(hist, max_5d_gain):
+                continue
+            # 深拉阶段校验:上市时长(TODO A: earliest_report_period 代理)
+            if (min_listed_days or min_listed_years) and not _passes_listing_gates(
+                    symbol, market, min_listed_days, min_listed_years):
                 continue
             val = _valuation_for(row, market) if "valuation" in prof["factors"] else {}
             raw = {}
@@ -119,6 +125,41 @@ def _passes_price_gates(hist, max_5d_gain: float) -> bool:
             return True
         ret = hist["close"].iloc[-1] / hist["close"].iloc[-6] - 1
         return bool(ret <= max_5d_gain)
+    except Exception:
+        return True
+
+
+def _passes_listing_gates(symbol: str, market: str, min_days: int | None,
+                          min_years: int | None) -> bool:
+    """上市时长 gate(TODO A: earliest_report_period 代理)。
+
+    代理: 用最早可得财报报告期作为上市时长的下界。报告期可能含 pre-IPO 数据,
+    故本代理偏保守(高估上市时长),不会误剔新股的"老股"。
+
+    - min_listed_years: (today - earliest_period).days / 365.25 ≥ min_years
+    - min_listed_days:  (today - earliest_period).days ≥ min_days × 0.69(近似交易日)
+      (250 交易日 ≈ 1.2 年;0.69 系数把 250 转为 ~363 自然日)
+    数据缺失(earliest_period fetch 返回 None) → 通过(不静默过滤)。
+    """
+    if not symbol or (min_days is None and min_years is None):
+        return True
+    try:
+        earliest = _data.fetch_earliest_report_period(symbol, market)
+        if not earliest:
+            return True
+        from datetime import datetime as _dt
+        # earliest 形如 '1998-12-31'(CN) 或 '2021-09-30'(US financials col)
+        first_dt = _dt.strptime(str(earliest)[:10], "%Y-%m-%d")
+        days = (_dt.now() - first_dt).days
+        if min_years is not None and days / 365.25 < min_years:
+            return False
+        if min_days is not None:
+            # 250 交易日 ≈ 1.2 年,系数 ~1.45 把自然日换交易日;但保守用 0.69(=1/1.45)
+            # 反向校验: 实际自然日 / 0.69 ≥ 250 才算 250 交易日
+            trading_days_approx = days * 0.69
+            if trading_days_approx < min_days:
+                return False
+        return True
     except Exception:
         return True
 

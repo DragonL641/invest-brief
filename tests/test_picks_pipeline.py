@@ -153,3 +153,48 @@ def test_profitable_years_gate_degrades_when_data_missing(monkeypatch):
     res = picks.build_picks_for_profile("long", "cn")
     # 数据缺失 → gate 不强制 → 候选存活 → 返回 pick(不是 None)
     assert res is not None
+
+
+# ---- TODO A 上市时长代理 gate ----
+
+def test_listing_gate_rejects_recent_proxy(monkeypatch):
+    """TODO A: earliest_period 不到 3 年(min_listed_years=3)→ 拒。"""
+    # 当前日期 2026-07-06;2024-12-31 ≈ 1.55 年 < 3
+    monkeypatch.setattr(picks._data, "fetch_earliest_report_period",
+                        lambda symbol, market: "2024-12-31")
+    assert picks._passes_listing_gates("000001", "cn", min_days=None, min_years=3) is False
+
+
+def test_listing_gate_passes_old_proxy(monkeypatch):
+    """TODO A: earliest_period='1998-12-31' → 满足 min_listed_years=3。"""
+    monkeypatch.setattr(picks._data, "fetch_earliest_report_period",
+                        lambda symbol, market: "1998-12-31")
+    assert picks._passes_listing_gates("600519", "cn", min_days=None, min_years=3) is True
+
+
+def test_listing_gate_min_days(monkeypatch):
+    """TODO A: min_listed_days 用 0.69 交易日系数。"""
+    # 100 自然日前 ≈ 69 交易日 < 250 → 拒
+    from datetime import datetime, timedelta
+    recent = (datetime.now() - timedelta(days=100)).strftime("%Y-%m-%d")
+    monkeypatch.setattr(picks._data, "fetch_earliest_report_period",
+                        lambda symbol, market: recent)
+    assert picks._passes_listing_gates("X", "cn", min_days=250, min_years=None) is False
+
+    # 10 年前 ≫ 250 交易日 → 通过
+    old = (datetime.now() - timedelta(days=3650)).strftime("%Y-%m-%d")
+    monkeypatch.setattr(picks._data, "fetch_earliest_report_period",
+                        lambda symbol, market: old)
+    assert picks._passes_listing_gates("X", "cn", min_days=250, min_years=None) is True
+
+
+def test_listing_gate_degrades_when_fetch_fails(monkeypatch):
+    """TODO A 韧性: earliest fetch 返回 None → gate 跳过,通过。"""
+    monkeypatch.setattr(picks._data, "fetch_earliest_report_period",
+                        lambda symbol, market: None)
+    assert picks._passes_listing_gates("X", "cn", min_days=250, min_years=3) is True
+
+
+def test_listing_gate_skipped_when_no_thresholds():
+    """无任何上市时长阈值 → 直接通过。"""
+    assert picks._passes_listing_gates("X", "cn", None, None) is True
