@@ -55,6 +55,16 @@ def normalize_fundamentals(raw: dict) -> dict:
             if a in raw and raw[a] not in (None, "", "-"):
                 out[key] = _pct_to_decimal(raw[a])
                 break
+    # 每股经营现金流 → fcf_positive(TODO C)。值非百分比,不走 _pct_to_decimal。
+    # 兼容两种输入:raw 直接带中文 key(akshare df),或带归一化后英文 key(get_financial_indicators)。
+    ocf = raw.get("每股经营现金流")
+    if ocf is None or ocf in ("", "-"):
+        ocf = raw.get("operating_cashflow_per_share")
+    if ocf not in (None, "", "-"):
+        try:
+            out["fcf_positive"] = float(ocf) > 0
+        except (TypeError, ValueError):
+            pass
     return out
 
 

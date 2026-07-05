@@ -18,3 +18,26 @@ def test_normalize_fundamentals_maps_fields():
 def test_normalize_fundamentals_missing_keys_safe():
     out = data.normalize_fundamentals({})
     assert out.get("roe") is None
+
+
+def test_normalize_fundamentals_fcf_positive_from_cashflow():
+    """TODO C: 每股经营现金流 > 0 → fcf_positive True;负值 → False;缺失 → 不设。"""
+    out_pos = data.normalize_fundamentals({"每股经营现金流": "0.5"})
+    assert out_pos.get("fcf_positive") is True
+
+    out_neg = data.normalize_fundamentals({"每股经营现金流": "-0.27"})
+    assert out_neg.get("fcf_positive") is False
+
+    out_absent = data.normalize_fundamentals({"roe": "10"})
+    assert "fcf_positive" not in out_absent
+
+    # 空字符串/破折号视同缺失
+    out_dash = data.normalize_fundamentals({"每股经营现金流": "-"})
+    assert "fcf_positive" not in out_dash
+
+
+def test_normalize_fundamentals_fcf_from_english_alias():
+    """get_financial_indicators 已把 cashflow 转为 operating_cashflow_per_share
+    (英文 key),normalize 应能识别。"""
+    out = data.normalize_fundamentals({"operating_cashflow_per_share": 1.2})
+    assert out.get("fcf_positive") is True

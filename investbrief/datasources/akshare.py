@@ -448,7 +448,10 @@ class AKShareClient:
             return None
 
     def get_financial_indicators(self, symbol: str) -> dict[str, Any] | None:
-        """获取个股最新财务指标（来自同花顺）。"""
+        """获取个股最新财务指标（来自同花顺）。
+
+        含 `每股经营现金流`（additive：picks TODO C 用，holdings/analyzer 只读旧 keys 不受影响）。
+        """
         try:
             df = ak.stock_financial_abstract_ths(symbol=symbol)
             if df is None or df.empty:
@@ -463,6 +466,7 @@ class AKShareClient:
                 "gross_margin": self._parse_pct(r.get("销售毛利率")),
                 "net_margin": self._parse_pct(r.get("销售净利率")),
                 "debt_ratio": self._parse_pct(r.get("资产负债率")),
+                "operating_cashflow_per_share": self._safe_float(r.get("每股经营现金流")),
                 "report_date": str(r.get("报告期", "")),
             }
         except Exception as e:
