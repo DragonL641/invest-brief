@@ -14,4 +14,4 @@ jobs:
       - name: Verify lockfile consistency
         run: uv sync --frozen
       - name: Run tests
-        run: uv run pytest tests/ -q
+        run: uv run pytest tests/ -q -m "not network"
