@@ -54,7 +54,6 @@ def test_send_report_continues_after_single_failure(monkeypatch):
     import investbrief.mail.render as report_mod
     monkeypatch.setattr(report_mod, "load_template", lambda: "<html></html>")
     monkeypatch.setattr(report_mod, "render_template", lambda tpl, data, lang: "<html></html>")
-    monkeypatch.setattr(report_mod, "translate_html", lambda html, lang: html)
 
     send_report({"subject": "s", "market_section_html": ""}, config, recipients)
 

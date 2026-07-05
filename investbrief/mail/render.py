@@ -1,23 +1,14 @@
 """
 Email report template-rendering library.
 
-Renders Jinja2 templates (macro / holdings) into email HTML, with optional
-translation to the recipient's language via the Claude API.
+Renders Jinja2 templates (macro / holdings) into Chinese-only email HTML.
 
-Public API: load_template(), render_template(), render_holdings_template(),
-translate_html().
+Public API: load_template(), render_template(), render_holdings_template().
 """
 import re
 import logging
 from datetime import datetime
 from pathlib import Path
-
-# Try to import anthropic for translation
-try:
-    import anthropic
-    HAS_ANTHROPIC = True
-except ImportError:
-    HAS_ANTHROPIC = False
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -57,23 +48,17 @@ def md_inline(text: str) -> str:
 # Language Configuration (minimal - only styling)
 # ============================================================================
 
+# Chinese-only styling (red=up, green=down per 中国惯例)
 LANGUAGE_CONFIG = {
-    'zh-CN': {
-        'font_family': "'Microsoft YaHei', 'PingFang SC', sans-serif",
-        'color_up': '#e74c3c',
-        'color_down': '#27ae60',
-    },
-    'ko-KR': {
-        'font_family': "'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif",
-        'color_up': '#e74c3c',
-        'color_down': '#2980b9',
-    }
+    'font_family': "'Microsoft YaHei', 'PingFang SC', sans-serif",
+    'color_up': '#e74c3c',
+    'color_down': '#27ae60',
 }
 
 
-def get_config(language):
-    """Get language configuration (colors, fonts)"""
-    return LANGUAGE_CONFIG.get(language, LANGUAGE_CONFIG['zh-CN'])
+def get_config(language=None):
+    """Chinese-only config (colors, fonts). Language arg ignored (kept for call-site compat)."""
+    return LANGUAGE_CONFIG
 
 
 def load_template(name: str = "email_base.j2") -> str:
@@ -82,91 +67,6 @@ def load_template(name: str = "email_base.j2") -> str:
     render_template / render_holdings_template directly with a template name."""
     with open(TEMPLATES_DIR / name, 'r', encoding='utf-8') as f:
         return f.read()
-
-
-# ============================================================================
-# HTML Translation
-# ============================================================================
-
-def translate_html(html_content, target_language, max_retries=2):
-    """Translate HTML content to target language using Claude API.
-
-    Strips base64 chart images before translation to reduce payload size,
-    then restores them after translation.
-
-    Args:
-        html_content: The HTML string to translate
-        target_language: 'ko-KR' for Korean, 'zh-CN' returns unchanged
-        max_retries: Number of retries on API failure
-
-    Returns:
-        Translated HTML string
-    """
-    if not HAS_ANTHROPIC:
-        logger.warning('anthropic package not installed, skipping translation')
-        return html_content
-
-    from investbrief.core.llm import get_client, default_model
-    client = get_client()
-    model = default_model()
-
-    language_names = {
-        'zh-CN': 'Simplified Chinese (简体中文)',
-        'ko-KR': 'Korean (한국어)',
-    }
-
-    target_lang_name = language_names.get(target_language, target_language)
-
-    chart_placeholders = {}
-    counter = [0]
-    def replace_b64(match):
-        key = f"__CHART_PLACEHOLDER_{counter[0]}__"
-        chart_placeholders[key] = match.group(0)
-        counter[0] += 1
-        return key
-    html_stripped = re.sub(r'data:image/png;base64,[A-Za-z0-9+/=]+', replace_b64, html_content)
-
-    prompt = f"""Translate the following HTML email content to {target_lang_name}.
-
-Important rules:
-1. Only translate the visible text content, preserve ALL HTML tags and attributes exactly as they are
-2. Keep numbers, currency symbols, and percentages unchanged (e.g., "$205.27", "+1.71%", "¥68.50", "₩943,000")
-3. Keep company names and stock symbols unchanged (e.g., AMD, NVIDIA, Samsung, SK하이닉스, 三星电子)
-4. Keep URLs and email addresses unchanged
-5. Translate naturally and professionally for a financial/investment context
-6. Preserve the HTML structure and formatting completely
-7. Keep __CHART_PLACEHOLDER_X__ strings exactly as they are (they are chart image placeholders)
-
-HTML content to translate:
-{html_stripped}
-
-Return only the translated HTML, no explanations or markdown code blocks."""
-
-    last_error = None
-    for attempt in range(max_retries + 1):
-        try:
-            with client.messages.stream(
-                model=model,
-                max_tokens=32000,
-                messages=[{"role": "user", "content": prompt}]
-            ) as stream:
-                translated = ""
-                for text in stream.text_stream:
-                    translated += text
-            translated = re.sub(r'^\s*```(?:html)?\s*\n?', '', translated)
-            translated = re.sub(r'\n?\s*```\s*$', '', translated)
-            translated = translated.strip()
-
-            for key, b64_data in chart_placeholders.items():
-                translated = translated.replace(key, b64_data)
-
-            return translated
-        except Exception as e:
-            last_error = e
-            logger.warning(f'Translation attempt {attempt + 1} failed: {e}')
-
-    logger.warning('All translation attempts failed, sending original HTML')
-    return html_content
 
 
 # ============================================================================
