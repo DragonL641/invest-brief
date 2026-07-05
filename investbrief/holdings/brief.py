@@ -105,9 +105,15 @@ def generate_stock_conclusion(r: HoldingResult) -> str:
     if r.error:
         return ""
     from investbrief.core.llm import call_claude
+    from investbrief.holdings.regime_prompts import regime_hint
 
     market_label = "A股" if r.market == "cn" else "美股"
+    regime = (r.technicals or {}).get("regime")
+    hint = regime_hint(regime)
+    regime_line = f"\n【当前市场状态：{regime}】{hint}" if hint else ""
+
     prompt = f"""你是一位{market_label}投资顾问。基于以下信息给出该标的的综合研判。
+{regime_line}
 
 {_format_holding(r)}
 

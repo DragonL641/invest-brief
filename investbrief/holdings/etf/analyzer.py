@@ -78,7 +78,8 @@ class ETFAnalyzer:
         dim_summary = self.engine.dimension_summary(rule_results)
 
         # 5. AI 综合研判
-        ai_conclusion = self._ai_synthesize(symbol, spot, rule_results, dim_summary, market_data)
+        ai_conclusion = self._ai_synthesize(symbol, spot, rule_results, dim_summary, market_data,
+                                            regime=indicators.get("regime"))
 
         # 6. 构造结果
         return ETFAnalysisResult(
@@ -102,9 +103,14 @@ class ETFAnalyzer:
         rule_results: list[RuleResult],
         dim_summary: dict,
         market_data: dict | None,
+        regime: str | None = None,
     ) -> str:
         """调用 Claude 进行综合研判。"""
         from investbrief.core.llm import call_claude
+        from investbrief.holdings.regime_prompts import regime_hint
+
+        hint = regime_hint(regime)
+        regime_line = f"\n【当前市场状态：{regime}】{hint}" if hint else ""
 
         # 构造规则匹配摘要
         matched_rules = []
@@ -129,6 +135,7 @@ class ETFAnalyzer:
                     market_text += f"  {idx.get('name','')}: {idx.get('price','')} ({idx.get('change_pct','')}%)\n"
 
         prompt = f"""你是一位ETF投资顾问。基于以下信息给出综合研判。
+{regime_line}
 
 ETF: {symbol} {spot.get('name', '')}
 当前价格: {spot.get('price')}  涨跌幅: {spot.get('change_pct')}%

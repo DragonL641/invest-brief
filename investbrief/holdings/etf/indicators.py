@@ -59,6 +59,11 @@ def compute_indicators(hist_df: pd.DataFrame) -> dict:
     except Exception as e:
         logger.warning(f"High/Low calculation failed: {e}")
 
+    try:
+        _calc_regime(result)
+    except Exception as e:
+        logger.warning(f"Regime inference failed: {e}")
+
     return result
 
 
@@ -172,6 +177,27 @@ def _calc_high_low(close: pd.Series, out: dict):
             if price:
                 out[f"new_high_{n}d"] = price >= high_n
                 out[f"new_low_{n}d"] = price <= low_n
+
+
+def _calc_regime(out: dict):
+    """从 ma_alignment + return_60d + volume_ratio 推断 4 档 regime。
+
+    用于持仓 prompt 侧重注入（方案 A）。轻量启发式，非精确预测。
+    """
+    ma = out.get("ma_alignment")
+    r60 = out.get("return_60d")
+    if ma is None or r60 is None:
+        return  # 数据不足，不设 regime
+    vr = out.get("volume_ratio")
+
+    if ma == "bullish" and r60 > 5:
+        out["regime"] = "trending_up"
+    elif ma == "bearish" and r60 < -5:
+        out["regime"] = "trending_down"
+    elif vr is not None and vr > 2.0 and -10 < r60 < 10:
+        out["regime"] = "volatile"
+    else:
+        out["regime"] = "sideways"
 
 
 def _last(series: pd.Series):

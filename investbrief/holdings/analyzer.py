@@ -569,6 +569,8 @@ def _extract_technicals(hist, uppercase_cols: bool = False) -> dict:
         "new_high_60d": ind.get("new_high_60d"),
         "new_low_60d": ind.get("new_low_60d"),
         "high_60d": ind.get("high_60d"),
+        # regime 推断（方案 A）
+        "regime": ind.get("regime"),
     }
 
 
