@@ -544,12 +544,31 @@ def _extract_technicals(hist, uppercase_cols: bool = False) -> dict:
     if not ind:
         return {}
     return {
+        # 原有 6 个
         "ma_alignment": ind.get("ma_alignment"),
         "rsi": ind.get("rsi"),
         "macd_cross": ind.get("macd_cross"),
         "return_20d": ind.get("return_20d"),
         "return_60d": ind.get("return_60d"),
         "position_60d": ind.get("position_60d"),
+        # 补全：MA 数值
+        "ma5": ind.get("ma5"),
+        "ma20": ind.get("ma20"),
+        "ma60": ind.get("ma60"),
+        # 补全：MACD 数值
+        "macd_dif": ind.get("macd_dif"),
+        "macd_bar": ind.get("macd_bar"),
+        # 补全：布林位置
+        "boll_position": ind.get("boll_position"),
+        # 补全：短期收益
+        "return_5d": ind.get("return_5d"),
+        "return_10d": ind.get("return_10d"),
+        # 补全：量能
+        "volume_ratio": ind.get("volume_ratio"),
+        # 补全：新高新低 + 60日高
+        "new_high_60d": ind.get("new_high_60d"),
+        "new_low_60d": ind.get("new_low_60d"),
+        "high_60d": ind.get("high_60d"),
     }
 
 

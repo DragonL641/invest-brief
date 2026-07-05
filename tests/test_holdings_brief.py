@@ -101,3 +101,31 @@ def test_generate_stock_conclusion_llm_init_fail_fallback(mock_get_client):
 def test_generate_stock_conclusion_skips_error_holding():
     r = HoldingResult(symbol="XXX", market="cn", type="stock", error="分析失败")
     assert generate_stock_conclusion(r) == ""
+
+
+def test_extract_technicals_backfills_18_fields():
+    """_extract_technicals should surface 18 indicator fields (not just the old 6)."""
+    import pandas as pd
+    from investbrief.holdings.analyzer import _extract_technicals
+
+    # 70 rows of synthetic OHLCV so all windows (5/10/20/60) compute
+    n = 70
+    hist = pd.DataFrame({
+        "close": [100 + i * 0.5 + (i % 5) for i in range(n)],
+        "volume": [1000 + i * 10 for i in range(n)],
+    })
+    result = _extract_technicals(hist)
+    expected_keys = {
+        "ma_alignment", "rsi", "macd_cross", "return_20d", "return_60d", "position_60d",
+        "ma5", "ma20", "ma60", "macd_dif", "macd_bar", "boll_position",
+        "return_5d", "return_10d", "volume_ratio",
+        "new_high_60d", "new_low_60d", "high_60d",
+    }
+    assert set(result.keys()) == expected_keys, (
+        f"missing: {expected_keys - set(result.keys())}; "
+        f"extra: {set(result.keys()) - expected_keys}"
+    )
+    # New fields should have real values (not None) for this synthetic uptrend
+    assert result["ma5"] is not None
+    assert result["volume_ratio"] is not None
+    assert result["return_5d"] is not None

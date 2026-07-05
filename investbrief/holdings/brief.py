@@ -51,7 +51,12 @@ def _format_holding(r: HoldingResult) -> str:
         lines.append(f"  基本面: PE={f.get('pe')} ROE={f.get('roe')} 营收增长={f.get('revenue_growth')}")
     if r.technicals:
         t = r.technicals
-        lines.append(f"  技术面: 均线={t.get('ma_alignment')} RSI={t.get('rsi')} MACD={t.get('macd_cross')} 60日涨跌={t.get('return_60d')}%")
+        lines.append(
+            f"  技术面: 均线={t.get('ma_alignment')} RSI={t.get('rsi')} "
+            f"MACD={t.get('macd_cross')} 量比={t.get('volume_ratio')} "
+            f"5日={t.get('return_5d')}% 20日={t.get('return_20d')}% 60日={t.get('return_60d')}% "
+            f"布林位置={t.get('boll_position')} 60日新高={t.get('new_high_60d')}"
+        )
     if r.insider and r.insider.get("direction") and r.insider.get("direction") != "flat":
         verb = "增持" if r.insider["direction"] == "buy" else "减持"
         lines.append(f"  高管/大股东{verb}: 净额 {r.insider.get('net_amount')} ({r.insider.get('count')} 笔)")
