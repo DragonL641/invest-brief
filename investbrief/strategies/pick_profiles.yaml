@@ -47,7 +47,7 @@ profiles:
     universe:
       min_listed_years: 3           # TODO: needs listing date from stock_individual_info(当前 spot 无此字段,no-op)
       fundamental_gates:
-        min_profitable_years: 3     # TODO: needs profitable-years from multi-year financials(no-op)
+        min_profitable_years: 3     # active: fetch_profitable_years(CN 同花顺年度报告期;US yfinance financials)
       cautious_cyclical: true
     factors:
       quality:    {weight: 0.35}

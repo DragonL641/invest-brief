@@ -41,3 +41,15 @@ def test_normalize_fundamentals_fcf_from_english_alias():
     (英文 key),normalize 应能识别。"""
     out = data.normalize_fundamentals({"operating_cashflow_per_share": 1.2})
     assert out.get("fcf_positive") is True
+
+
+def test_count_profitable_years_basic():
+    """TODO B 纯函数: > 0 的年数。None/NaN/0/负值不计入。"""
+    assert data.count_profitable_years({}) == 0
+    assert data.count_profitable_years({"2020": 1.0, "2021": 2.0, "2022": 0.5}) == 3
+    assert data.count_profitable_years({"2020": 1.0, "2021": -0.5, "2022": 0.0}) == 1
+    # None / NaN / 非数 都不计入
+    assert data.count_profitable_years({"2020": None, "2021": float("nan")}) == 0
+    assert data.count_profitable_years({"2020": "abc"}) == 0
+    # 全负
+    assert data.count_profitable_years({"2020": -1.0, "2021": -2.0}) == 0

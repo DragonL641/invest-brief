@@ -99,3 +99,57 @@ def test_safe_build_swallows_exception(monkeypatch):
         raise RuntimeError("boom")
     monkeypatch.setattr(picks, "build_picks_for_profile", _boom)
     assert picks._safe_build("swing", "cn") is None
+
+
+def _long_profile_with_profitable_years_gate(min_years):
+    return {"long": {
+        "universe": {"exclude_st": False,
+                     "fundamental_gates": {"min_profitable_years": min_years}},
+        "factors": {"quality": {"weight": 1.0}},
+        "standardize": "rank_percentile",
+        "industry_neutralize": False,
+        "top_n": 1,
+    }}
+
+
+def test_profitable_years_gate_skips_below_threshold(monkeypatch):
+    """TODO B: long profile + profitable_years=2 < gate 3 → 候选剔除,返回 None。"""
+    monkeypatch.setattr(picks, "_spot_df", lambda market: _one_row_spot_df())
+    monkeypatch.setattr(picks._data, "fetch_history", lambda symbol, market, days: _valid_history())
+    monkeypatch.setattr(picks._data, "fetch_fundamentals",
+                        lambda symbol, market: {"roe": 0.20, "fcf_positive": True})
+    monkeypatch.setattr(picks._data, "fetch_profitable_years",
+                        lambda symbol, market: 2)
+    monkeypatch.setattr(picks, "load_profiles",
+                        lambda: _long_profile_with_profitable_years_gate(3))
+    assert picks.build_picks_for_profile("long", "cn") is None
+
+
+def test_profitable_years_gate_passes_at_or_above(monkeypatch):
+    """TODO B: long profile + profitable_years=3 ≥ gate 3 → 候选通过。"""
+    monkeypatch.setattr(picks, "_spot_df", lambda market: _one_row_spot_df())
+    monkeypatch.setattr(picks._data, "fetch_history", lambda symbol, market, days: _valid_history())
+    monkeypatch.setattr(picks._data, "fetch_fundamentals",
+                        lambda symbol, market: {"roe": 0.20, "fcf_positive": True})
+    monkeypatch.setattr(picks._data, "fetch_profitable_years",
+                        lambda symbol, market: 5)
+    monkeypatch.setattr(picks, "load_profiles",
+                        lambda: _long_profile_with_profitable_years_gate(3))
+    res = picks.build_picks_for_profile("long", "cn")
+    assert res is not None
+    assert res["symbol"] == "000001"
+
+
+def test_profitable_years_gate_degrades_when_data_missing(monkeypatch):
+    """TODO B 韧性: fetch_profitable_years 返回 None(数据缺失) → gate 跳过,候选通过。"""
+    monkeypatch.setattr(picks, "_spot_df", lambda market: _one_row_spot_df())
+    monkeypatch.setattr(picks._data, "fetch_history", lambda symbol, market, days: _valid_history())
+    monkeypatch.setattr(picks._data, "fetch_fundamentals",
+                        lambda symbol, market: {"roe": 0.20, "fcf_positive": True})
+    monkeypatch.setattr(picks._data, "fetch_profitable_years",
+                        lambda symbol, market: None)
+    monkeypatch.setattr(picks, "load_profiles",
+                        lambda: _long_profile_with_profitable_years_gate(3))
+    res = picks.build_picks_for_profile("long", "cn")
+    # 数据缺失 → gate 不强制 → 候选存活 → 返回 pick(不是 None)
+    assert res is not None

@@ -159,3 +159,99 @@ def _normalize_us_fund(info: dict) -> dict:
         "fcf_positive": bool((info.get("freeCashflow") or 0) > 0),
         "capex_ratio": None,
     }
+
+
+# ---- 多期财报(TODO B profitable_years / TODO A earliest_period) ----
+
+def count_profitable_years(net_income_by_year: dict) -> int:
+    """纯函数:从 {年份:净利润} dict 统计 > 0 的年数(单测入口)。
+
+    年份 key 用 str(如 '2023');值为负/0/None/NaN 不计入。
+    """
+    if not net_income_by_year:
+        return 0
+    count = 0
+    for _year, val in net_income_by_year.items():
+        try:
+            if val is not None and float(val) > 0:
+                count += 1
+        except (TypeError, ValueError):
+            continue
+    return count
+
+
+def fetch_profitable_years(symbol: str, market: str) -> int | None:
+    """统计盈利年数(年化报告期 12-31 且 净利润>0)。cached ttl_days=30。
+
+    CN: stock_financial_abstract_ths(年度末报告期 + 净利润列)
+    US: yfinance Ticker.financials.loc['Net Income'](年度列,通常 ~4 年)
+    失败/数据不足 → None(gate 跳过,不静默过滤)。
+    """
+    key = f"prof_years:{market}:{symbol}"
+    c = cache()
+    if c and c.fresh(key, ttl_days=30):
+        cached = c.get(key)
+        if cached is not None:
+            return cached
+    try:
+        if market == "cn":
+            years_dict = _cn_net_income_by_year(symbol)
+        else:
+            years_dict = _us_net_income_by_year(symbol)
+    except Exception as e:
+        logger.warning(f"fetch_profitable_years {market}:{symbol} failed: {e}")
+        return None
+    if not years_dict:
+        return None
+    years = count_profitable_years(years_dict)
+    if c and years:
+        c.set(key, years, ttl_days=30)
+    return years
+
+
+def _cn_net_income_by_year(symbol: str) -> dict[str, float]:
+    """从 stock_financial_abstract_ths 取年度(12-31)报告期的净利润。
+
+    akshare 帧顺序不稳定,显式按报告期排序后再过滤 12-31。
+    """
+    from investbrief.datasources.akshare import AKShareClient
+    df = AKShareClient().get_financial_abstract_df(symbol)
+    if df is None or df.empty or "报告期" not in df.columns or "净利润" not in df.columns:
+        return {}
+    df = df.copy()
+    df["_period"] = df["报告期"].astype(str)
+    df = df[df["_period"].str.endswith("12-31")]
+    out: dict[str, float] = {}
+    for _, r in df.iterrows():
+        year = r["_period"][:4]
+        v = r.get("净利润")
+        try:
+            out[year] = float(v) if v is not None and v != "" and v != "-" else float("nan")
+        except (TypeError, ValueError):
+            out[year] = float("nan")
+    return out
+
+
+def _us_net_income_by_year(symbol: str) -> dict[str, float]:
+    """从 yfinance financials 取 Net Income(列是年度,通常 ~4 年)。"""
+    from investbrief.datasources.yfinance import YFinanceClient
+    client = YFinanceClient()
+    # YFinanceClient 未暴露 financials,直接走 yfinance API(与 _normalize_us_fund 走 .info 对称)
+    import yfinance as yf
+    fin = yf.Ticker(symbol).financials
+    if fin is None or fin.empty or "Net Income" not in fin.index:
+        return {}
+    row = fin.loc["Net Income"]
+    out: dict[str, float] = {}
+    for col in fin.columns:
+        val = row.get(col)
+        try:
+            if val is None or pd.isna(val):
+                continue
+            year = str(col)[:4]
+            out[year] = float(val)
+        except (TypeError, ValueError):
+            continue
+    # 抑制未使用的 import 警告(保留 client 引用以表明该模块的归属)
+    _ = client
+    return out

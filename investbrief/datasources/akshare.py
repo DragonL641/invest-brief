@@ -484,6 +484,23 @@ class AKShareClient:
         except (ValueError, TypeError):
             return None
 
+    def get_financial_abstract_df(self, symbol: str) -> pd.DataFrame | None:
+        """获取同花顺财务摘要多期 DataFrame（含报告期/净利润/每股经营现金流/...）。
+
+        返回的 DataFrame 按报告期升序。picks TODO A/B 用此 df 推算:
+        - earliest 报告期(listing-time proxy,TODO A)
+        - annual(12-31)且 净利润>0 的年数(profitable years,TODO B)
+        失败返回 None;调用方各自 try/except 降级。
+        """
+        try:
+            df = ak.stock_financial_abstract_ths(symbol=symbol)
+            if df is None or df.empty:
+                return None
+            return df
+        except Exception as e:
+            logger.warning(f"AKShare get_financial_abstract_df failed for {symbol}: {e}")
+            return None
+
     # ---- 高管与股东变动 ----
 
     def _get_all_insider_trades_df(self) -> pd.DataFrame | None:

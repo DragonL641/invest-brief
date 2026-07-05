@@ -59,7 +59,7 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
             if hist is None or hist.empty:
                 continue
             # 深拉阶段校验:基本面 gate(只在数据存在时执行,缺失则跳过该 gate)
-            if gates and not _passes_fundamental_gates(fund, gates):
+            if gates and not _passes_fundamental_gates(fund, gates, symbol, market):
                 continue
             # 深拉阶段校验:5 日涨幅上限(swing)
             if max_5d_gain and not _passes_price_gates(hist, max_5d_gain):
@@ -86,13 +86,14 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     return top
 
 
-def _passes_fundamental_gates(fund: dict, gates: dict) -> bool:
+def _passes_fundamental_gates(fund: dict, gates: dict, symbol: str = "",
+                              market: str = "") -> bool:
     """基本面 gate 校验:仅在数据实际可用时执行,缺失数据不静默过滤。
 
     - min_roe_4q: roe 已归一化为小数,低于阈值 → 失败
-    - positive_operating_cashflow: 仅当 fund 含 fcf_positive 时才校验(CN normalize_fundamentals
-      当前未写入该字段,故 CN 候选天然跳过此 gate)
-    - min_profitable_years: TODO: needs profitable-years from multi-year financials
+    - positive_operating_cashflow: 仅当 fund 含 fcf_positive 时才校验
+      (TODO C 已为 CN 接入;缺失/NaN → 跳过)
+    - min_profitable_years: TODO B;fetch 返回 int 时校验,返回 None(数据缺失) → 跳过
     """
     min_roe = gates.get("min_roe_4q")
     if min_roe is not None:
@@ -102,7 +103,12 @@ def _passes_fundamental_gates(fund: dict, gates: dict) -> bool:
     pos_cf = gates.get("positive_operating_cashflow")
     if pos_cf and "fcf_positive" in fund and not fund["fcf_positive"]:
         return False
-    # min_profitable_years: documented no-op(profitable_years 字段未在归一化 fundamentals 中)
+    # TODO B: profitable years(数据缺失 → 跳过,不静默过滤)
+    min_years = gates.get("min_profitable_years")
+    if min_years is not None and symbol and market:
+        years = _data.fetch_profitable_years(symbol, market)
+        if years is not None and years < min_years:
+            return False
     return True
 
 
