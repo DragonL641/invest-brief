@@ -1,0 +1,60 @@
+# 股票推荐三份 profile:universe 粗筛 + 因子权重 + 标准化 + 风控。
+# 加因子/改权重/加新周期只改本文件(factors.py 注册表 key 与此处对齐)。
+profiles:
+  swing:
+    holding_period: "2周~3个月"
+    universe:
+      exclude_st: true
+      min_turnover_cn: 1.0e8
+      min_turnover_us: 1.0e7
+      min_listed_days: 250
+      trend_60d_positive: true
+      max_5d_gain: 0.30            # 在深拉阶段(③)用历史校验,spot 无此字段
+    factors:
+      trend_strength:     {weight: 0.30}
+      momentum_60d_ex5:   {weight: 0.25}
+      ma20_deviation:     {weight: 0.20, invert: true}
+      volume_price:       {weight: 0.15}
+      low_volatility_20d: {weight: 0.10, invert: true}
+    standardize: rank_percentile
+    industry_neutralize: false
+    top_n: 1
+    risk: {stop_break_ma20: true, stop_max_dd: 0.08, max_per_stock: 0.10}
+
+  medium:
+    holding_period: "3个月~1年"
+    universe:
+      exclude_st: true
+      market_cap_cn: [5.0e9, 1.0e11]
+      market_cap_us: mid
+      min_listed_days: 250
+      fundamental_gates:
+        min_roe_4q: 0.08
+        positive_operating_cashflow: true
+    factors:
+      growth:              {weight: 0.30}
+      quality:             {weight: 0.25}
+      industry_prosperity: {weight: 0.20}
+      valuation:           {weight: 0.15, invert: true}
+      momentum_12m_ex1m:   {weight: 0.10}
+    standardize: rank_percentile
+    industry_neutralize: true
+    top_n: 1
+    risk: {max_per_stock: 0.15, max_per_industry: 0.30, stop_break_ma60: true}
+
+  long:
+    holding_period: "1年~5年+"
+    universe:
+      min_listed_years: 3
+      fundamental_gates:
+        min_profitable_years: 3
+      cautious_cyclical: true
+    factors:
+      quality:    {weight: 0.35}
+      moat:       {weight: 0.25}
+      growth:     {weight: 0.20}
+      valuation:  {weight: 0.20, invert: true}
+    standardize: rank_percentile
+    industry_neutralize: true
+    top_n: 1
+    risk: {max_per_stock: 0.10}
