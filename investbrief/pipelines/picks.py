@@ -39,26 +39,42 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
         logger.info(f"{profile_name}/{market}: no candidates after coarse filter")
         return None
 
-    # 深拉 + 因子(限制候选数,控制 eastmoney 调用)
-    cap = _candidate_cap(profile_name)
-    candidates_df = candidates_df.head(cap)
+    # 取流动性最好的 cap 只作为候选池(避免无排序时取到随机切片)
+    turnover_col = next((c for c in ("成交额", "amount", "turnover") if c in candidates_df.columns), None)
+    if turnover_col:
+        candidates_df = candidates_df.sort_values(by=turnover_col, ascending=False)
+    candidates_df = candidates_df.head(_candidate_cap(profile_name))
+
+    u = prof.get("universe", {})
+    gates = u.get("fundamental_gates") or {}
+    max_5d_gain = u.get("max_5d_gain")
     cands = []
     for _, row in candidates_df.iterrows():
         symbol = str(row.get("代码") if market == "cn" else row.get("代码", row.get("symbol", "")))
         if not symbol:
             continue
-        hist = _data.fetch_history(symbol, market, days=_history_days(profile_name))
-        fund = _data.fetch_fundamentals(symbol, market) if profile_name != "swing" else {}
-        val = _valuation_for(row, market) if "valuation" in prof["factors"] else {}
-        if hist is None or hist.empty:
+        try:
+            hist = _data.fetch_history(symbol, market, days=_history_days(profile_name))
+            fund = _data.fetch_fundamentals(symbol, market) if profile_name != "swing" else {}
+            if hist is None or hist.empty:
+                continue
+            # 深拉阶段校验:基本面 gate(只在数据存在时执行,缺失则跳过该 gate)
+            if gates and not _passes_fundamental_gates(fund, gates):
+                continue
+            # 深拉阶段校验:5 日涨幅上限(swing)
+            if max_5d_gain and not _passes_price_gates(hist, max_5d_gain):
+                continue
+            val = _valuation_for(row, market) if "valuation" in prof["factors"] else {}
+            raw = {}
+            for fkey in prof["factors"]:
+                fn = _factors.FACTOR_REGISTRY.get(fkey)
+                raw[fkey] = fn(hist, fund, val) if fn else None
+            cands.append({"symbol": symbol, "name": str(row.get("名称", symbol)),
+                          "market": market, "raw_factors": raw,
+                          "industry": _industry_for(row, market)})
+        except Exception as e:
+            logger.warning(f"candidate {market}:{symbol} failed: {e}")
             continue
-        raw = {}
-        for fkey in prof["factors"]:
-            fn = _factors.FACTOR_REGISTRY.get(fkey)
-            raw[fkey] = fn(hist, fund, val) if fn else None
-        cands.append({"symbol": symbol, "name": str(row.get("名称", symbol)),
-                      "market": market, "raw_factors": raw,
-                      "industry": _industry_for(row, market)})
 
     prof_with_name = {**prof, "_name": profile_name}
     ranked = _engine.rank_picks(cands, prof_with_name, market)
@@ -68,6 +84,37 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     # 补 price/key_mas/stop_level(从历史)——必须在渲染前完成
     _enrich(top, _data.fetch_history(top["symbol"], market, days=120), prof)
     return top
+
+
+def _passes_fundamental_gates(fund: dict, gates: dict) -> bool:
+    """基本面 gate 校验:仅在数据实际可用时执行,缺失数据不静默过滤。
+
+    - min_roe_4q: roe 已归一化为小数,低于阈值 → 失败
+    - positive_operating_cashflow: 仅当 fund 含 fcf_positive 时才校验(CN normalize_fundamentals
+      当前未写入该字段,故 CN 候选天然跳过此 gate)
+    - min_profitable_years: TODO: needs profitable-years from multi-year financials
+    """
+    min_roe = gates.get("min_roe_4q")
+    if min_roe is not None:
+        roe = fund.get("roe")
+        if roe is not None and roe < min_roe:
+            return False
+    pos_cf = gates.get("positive_operating_cashflow")
+    if pos_cf and "fcf_positive" in fund and not fund["fcf_positive"]:
+        return False
+    # min_profitable_years: documented no-op(profitable_years 字段未在归一化 fundamentals 中)
+    return True
+
+
+def _passes_price_gates(hist, max_5d_gain: float) -> bool:
+    """5 日涨幅上限校验(swing 深拉阶段)。数据不足 → 通过(不静默过滤)。"""
+    try:
+        if hist is None or len(hist) < 6:
+            return True
+        ret = hist["close"].iloc[-1] / hist["close"].iloc[-6] - 1
+        return bool(ret <= max_5d_gain)
+    except Exception:
+        return True
 
 
 def _enrich(pick: dict, hist, prof: dict):
@@ -97,9 +144,16 @@ def _history_days(profile_name: str) -> int:
 
 
 def _valuation_for(row, market: str) -> dict:
-    """从 spot 行取 PE/PB;3 年分位留空(深拉估值历史在 data 增强,首版用截面分位回退)。"""
-    pe = _num(row, "市盈率-动态" if market == "cn" else None)
-    pb = _num(row, "市净率" if market == "cn" else None)
+    """从 spot 行取 PE/PB;3 年分位留空(深拉估值历史在 data 增强,首版用截面分位回退)。
+
+    CN stock_zh_a_spot_em: 市盈率-动态 / 市净率;US stock_us_spot_em: 市盈率(无 市净率)。
+    """
+    if market == "cn":
+        pe = _num(row, "市盈率-动态")
+        pb = _num(row, "市净率")
+    else:
+        pe = _num(row, "市盈率")   # stock_us_spot_em has 市盈率 (no 市净率)
+        pb = None
     return {"pe": pe, "pb": pb, "pe_pct_3y": None, "pb_pct_3y": None, "peg": None}
 
 
@@ -114,6 +168,15 @@ def _num(row, col):
         v = float(row[col])
         return v if v == v else None
     except (TypeError, ValueError):
+        return None
+
+
+def _safe_build(profile_name: str, market: str):
+    """build_picks_for_profile 的韧性包装:任何异常 → None(占位卡),不阻塞 pipeline。"""
+    try:
+        return build_picks_for_profile(profile_name, market)
+    except Exception as e:
+        logger.warning(f"build_picks_for_profile {profile_name}/{market} failed: {e}")
         return None
 
 
@@ -132,8 +195,8 @@ def run_picks_report(args):
     all_picks: list[dict] = []
     sections_html = ""
     for prof_name in _PROFILES:
-        cn = build_picks_for_profile(prof_name, "cn")
-        us = build_picks_for_profile(prof_name, "us")
+        cn = _safe_build(prof_name, "cn")
+        us = _safe_build(prof_name, "us")
         all_picks += [p for p in (cn, us) if p]
         sections_html += _renderer.render_pick_section(prof_name, cn, us)
 

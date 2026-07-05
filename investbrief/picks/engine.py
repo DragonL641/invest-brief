@@ -26,7 +26,8 @@ def rank_picks(candidates: list[dict], profile: dict, market: str) -> list[dict]
     for f in factor_keys:
         vals = pd.Series(series[f], dtype="float64")
         valid = vals.dropna()
-        if valid.empty:
+        if len(valid) < 3:
+            # 太稀疏(含全 None):百分位无统计意义,该因子全员贡献 0(同 all-None 路径)
             pct[f] = [None] * len(candidates)
             continue
         ranked = vals.rank(pct=True) * 100   # NaN 保持 NaN
