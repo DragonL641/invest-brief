@@ -347,3 +347,138 @@ def test_cn_treasury_yield_incremental_uses_last_date(monkeypatch, db):
     assert fetched["called"]
     assert fetched["first_start"].startswith("2026"), (
         f"incremental should start near last_date, got {fetched['first_start']}")
+
+
+# ---------- is_fresh (DB-First refresh fast-path) ----------
+
+def test_us_is_fresh_true_when_today_present(db):
+    """USData.is_fresh True when us_index_daily MAX(date) == today."""
+    from investbrief.data.us_data import USData
+    from datetime import datetime
+
+    class _US(USData):
+        def __init__(self):
+            self._conn = None
+        @property
+        def conn(self):
+            return db.conn
+        def _validate_table(self, t): pass
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    pd.DataFrame({"code": ["^GSPC"], "date": [today], "open": [1], "high": [1],
+                  "low": [1], "close": [1], "volume": [1]}
+                 ).to_sql("us_index_daily", db.conn, if_exists="append", index=False)
+    db.conn.commit()
+    assert _US().is_fresh() is True
+
+
+def test_us_is_fresh_false_when_stale(db):
+    """USData.is_fresh False when MAX(date) != today."""
+    from investbrief.data.us_data import USData
+
+    class _US(USData):
+        def __init__(self):
+            self._conn = None
+        @property
+        def conn(self):
+            return db.conn
+        def _validate_table(self, t): pass
+
+    pd.DataFrame({"code": ["^GSPC"], "date": ["2020-01-01"], "open": [1], "high": [1],
+                  "low": [1], "close": [1], "volume": [1]}
+                 ).to_sql("us_index_daily", db.conn, if_exists="append", index=False)
+    db.conn.commit()
+    assert _US().is_fresh() is False
+
+
+def test_us_is_fresh_false_when_empty(db):
+    """USData.is_fresh False when us_index_daily is empty."""
+    from investbrief.data.us_data import USData
+
+    class _US(USData):
+        def __init__(self):
+            self._conn = None
+        @property
+        def conn(self):
+            return db.conn
+        def _validate_table(self, t): pass
+
+    assert _US().is_fresh() is False
+
+
+def test_cn_is_fresh_true_when_today_present(db):
+    """CNData.is_fresh True when cn_index_daily MAX(date) == today."""
+    from investbrief.data.cn_data import CNData
+    from datetime import datetime
+
+    class _CN(CNData):
+        def __init__(self):
+            self._conn = None
+        @property
+        def conn(self):
+            return db.conn
+        def _validate_table(self, t): pass
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    pd.DataFrame({"code": ["sh000001"], "date": [today], "open": [1], "high": [1],
+                  "low": [1], "close": [1], "volume": [1], "amount": [None]}
+                 ).to_sql("cn_index_daily", db.conn, if_exists="append", index=False)
+    db.conn.commit()
+    assert _CN().is_fresh() is True
+
+
+def test_cn_is_fresh_false_when_stale(db):
+    """CNData.is_fresh False when MAX(date) != today."""
+    from investbrief.data.cn_data import CNData
+
+    class _CN(CNData):
+        def __init__(self):
+            self._conn = None
+        @property
+        def conn(self):
+            return db.conn
+        def _validate_table(self, t): pass
+
+    pd.DataFrame({"code": ["sh000001"], "date": ["2020-01-01"], "open": [1], "high": [1],
+                  "low": [1], "close": [1], "volume": [1], "amount": [None]}
+                 ).to_sql("cn_index_daily", db.conn, if_exists="append", index=False)
+    db.conn.commit()
+    assert _CN().is_fresh() is False
+
+
+def test_cn_is_fresh_false_when_empty(db):
+    """CNData.is_fresh False when cn_index_daily is empty."""
+    from investbrief.data.cn_data import CNData
+
+    class _CN(CNData):
+        def __init__(self):
+            self._conn = None
+        @property
+        def conn(self):
+            return db.conn
+        def _validate_table(self, t): pass
+
+    assert _CN().is_fresh() is False
+
+
+def test_latest_data_date_returns_max_date(db):
+    """_latest_data_date returns MAX(date) for a table."""
+    pd.DataFrame({"code": ["^GSPC"], "date": ["2024-01-01"], "open": [1], "high": [1],
+                  "low": [1], "close": [1], "volume": [1]}
+                 ).to_sql("us_index_daily", db.conn, if_exists="append", index=False)
+    pd.DataFrame({"code": ["^GSPC"], "date": ["2026-07-04"], "open": [1], "high": [1],
+                  "low": [1], "close": [1], "volume": [1]}
+                 ).to_sql("us_index_daily", db.conn, if_exists="append", index=False)
+    db.conn.commit()
+    assert db._latest_data_date("us_index_daily") == "2026-07-04"
+
+
+def test_latest_data_date_none_when_empty(db):
+    """_latest_data_date returns None when table empty."""
+    assert db._latest_data_date("us_index_daily") is None
+
+
+def test_latest_data_date_rejects_unknown_table(db):
+    """_latest_data_date rejects unknown table names (injection guard)."""
+    with pytest.raises(ValueError):
+        db._latest_data_date("evil; DROP TABLE")

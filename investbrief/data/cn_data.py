@@ -30,6 +30,12 @@ class CNData(BaseData):
         self.update_sentiment()
         logger.info("A-share incremental update complete")
 
+    def is_fresh(self) -> bool:
+        """True if cn_index_daily already has today's data (avoid same-day re-fetch)."""
+        from datetime import datetime
+        latest = self._latest_data_date("cn_index_daily")
+        return latest == datetime.now().strftime("%Y-%m-%d")
+
     def update_index_daily(self):
         """Fetch daily OHLCV for the 5 A-share indices invest-brief renders."""
         for code in self.INDEX_CODES:

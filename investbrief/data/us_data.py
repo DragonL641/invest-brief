@@ -51,6 +51,12 @@ class USData(BaseData):
         self.update_sentiment()
         logger.info("US incremental update complete")
 
+    def is_fresh(self) -> bool:
+        """True if us_index_daily already has today's data (avoid same-day re-fetch)."""
+        from datetime import datetime
+        latest = self._latest_data_date("us_index_daily")
+        return latest == datetime.now().strftime("%Y-%m-%d")
+
     def update_index_daily(self):
         """Fetch daily OHLCV for all US symbols invest-brief + risk model need."""
         for ticker_symbol in self.INDEX_SYMBOLS:

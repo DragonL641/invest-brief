@@ -33,8 +33,11 @@ class CNMarketProvider(MarketProvider):
     def __init__(self, data: "CNData | None" = None):
         self.data = data if data is not None else CNData()
 
-    def refresh(self):
-        """增量取数落盘。失败不抛异常——get_* 方法会回退到库内最新值。"""
+    def refresh(self, force: bool = False):
+        """增量取数落盘。force=False 时若当日已更新则跳过（DB-First）。失败不抛异常。"""
+        if not force and self.data.is_fresh():
+            logger.info("CN data already up-to-date for today, skip refresh")
+            return
         try:
             self.data.update_incremental()
         except Exception as e:

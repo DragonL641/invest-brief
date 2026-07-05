@@ -55,8 +55,8 @@ def run_macro_report(args):
         logger.info("Update-only mode: refreshing macro data, no render/send")
         us = create_provider("us")
         cn = create_provider("cn")
-        us.refresh()
-        cn.refresh()
+        us.refresh(force=True)
+        cn.refresh(force=True)
         try:
             from investbrief.data.gold_data import GoldData
             gold_data = GoldData()

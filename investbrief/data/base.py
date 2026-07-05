@@ -188,6 +188,15 @@ class BaseData(ABC):
             return None
         return float(df.iloc[0]["value"])
 
+    def _latest_data_date(self, table_name: str) -> str | None:
+        """Max date string (YYYY-MM-DD) in table, or None if empty."""
+        self._validate_table(table_name)
+        sql = f"SELECT MAX(date) as max_date FROM {table_name}"
+        df = pd.read_sql_query(sql, self.conn)
+        if df.empty or pd.isna(df.iloc[0]["max_date"]):
+            return None
+        return str(df.iloc[0]["max_date"])[:10]
+
     def close(self):
         if self._conn:
             self._conn.close()
