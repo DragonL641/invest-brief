@@ -18,6 +18,7 @@ invest-brief = "run:main"
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "ruff>=0.6.0",
 ]
 
 [tool.pytest.ini_options]
@@ -26,3 +27,9 @@ testpaths = ["tests"]
 markers = [
     "network: tests that hit real external APIs (excluded from PR gate)",
 ]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+# Rule set intentionally empty — CI selects only fatal errors (E9,F7,F82,F811).
+# No style enforcement; this avoids taste debates while catching real bugs.

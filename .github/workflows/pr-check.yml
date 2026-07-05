@@ -13,5 +13,7 @@ jobs:
         uses: astral-sh/setup-uv@v4
       - name: Verify lockfile consistency
         run: uv sync --frozen
+      - name: Lint (fatal errors only)
+        run: uv run ruff check --select E9,F7,F82,F811 .
       - name: Run tests
         run: uv run pytest tests/ -q -m "not network"

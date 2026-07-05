@@ -3,6 +3,8 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 
+import pandas as pd
+
 from investbrief.risk.config import CN_ALL_INDICATORS, US_ALL_INDICATORS, GOLD_ALL_INDICATORS
 from investbrief.risk.calc_utils import normalize_score
 import logging
@@ -72,7 +74,6 @@ class BaseIndicator(ABC):
 
     def _get_index_data(self, market: str, days: int = 100, date: str | None = None) -> "pd.DataFrame":
         """Get index daily data for calculation."""
-        import pandas as pd
         # gold: 日频金价存于 macro_data(GOLD_PRICE_CNY, 元/克), 不走 index_daily
         if market == "gold":
             base = ("SELECT date, value AS close FROM macro_data "
