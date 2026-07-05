@@ -2,6 +2,7 @@
 """股票推荐 pipeline:三 profile × 两市场 选 Top1 → 6 只 → Claude 研判 → 渲染 → 发送。"""
 import json
 import logging
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -20,6 +21,16 @@ logger = logging.getLogger(__name__)
 _CACHE_PATH = str(DB_PATH).replace("macro_data.db", "picks_cache.db")
 _PROFILES = ("swing", "medium", "long")
 _MARKETS = ("cn", "us")
+
+# akshare stock_us_spot_em 的「代码」列是 "<市场码>.<ticker>" 格式
+# (105=NASDAQ, 106=NYSE, ...),如 "105.AMZN"。yfinance 需要纯 ticker,去掉数字前缀;
+# 无数字前缀的(如 BRK.B)原样返回。
+_US_CODE_PREFIX = re.compile(r"^\d+\.(.+)$")
+
+
+def _clean_us_symbol(code: str) -> str:
+    m = _US_CODE_PREFIX.match(code)
+    return m.group(1) if m else code
 
 
 def _spot_df(market: str):
@@ -52,7 +63,8 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     min_listed_years = u.get("min_listed_years")
     cands = []
     for _, row in candidates_df.iterrows():
-        symbol = str(row.get("代码") if market == "cn" else row.get("代码", row.get("symbol", "")))
+        raw_code = str(row.get("代码", row.get("symbol", "")))
+        symbol = _clean_us_symbol(raw_code) if market == "us" else raw_code
         if not symbol:
             continue
         try:
