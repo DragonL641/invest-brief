@@ -167,6 +167,48 @@ class EmailSender:
 
         raise Exception(f"Failed to send email after {self.max_retries} attempts: {last_error}")
 
+    def send_bulk(self, messages: list[dict]) -> tuple[int, list[tuple[str, str]]]:
+        """One SMTP connection, multiple messages. Per-message failure doesn't block others.
+
+        Args:
+            messages: [{"to": ..., "subject": ..., "html": ..., "plain": optional}, ...]
+        Returns:
+            (sent_count, failed_list) where failed_list items are (to_email, error_str).
+            Connection/login failure → all messages in failed_list.
+        """
+        sent, failed = 0, []
+        try:
+            server = self._create_connection()
+            try:
+                if not self.use_ssl:
+                    server.ehlo(); server.starttls(); server.ehlo()
+                server.login(self.sender_email, self.app_password)
+                for m in messages:
+                    try:
+                        msg = MIMEMultipart('alternative')
+                        msg['From'] = formataddr((self.sender_name, self.sender_email))
+                        msg['To'] = m["to"]
+                        msg['Subject'] = m["subject"]
+                        msg['Date'] = datetime.now().strftime('%a, %d %b %Y %H:%M:%S %z')
+                        if m.get("plain"):
+                            msg.attach(MIMEText(m["plain"], 'plain', 'utf-8'))
+                        msg.attach(MIMEText(m["html"], 'html', 'utf-8'))
+                        server.sendmail(self.sender_email, m["to"], msg.as_string())
+                        sent += 1
+                        logger.info(f"Email sent to {m['to']}")
+                    except Exception as e:
+                        failed.append((m["to"], str(e)))
+                        logger.warning(f"send to {m['to']} failed: {e}")
+            finally:
+                server.quit()
+        except smtplib.SMTPAuthenticationError as e:
+            raise Exception("SMTP authentication failed. Check your email and app password.")
+        except Exception as e:
+            # Connection/login-level failure — remaining messages all failed
+            for m in messages[sent + len(failed):]:
+                failed.append((m["to"], f"connection failed: {e}"))
+        return sent, failed
+
 
 def test_connection(config_path=None):
     """

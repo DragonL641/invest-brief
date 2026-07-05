@@ -79,10 +79,10 @@ def run_holdings_report(args):
         print(json.dumps(out, ensure_ascii=False, indent=2, default=str))
         return
 
-    # Send per recipient
+    # Send per recipient (one SMTP connection for all)
     from investbrief.mail.sender import EmailSender
     sender = EmailSender(str(CONFIG_FILE))
-    failed: list = []
+    messages = []
     last_html = ""
     for r in recipients:
         email, name = r["email"], r.get("name", r["email"])
@@ -97,12 +97,14 @@ def run_holdings_report(args):
         html = render_holdings_template("email_holdings.j2", report_data, language)
         last_html = html
         subject = f"【持仓分析】{now.strftime('%Y年%m月%d日')} — {name}"
-        try:
-            sender.send(email, subject, html)
-            logger.info(f"Holdings email sent to {email}")
-        except Exception as e:
-            logger.error(f"Failed to send holdings to {email}: {e}")
-            failed.append(email)
+        messages.append({"to": email, "subject": subject, "html": html})
+
+    sent, failed = sender.send_bulk(messages)
+    if failed:
+        failed_emails = [f[0] for f in failed]
+        if len(failed) == len(recipients):
+            raise RuntimeError(f"All {len(recipients)} holdings recipients failed: {failed_emails}")
+        logger.warning(f"{len(failed)}/{len(recipients)} holdings recipients failed: {failed_emails}")
 
     # Save preview of the last rendered email
     if last_html:
@@ -112,7 +114,4 @@ def run_holdings_report(args):
             logger.info("Holdings preview saved to reports/preview_holdings.html")
         except Exception as e:
             logger.warning(f"Failed to save holdings preview: {e}")
-
-    if failed:
-        logger.warning(f"{len(failed)}/{len(recipients)} holdings emails failed: {failed}")
     logger.info("Holdings report pipeline complete")

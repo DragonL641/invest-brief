@@ -23,8 +23,8 @@ def test_generate_macro_brief_falls_back_on_claude_failure(monkeypatch):
     assert risk == "<p>风险研判生成失败。</p>"
 
 
-def test_send_report_continues_after_single_failure(monkeypatch):
-    """第一个收件人 send 抛异常 → 仍尝试第二个。"""
+def test_send_report_handles_partial_failure(monkeypatch):
+    """send_report 批量交给 send_bulk；部分失败不抛、全部失败才抛。"""
     from investbrief.pipelines._send import send_report
 
     config = {
@@ -40,14 +40,8 @@ def test_send_report_continues_after_single_failure(monkeypatch):
     ]
 
     sender = MagicMock()
-    calls = []
-
-    def fake_send(email, subject, html):
-        calls.append(email)
-        if email == "fail@x.com":
-            raise RuntimeError("smtp down")
-
-    sender.send.side_effect = fake_send
+    # send_report calls send_bulk once; simulate partial failure (1 of 2 failed)
+    sender.send_bulk.return_value = (1, [("fail@x.com", "smtp down")])
     monkeypatch.setattr("investbrief.mail.sender.EmailSender", lambda *a, **k: sender)
 
     # send_report imports these inside the function, so patch at the source module
@@ -57,9 +51,11 @@ def test_send_report_continues_after_single_failure(monkeypatch):
 
     send_report({"subject": "s", "market_section_html": ""}, config, recipients)
 
-    assert calls == ["fail@x.com", "ok@x.com"], (
-        "second recipient must still be attempted after first fails"
-    )
+    # send_report should NOT raise on partial failure (1 of 2 succeeded).
+    # send_bulk was called once with both messages in order.
+    sender.send_bulk.assert_called_once()
+    sent_msgs = sender.send_bulk.call_args[0][0]
+    assert [m["to"] for m in sent_msgs] == ["fail@x.com", "ok@x.com"]
 
 
 def test_first_enabled_cron_handles_config_shapes():
