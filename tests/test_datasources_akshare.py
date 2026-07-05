@@ -81,3 +81,39 @@ def test_dataframe_cache_negative_expiry(monkeypatch):
     assert c.is_recently_failed("k")
     t[0] = 200.0  # 100s 后，超过 ttl 60
     assert not c.is_recently_failed("k")
+
+
+def test_get_stock_quote_bid_ask(monkeypatch):
+    from investbrief.datasources.akshare import AKShareClient
+    df = pd.DataFrame([
+        {"item": "最新", "value": 64.72},
+        {"item": "涨跌", "value": 0.7},
+        {"item": "涨幅", "value": 1.09},
+        {"item": "今开", "value": 63.5},
+        {"item": "最高", "value": 66.22},
+        {"item": "最低", "value": 62.99},
+        {"item": "总手", "value": 1301297},
+        {"item": "金额", "value": 8461745562},
+        {"item": "换手", "value": 0.66},
+    ])
+    monkeypatch.setattr("investbrief.datasources.akshare.ak.stock_bid_ask_em", lambda symbol: df)
+    client = AKShareClient()
+    q = client.get_stock_quote("601138")
+    assert q is not None
+    assert q["symbol"] == "601138"
+    assert q["price"] == 64.72
+    assert q["change_pct"] == 1.09
+    assert q["high"] == 66.22
+    assert q["market_cap"] is None  # bid_ask 无市值
+
+
+def test_get_stock_quote_bid_ask_failure_returns_none(monkeypatch):
+    from investbrief.datasources.akshare import AKShareClient
+
+    def fail(symbol):
+        raise RuntimeError("throttled")
+
+    monkeypatch.setattr("investbrief.datasources.akshare.ak.stock_bid_ask_em", fail)
+    monkeypatch.setattr("investbrief.datasources.akshare.time.sleep", lambda s: None)
+    client = AKShareClient()
+    assert client.get_stock_quote("601138") is None

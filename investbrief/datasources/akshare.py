@@ -181,29 +181,43 @@ class AKShareClient:
     # ---- 个股行情 ----
 
     def _get_all_stocks_df(self) -> pd.DataFrame | None:
-        """获取全量 A 股 DataFrame（带缓存，TTL 5 分钟）。"""
+        """获取全量 A 股 DataFrame（带缓存，TTL 5 分钟；失败 60s 负缓存）。"""
         df = _df_cache.get("zh_a_spot", 300)
         if df is not None:
             return df
+        if _df_cache.is_recently_failed("zh_a_spot"):
+            return None
         df = _with_retry(lambda: ak.stock_zh_a_spot_em(), label="stock_zh_a_spot_em")
         if df is not None and not df.empty:
             _df_cache.set("zh_a_spot", df)
+        else:
+            _df_cache.mark_failed("zh_a_spot", 60)
         return df
 
     def get_stock_quote(self, symbol: str) -> dict[str, Any] | None:
-        """获取个股实时行情。symbol: 6位代码如 "600519"。"""
-        try:
-            df = self._get_all_stocks_df()
-            if df is None or df.empty:
-                return None
-            row = df[df["代码"] == symbol]
-            if row.empty:
-                return None
-            r = row.iloc[0]
-            return self._parse_stock_row(r)
-        except Exception as e:
-            logger.warning(f"AKShare get_stock_quote failed for {symbol}: {e}")
+        """获取个股实时行情。用 stock_bid_ask_em 单股接口（<1s），替代全量 spot_em。"""
+        df = _with_retry(
+            lambda: ak.stock_bid_ask_em(symbol=symbol),
+            label=f"stock_bid_ask_em({symbol})",
+        )
+        if df is None or df.empty:
             return None
+        data = {row["item"]: row["value"] for _, row in df.iterrows()}
+        return {
+            "symbol": symbol,
+            "name": None,  # bid_ask 无 name；调用方用 symbol 兜底
+            "price": _safe_float(data.get("最新")),
+            "change": _safe_float(data.get("涨跌")),
+            "change_pct": _safe_float(data.get("涨幅")),
+            "open": _safe_float(data.get("今开")),
+            "high": _safe_float(data.get("最高")),
+            "low": _safe_float(data.get("最低")),
+            "volume": _safe_float(data.get("总手")),
+            "amount": _safe_float(data.get("金额")),
+            "market_cap": None,  # bid_ask 无市值；individual_info_em 接口漂移失败
+            "pe": None,  # PE 来自 get_financial_indicators
+            "turnover_rate": _safe_float(data.get("换手")),
+        }
 
     def get_stock_quotes(self, symbols: list[str]) -> list[dict[str, Any]]:
         """批量获取个股实时行情。"""
