@@ -17,7 +17,7 @@ from investbrief.market.us.provider import USMarketProvider
 from investbrief.market.cn.provider import CNMarketProvider
 from investbrief.risk.models import RiskModel
 from investbrief.risk.render import render_risk_card, render_gold_section
-from investbrief.mail.render import load_template, render_template
+from investbrief.mail.render import render_template
 
 
 def main():
@@ -57,7 +57,7 @@ def main():
         "research_views": "",
         "news": [],
     }
-    html = render_template(load_template(), report_data, "zh-CN")
+    html = render_template("email_base.j2", report_data, "zh-CN")
 
     out = Path(__file__).resolve().parent.parent / "reports" / "preview_p4_risk.html"
     out.parent.mkdir(exist_ok=True)

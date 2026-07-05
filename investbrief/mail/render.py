@@ -1,10 +1,11 @@
 """
 Email report template-rendering library.
 
-Loads the base HTML template and renders it with macro report data, with
-optional translation to the recipient's language via the Claude API.
+Renders Jinja2 templates (macro / holdings) into email HTML, with optional
+translation to the recipient's language via the Claude API.
 
-Public API: load_template(), render_template(), translate_html().
+Public API: load_template(), render_template(), render_holdings_template(),
+translate_html().
 """
 import re
 import logging
@@ -18,7 +19,21 @@ try:
 except ImportError:
     HAS_ANTHROPIC = False
 
+from jinja2 import Environment, FileSystemLoader
+
 logger = logging.getLogger(__name__)
+
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+# autoescape=False: template variables are pre-rendered HTML fragments
+# (macro_summary, market_sections, etc.). Escaping would mangle <p> → &lt;p&gt;.
+# Content comes from Claude + public data sources (not user input), and the
+# report is an email (not a web page), so XSS risk is acceptable.
+_env = Environment(
+    loader=FileSystemLoader(str(TEMPLATES_DIR)),
+    autoescape=False,
+    keep_trailing_newline=True,
+)
 
 
 def md_inline(text: str) -> str:
@@ -29,17 +44,11 @@ def md_inline(text: str) -> str:
     """
     if not text:
         return ""
-    # Bold: **text**
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-    # Italic: *text* (avoid matching inside <strong> tags)
     text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
-    # Headings: ## text → styled bold span
     text = re.sub(r'^#{1,3}\s+(.+)$', r'<strong style="display:inline-block;margin:4px 0;">\1</strong>', text, flags=re.MULTILINE)
-    # Unordered list: - text or * text → indented bullet
     text = re.sub(r'^[\-\*]\s+(.+)$', r'<span style="display:block;padding-left:12px;">• \1</span>', text, flags=re.MULTILINE)
-    # Ordered list: 1. text
     text = re.sub(r'^(\d+)\.\s+(.+)$', r'<span style="display:block;padding-left:12px;">\1. \2</span>', text, flags=re.MULTILINE)
-    # Line breaks (after all other conversions)
     text = text.replace('\n', '<br>')
     return text
 
@@ -51,29 +60,15 @@ def md_inline(text: str) -> str:
 LANGUAGE_CONFIG = {
     'zh-CN': {
         'font_family': "'Microsoft YaHei', 'PingFang SC', sans-serif",
-        'color_up': '#e74c3c',      # Red for up (中国惯例：红涨)
-        'color_down': '#27ae60',    # Green for down (中国惯例：绿跌)
+        'color_up': '#e74c3c',
+        'color_down': '#27ae60',
     },
     'ko-KR': {
         'font_family': "'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif",
-        'color_up': '#e74c3c',      # Red for up
-        'color_down': '#2980b9',    # Blue for down
+        'color_up': '#e74c3c',
+        'color_down': '#2980b9',
     }
 }
-
-
-# ============================================================================
-# Configuration Loading
-# ============================================================================
-
-TEMPLATES_DIR = Path(__file__).parent / "templates"
-
-
-def load_template(name: str = "email_base.html") -> str:
-    """Load HTML template by name from mail/templates/ (default: macro email base)."""
-    template_path = TEMPLATES_DIR / name
-    with open(template_path, 'r', encoding='utf-8') as f:
-        return f.read()
 
 
 def get_config(language):
@@ -81,13 +76,20 @@ def get_config(language):
     return LANGUAGE_CONFIG.get(language, LANGUAGE_CONFIG['zh-CN'])
 
 
+def load_template(name: str = "email_base.j2") -> str:
+    """Load raw template string by name. Kept for existence checks (test_mail_api).
+    Uses direct file read rather than Jinja2 internals. For rendering, call
+    render_template / render_holdings_template directly with a template name."""
+    with open(TEMPLATES_DIR / name, 'r', encoding='utf-8') as f:
+        return f.read()
+
+
 # ============================================================================
 # HTML Translation
 # ============================================================================
 
 def translate_html(html_content, target_language, max_retries=2):
-    """
-    Translate HTML content to target language using Claude API.
+    """Translate HTML content to target language using Claude API.
 
     Strips base64 chart images before translation to reduce payload size,
     then restores them after translation.
@@ -115,8 +117,6 @@ def translate_html(html_content, target_language, max_retries=2):
 
     target_lang_name = language_names.get(target_language, target_language)
 
-    # Strip base64 images to reduce payload (save ~40K per chart)
-    import re
     chart_placeholders = {}
     counter = [0]
     def replace_b64(match):
@@ -145,7 +145,6 @@ Return only the translated HTML, no explanations or markdown code blocks."""
     last_error = None
     for attempt in range(max_retries + 1):
         try:
-            # Use streaming to avoid timeout on large HTML
             with client.messages.stream(
                 model=model,
                 max_tokens=32000,
@@ -154,12 +153,10 @@ Return only the translated HTML, no explanations or markdown code blocks."""
                 translated = ""
                 for text in stream.text_stream:
                     translated += text
-            # Remove markdown code block wrapper (Claude sometimes returns ```html ... ```)
             translated = re.sub(r'^\s*```(?:html)?\s*\n?', '', translated)
             translated = re.sub(r'\n?\s*```\s*$', '', translated)
             translated = translated.strip()
 
-            # Restore base64 chart images
             for key, b64_data in chart_placeholders.items():
                 translated = translated.replace(key, b64_data)
 
@@ -180,7 +177,6 @@ def build_news_html(news_items):
     """Build news items HTML - content from JSON"""
     html = ''
     for i, item in enumerate(news_items, 1):
-        # Clickable title
         title = item.get('title', '')
         url = item.get('url', '')
         if url:
@@ -188,7 +184,6 @@ def build_news_html(news_items):
         else:
             title_html = f'<span style="font-weight:600; color:#2c3e50;">{title}</span>'
 
-        # Summary: truncate + convert Markdown to inline HTML
         summary = item.get('summary', '')
         if len(summary) > 200:
             summary = summary[:200] + '...'
@@ -211,74 +206,49 @@ def build_news_html(news_items):
 # Template Rendering
 # ============================================================================
 
-def render_template(template, data, language):
-    """Render template with data.
-
-    All content in Chinese - translated later via translate_html().
-    """
-    html = template
-    config = get_config(language)
-
-    # Apply font and color configuration
-    html = html.replace('{{font_family}}', config['font_family'])
-    html = html.replace('{{color_up}}', config['color_up'])
-    html = html.replace('{{color_down}}', config['color_down'])
-
-    # Basic info
-    html = html.replace('{{title}}', '🗓️ 宏观经济日报')
-    html = html.replace('{{date}}', datetime.now().strftime('%Y年%m月%d日'))
-    html = html.replace('{{data_time_label}}', '数据截止')
-    html = html.replace('{{data_time}}', data.get('data_time', datetime.now().strftime('%H:%M:%S')))
-
-    # Global section labels
-    html = html.replace('{{global_news_title}}', '📰 重要新闻')
-
-    # Macro summary (① 核心观点) and risk outlook (⑥ 风险提示)
-    html = html.replace('{{macro_summary}}', data.get('macro_summary') or '<p>暂无研判。</p>')
-    html = html.replace('{{risk_outlook}}', data.get('risk_outlook') or '<p>—</p>')
-
-    # Market sections - pre-rendered HTML passed in by the caller
-    market_html = data.get('market_section_html', '')
-    html = html.replace('{{market_sections}}', market_html)
-
-    # Research views (sell-side) - pre-rendered section HTML, or empty
-    html = html.replace('{{research_views}}', data.get('research_views') or '')
-
-    # News - hard cap at 5 items
-    news = data.get('news', data.get('global_news', []))
-    news_count = 5
-    html = html.replace('{{global_news}}', build_news_html(news[:news_count]))
-
-    # Footer
-    html = html.replace('{{disclaimer}}', '⚠️ 免责声明：本报告仅供参考，不构成投资建议。投资有风险，入市需谨慎。')
-    html = html.replace('{{generated_by}}', '由 Claude Code 自动生成')
-    html = html.replace('{{generated_at}}', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-
-    return html
+def _base_context(language: str, data: dict, title: str, disclaimer: str) -> dict:
+    """Shared context for both macro and holdings templates."""
+    cfg = get_config(language)
+    return {
+        'font_family': cfg['font_family'],
+        'color_up': cfg['color_up'],
+        'color_down': cfg['color_down'],
+        'title': title,
+        'date': datetime.now().strftime('%Y年%m月%d日'),
+        'data_time_label': '数据截止',
+        'data_time': data.get('data_time', datetime.now().strftime('%H:%M:%S')),
+        'disclaimer': disclaimer,
+        'generated_by': '由 Claude Code 自动生成',
+        'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    }
 
 
-def render_holdings_template(template: str, data: dict, language: str) -> str:
-    """Render the per-recipient holdings-analysis email template.
+def render_template(template_name: str, data: dict, language: str) -> str:
+    """Render the macro email template. First arg is the template NAME (not loaded string)."""
+    ctx = _base_context(
+        language, data, '🗓️ 宏观经济日报',
+        '⚠️ 免责声明：本报告仅供参考，不构成投资建议。投资有风险，入市需谨慎。',
+    )
+    news = data.get('news') or data.get('global_news') or []
+    ctx.update({
+        'macro_summary': data.get('macro_summary') or '<p>暂无研判。</p>',
+        'risk_outlook': data.get('risk_outlook') or '<p>—</p>',
+        'market_sections': data.get('market_section_html', ''),
+        'research_views': data.get('research_views') or '',
+        'global_news_title': '📰 重要新闻',
+        'global_news': build_news_html(news[:5]),
+    })
+    return _env.get_template(template_name).render(**ctx)
 
-    Mirrors render_template but for the holdings email: replaces
-    {{title}}/{{date}}/{{holdings_summary}}/{{holdings_sections}} etc.
-    Pre-rendered HTML (summary + section cards) is supplied by the caller.
-    """
-    html = template
-    config = get_config(language)
-    html = html.replace('{{font_family}}', config['font_family'])
-    html = html.replace('{{color_up}}', config['color_up'])
-    html = html.replace('{{color_down}}', config['color_down'])
 
-    html = html.replace('{{title}}', '📊 持仓分析')
-    html = html.replace('{{date}}', datetime.now().strftime('%Y年%m月%d日'))
-    html = html.replace('{{data_time_label}}', '数据截止')
-    html = html.replace('{{data_time}}', data.get('data_time', datetime.now().strftime('%H:%M:%S')))
-
-    html = html.replace('{{holdings_summary}}', data.get('holdings_summary') or '<p>暂无组合研判。</p>')
-    html = html.replace('{{holdings_sections}}', data.get('holdings_sections') or '')
-
-    html = html.replace('{{disclaimer}}', '⚠️ 免责声明：本报告仅供参考，不构成投资建议。数据来自公开渠道，可能存在延迟或误差。')
-    html = html.replace('{{generated_by}}', '由 Claude Code 自动生成')
-    html = html.replace('{{generated_at}}', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    return html
+def render_holdings_template(template_name: str, data: dict, language: str) -> str:
+    """Render the per-recipient holdings email template. First arg is the template NAME."""
+    ctx = _base_context(
+        language, data, '📊 持仓分析',
+        '⚠️ 免责声明：本报告仅供参考，不构成投资建议。数据来自公开渠道，可能存在延迟或误差。',
+    )
+    ctx.update({
+        'holdings_summary': data.get('holdings_summary') or '<p>暂无组合研判。</p>',
+        'holdings_sections': data.get('holdings_sections') or '',
+    })
+    return _env.get_template(template_name).render(**ctx)

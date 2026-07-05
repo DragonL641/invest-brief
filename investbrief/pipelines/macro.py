@@ -208,10 +208,9 @@ def run_macro_report(args):
 
     # Save local preview
     try:
-        from investbrief.mail.render import load_template, render_template
+        from investbrief.mail.render import render_template
         REPORTS_DIR.mkdir(exist_ok=True)
-        template = load_template()
-        preview_html = render_template(template, report_data, "zh-CN")
+        preview_html = render_template("email_base.j2", report_data, "zh-CN")
         preview_path = REPORTS_DIR / "preview_macro.html"
         preview_path.write_text(preview_html, encoding="utf-8")
         logger.info(f"Preview saved to {preview_path}")

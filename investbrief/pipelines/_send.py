@@ -10,10 +10,8 @@ logger = logging.getLogger(__name__)
 
 def send_report(report_data: dict, config: dict, recipients: list):
     """Render and send report to each recipient."""
-    from investbrief.mail.render import load_template, render_template, translate_html
+    from investbrief.mail.render import render_template, translate_html
     from investbrief.mail.sender import EmailSender
-
-    template = load_template()
 
     sender = EmailSender(str(CONFIG_FILE))
 
@@ -25,7 +23,7 @@ def send_report(report_data: dict, config: dict, recipients: list):
 
         logger.info(f"Processing: {name} ({email}) - Language: {language}")
 
-        html = render_template(template, report_data, language)
+        html = render_template("email_base.j2", report_data, language)
 
         if language != "zh-CN":
             html = translate_html(html, language)

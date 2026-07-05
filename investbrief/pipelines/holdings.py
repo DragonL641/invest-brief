@@ -27,7 +27,7 @@ def run_holdings_report(args):
     from investbrief.holdings.analyzer import HoldingsAnalyzer
     from investbrief.holdings.brief import generate_holdings_brief
     from investbrief.holdings.renderer import render_holdings_section
-    from investbrief.mail.render import load_template, render_holdings_template
+    from investbrief.mail.render import render_holdings_template
 
     skip_summary = getattr(args, "skip_summary", False)
 
@@ -49,7 +49,6 @@ def run_holdings_report(args):
             h["symbol"], h["market"], h["type"]
         )
 
-    template = load_template("email_holdings.html")
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
     data_time = now.strftime("%Y-%m-%d %H:%M")
 
@@ -64,7 +63,7 @@ def run_holdings_report(args):
             sub = _subset(first)
             summary_html = "<p>（已跳过 AI 研判）</p>" if skip_summary else generate_holdings_brief(sub)
             preview_html = render_holdings_template(
-                template,
+                "email_holdings.j2",
                 {"data_time": data_time,
                  "holdings_summary": summary_html,
                  "holdings_sections": render_holdings_section(sub)},
@@ -96,7 +95,7 @@ def run_holdings_report(args):
             "holdings_summary": summary_html,
             "holdings_sections": render_holdings_section(sub),
         }
-        html = render_holdings_template(template, report_data, language)
+        html = render_holdings_template("email_holdings.j2", report_data, language)
         if language != "zh-CN":
             html = translate_html(html, language)
         last_html = html

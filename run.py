@@ -7,6 +7,7 @@
 #   "python-dotenv",
 #   "croniter",
 #   "akshare",
+#   "jinja2",
 # ]
 # ///
 
