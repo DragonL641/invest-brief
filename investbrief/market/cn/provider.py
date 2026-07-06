@@ -30,6 +30,11 @@ class CNMarketProvider(MarketProvider):
     currency = "¥"
     flag = "🇨🇳"
 
+    # —— 能力声明 ——
+    risk_group = "cn"
+    supports_regime = True
+    data_class = CNData
+
     def __init__(self, data: "CNData | None" = None):
         self.data = data if data is not None else CNData()
 
@@ -42,6 +47,24 @@ class CNMarketProvider(MarketProvider):
             self.data.update_incremental()
         except Exception as e:
             logger.warning(f"CN data refresh failed, falling back to stored values: {e}")
+
+    # ==================== News & Calendar ====================
+
+    def get_news(self, config: dict, limit: int) -> list:
+        from investbrief.market.cn.news import fetch_cn_news
+        try:
+            return fetch_cn_news([], limit)
+        except Exception as e:
+            logger.warning(f"CN news fetch failed: {e}")
+            return []
+
+    def get_economic_calendar(self) -> list:
+        from investbrief.market.cn.calendar import get_upcoming_events
+        try:
+            return get_upcoming_events()
+        except Exception as e:
+            logger.warning(f"CN calendar fetch failed: {e}")
+            return []
 
     def _index_bars(self, code: str):
         """从 cn_index_daily 最新两 bar 算 (point, change%, change_amt, amount)；无数据返回 None。"""
