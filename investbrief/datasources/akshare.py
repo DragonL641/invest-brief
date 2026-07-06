@@ -111,6 +111,24 @@ def _safe_float(val) -> float | None:
         return None
 
 
+def _to_sina_symbol(code: str) -> str:
+    """bare A股 code → 新浪源格式(sh/sz/bj 前缀)。
+
+    stock_zh_a_daily(新浪)需要交易所前缀:6 开头上交所(sh),0/3 深交所(sz),
+    8/4 北交所(bj)。用于 eastmoney(stock_zh_a_hist)被限流时的 fallback。
+    """
+    if not code:
+        return code
+    head = str(code)[0]
+    if head == "6":
+        return f"sh{code}"
+    if head in ("0", "3"):
+        return f"sz{code}"
+    if head in ("8", "4"):
+        return f"bj{code}"
+    return code
+
+
 class AKShareClient:
     """封装 AKShare 接口，提供统一的 A 股数据获取方法。
 
@@ -294,7 +312,7 @@ class AKShareClient:
     # ---- 历史K线 ----
 
     def get_stock_history(self, symbol: str, days: int = 180) -> pd.DataFrame | None:
-        """获取个股日K线（前复权）。"""
+        """获取个股日K线（前复权）。eastmoney(stock_zh_a_hist)失败时 fallback 到新浪源。"""
         end_date = datetime.now().strftime("%Y%m%d")
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
         df = _with_retry(
@@ -304,19 +322,30 @@ class AKShareClient:
             ),
             label=f"stock_zh_a_hist({symbol})",
         )
-        if df is None or df.empty:
+        if df is not None and not df.empty:
+            df = df.rename(columns={
+                "日期": "date", "股票代码": "symbol",
+                "开盘": "open", "收盘": "close",
+                "最高": "high", "最低": "low",
+                "成交量": "volume", "成交额": "amount",
+                "振幅": "amplitude", "涨跌幅": "change_pct",
+                "涨跌额": "change", "换手率": "turnover",
+            })
+            df["date"] = pd.to_datetime(df["date"])
+            return df.set_index("date")
+        # eastmoney 失败/空 → 新浪源 fallback(不走 eastmoney,绕开限流阻断)
+        sina_sym = _to_sina_symbol(symbol)
+        sdf = _with_retry(
+            lambda: ak.stock_zh_a_daily(symbol=sina_sym, adjust="qfq"),
+            label=f"stock_zh_a_daily({sina_sym})",
+        )
+        if sdf is None or sdf.empty:
             return None
-        df = df.rename(columns={
-            "日期": "date", "股票代码": "symbol",
-            "开盘": "open", "收盘": "close",
-            "最高": "high", "最低": "low",
-            "成交量": "volume", "成交额": "amount",
-            "振幅": "amplitude", "涨跌幅": "change_pct",
-            "涨跌额": "change", "换手率": "turnover",
-        })
-        df["date"] = pd.to_datetime(df["date"])
-        df = df.set_index("date")
-        return df
+        sdf["date"] = pd.to_datetime(sdf["date"])
+        sdf = sdf.set_index("date").tail(days)
+        keep = [c for c in ("open", "high", "low", "close", "volume", "amount")
+                if c in sdf.columns]
+        return sdf[keep]
 
     # ---- 研报与财务 ----
 
