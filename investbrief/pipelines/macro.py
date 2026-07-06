@@ -21,18 +21,22 @@ def _safe_regime_judge(engine, market):
         return {}
 
 
+_INDICATORS_FACTORIES = {
+    "cn": "investbrief.market.cn.indicators:cn_indicators",
+    "us": "investbrief.market.us.indicators:us_indicators",
+    "gold": "investbrief.market.gold.indicators:gold_indicators",
+}
+
+
 def _build_indicators(market_code, data_source, config):
-    """按市场加载 market/<mkt>/indicators.py 的工厂, 返回 indicator 实例列表。"""
-    if market_code == "cn":
-        from investbrief.market.cn.indicators import cn_indicators
-        return cn_indicators(data_source, config)
-    if market_code == "us":
-        from investbrief.market.us.indicators import us_indicators
-        return us_indicators(data_source, config)
-    if market_code == "gold":
-        from investbrief.market.gold.indicators import gold_indicators
-        return gold_indicators(data_source, config)
-    raise ValueError(f"No indicators factory for market: {market_code}")
+    """按市场加载 indicator 工厂(注册表分发, 加市场=加一行)。"""
+    entry = _INDICATORS_FACTORIES.get(market_code)
+    if entry is None:
+        raise ValueError(f"No indicators factory for market: {market_code}")
+    mod_path, func_name = entry.split(":")
+    import importlib
+    factory = getattr(importlib.import_module(mod_path), func_name)
+    return factory(data_source, config)
 
 
 def run_macro_report(args):

@@ -4,6 +4,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
+from investbrief.data.base import BaseData
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,6 +20,9 @@ class MarketProvider(ABC):
     risk_group: str | None = None        # risk_indicators.yaml 的 group 名；None = 不参与 risk
     supports_regime: bool = False        # 是否参与 regime 四象限
     data_class: type | None = None       # 该市场的 BaseData 子类
+
+    # data 由子类 __init__ 设置; 声明类型供调用方(macro.py)与 pyright
+    data: BaseData | None = None
 
     @abstractmethod
     def get_indices(self) -> list[dict[str, Any]]:
@@ -34,6 +39,10 @@ class MarketProvider(ABC):
     @abstractmethod
     def render_section(self, data: dict[str, Any], config: dict[str, Any], **kwargs) -> str:
         """渲染该市场的 HTML 区块。"""
+
+    def refresh(self, force: bool = False) -> None:
+        """增量取数落盘。子类覆盖(US/CN 用 is_fresh 守门, Gold 直调 update)。默认空。"""
+        pass
 
     def get_news(self, config: dict, limit: int) -> list:
         """该市场的新闻列表。默认空，子类覆盖。"""
