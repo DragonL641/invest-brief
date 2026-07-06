@@ -32,3 +32,17 @@ def test_us_cn_declare_capabilities():
     assert USMarketProvider.supports_regime is True
     assert CNMarketProvider.risk_group == "cn"
     assert CNMarketProvider.supports_regime is True
+
+
+def test_gold_provider_declares_capabilities():
+    from investbrief.market.gold.provider import GoldMarketProvider
+    assert GoldMarketProvider.market_code == "gold"
+    assert GoldMarketProvider.risk_group == "gold"
+    assert GoldMarketProvider.supports_regime is False
+    p = GoldMarketProvider()
+    # get_news/get_economic_calendar 继承默认(空)
+    assert p.get_news({}, 5) == []
+    assert p.get_economic_calendar() == []
+    # render_section 透传 risk_html, 不 import risk
+    assert p.render_section({}, {}, risk_html="<gold-section/>") == "<gold-section/>"
+    assert p.render_section({}, {}) == ""
