@@ -30,6 +30,20 @@ def _safe_regime_judge(engine, market):
         return {}
 
 
+def _build_indicators(market_code, data_source, config):
+    """按市场加载 market/<mkt>/indicators.py 的工厂, 返回 indicator 实例列表。"""
+    if market_code == "cn":
+        from investbrief.market.cn.indicators import cn_indicators
+        return cn_indicators(data_source, config)
+    if market_code == "us":
+        from investbrief.market.us.indicators import us_indicators
+        return us_indicators(data_source, config)
+    if market_code == "gold":
+        from investbrief.market.gold.indicators import gold_indicators
+        return gold_indicators(data_source, config)
+    raise ValueError(f"No indicators factory for market: {market_code}")
+
+
 def run_macro_report(args):
     """Build ONE merged multi-market macro report and send to all active recipients."""
     logger.info("=" * 60)
@@ -91,16 +105,23 @@ def run_macro_report(args):
     except Exception as e:
         logger.warning(f"News fetch failed: {e}")
 
-    # risk（只对有 risk_group 的市场; RiskModel 用任意 data_source 连同一 DB, 表名靠 market_index_spec）
+    # risk（每市场用自己的 indicators 实例注入 RiskModel）
     from investbrief.risk.models import RiskModel
     from investbrief.risk.render import render_risk_card, render_gold_section
+    from investbrief.risk.config import load_indicators
     any_data = next(iter(providers.values())).data
-    risk_model = RiskModel(any_data)
     risk_scores, risk_html = {}, {}
     for code, p in providers.items():
         if not p.risk_group:
             continue
-        risk_scores[code] = _safe_risk_score(risk_model, code)
+        try:
+            config = load_indicators(p.risk_group)
+            indicators = _build_indicators(code, p.data, config)
+            model = RiskModel(p.data, indicators=indicators)
+            risk_scores[code] = model.calculate_score(code)
+        except Exception as e:
+            logger.warning(f"Risk score for {code} failed: {e}")
+            risk_scores[code] = {}
         if code == "gold":
             risk_html[code] = render_gold_section(risk_scores[code])
         else:
