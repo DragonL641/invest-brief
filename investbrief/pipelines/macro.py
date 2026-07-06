@@ -1,31 +1,15 @@
-"""Macro report pipeline: fetch US+CN macro data, Claude synthesis, render, send."""
+"""Macro report pipeline: fetch US+CN+Gold macro data, Claude synthesis, render, send."""
 import json
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from investbrief.core.config import load_config, REPORTS_DIR
+from investbrief.core.config import load_config, REPORTS_DIR, enabled_market_codes
 from investbrief.market import create_provider
 
 logger = logging.getLogger(__name__)
 
 NEWS_LIMIT = 5
-
-
-def fetch_news(config, tickers, max_news_count, market="us"):
-    """Fetch news for the specified market."""
-    if market == "us":
-        from investbrief.market.us.news import DataProvider
-        provider = DataProvider(config)
-        return provider.get_financial_news(
-            tickers=tickers,
-            limit=max_news_count,
-            user_tickers=tickers,
-        )
-    elif market == "cn":
-        from investbrief.market.cn.news import fetch_cn_news
-        return fetch_cn_news(tickers, max_news_count)
-    return []
 
 
 def _safe_risk_score(model, market):
@@ -47,25 +31,18 @@ def _safe_regime_judge(engine, market):
 
 
 def run_macro_report(args):
-    """Build ONE merged US+CN macro report and send to all active recipients."""
+    """Build ONE merged multi-market macro report and send to all active recipients."""
     logger.info("=" * 60)
-    logger.info("invest-brief - Macro report pipeline (US+CN merged)")
+    logger.info("invest-brief - Macro report pipeline (multi-market merged)")
 
     if getattr(args, "update", False):
         logger.info("Update-only mode: refreshing macro data, no render/send")
-        us = create_provider("us")
-        cn = create_provider("cn")
-        us.refresh(force=True)
-        cn.refresh(force=True)
-        try:
-            from investbrief.data.gold_data import GoldData
-            gold_data = GoldData()
+        config = load_config()
+        for code in enabled_market_codes(config):
             try:
-                gold_data.update_incremental()
-            finally:
-                gold_data.close()
-        except Exception as e:
-            logger.warning(f"Gold data refresh failed in update-only mode: {e}")
+                create_provider(code).refresh(force=True)
+            except Exception as e:
+                logger.warning(f"{code} data refresh failed in update-only mode: {e}")
         logger.info("Update-only complete")
         return
 
@@ -78,15 +55,13 @@ def run_macro_report(args):
     render_config = {"color_up": "#e74c3c", "color_down": "#27ae60"}
     skip_summary = getattr(args, "skip_summary", False)
 
-    # Fetch macro data
-    logger.info("Fetching macro data (US + CN)")
-    us = create_provider("us")
-    cn = create_provider("cn")
-    # P1: 增量取数落盘（失败不阻塞，get_* 回退库内最新值）
-    # US/CN/Gold 三个 refresh 互相独立，并行执行（各持自己的 BaseData 连接）
-    from investbrief.data.gold_data import GoldData
+    # 遍历 enabled markets —— 消除硬编码 us/cn/gold 流程
+    market_codes = enabled_market_codes(config)
+    logger.info(f"Enabled markets: {market_codes}")
+    providers = {code: create_provider(code) for code in market_codes}
+
+    # refresh（并行; 单市场失败不阻塞, get_* 回退库内最新值）
     from concurrent.futures import ThreadPoolExecutor
-    gold_data = GoldData()
 
     def _safe_refresh(fn, label):
         try:
@@ -94,57 +69,54 @@ def run_macro_report(args):
         except Exception as e:
             logger.warning(f"{label} data refresh failed, falling back to stored values: {e}")
 
-    with ThreadPoolExecutor(max_workers=3) as ex:
-        ex.submit(lambda: _safe_refresh(us.refresh, "US"))
-        ex.submit(lambda: _safe_refresh(cn.refresh, "CN"))
-        ex.submit(lambda: _safe_refresh(gold_data.update_incremental, "Gold"))
-    from investbrief.market.us.calendar import get_upcoming_events_with_yfinance
-    from investbrief.market.cn.calendar import get_upcoming_events as get_cn_events
-    us_data = {
-        "monetary_policy": us.get_monetary_policy(),
-        "asset_performance": us.get_asset_performance(),
-        "economic_calendar": get_upcoming_events_with_yfinance(),
-    }
-    cn_data = {
-        "monetary_policy": cn.get_monetary_policy(),
-        "asset_performance": cn.get_asset_performance(),
-        "economic_calendar": get_cn_events(),
-    }
+    with ThreadPoolExecutor(max_workers=max(2, len(market_codes))) as ex:
+        for code, p in providers.items():
+            ex.submit(lambda p=p, c=code: _safe_refresh(p.refresh, c.upper()))
 
-    # News (US + CN, no tickers)
+    # 各市场收集 macro 数据（按能力声明调 macro_brief 仍接收 us/cn 字段）
+    market_macro = {}
+    for code, p in providers.items():
+        market_macro[code] = {
+            "monetary_policy": p.get_monetary_policy(),
+            "asset_performance": p.get_asset_performance(),
+            "economic_calendar": p.get_economic_calendar(),
+        }
+
+    # news（各市场 get_news 合并; gold 默认返回空）
     news = []
     try:
-        news = fetch_news(config, [], NEWS_LIMIT, market="us") + \
-            fetch_news(config, [], NEWS_LIMIT, market="cn")
+        for code, p in providers.items():
+            news += p.get_news(config, NEWS_LIMIT)
         news = news[:NEWS_LIMIT]
     except Exception as e:
         logger.warning(f"News fetch failed: {e}")
 
-    # P4: compute risk scores (resilient — empty dict renders empty card)
+    # risk（只对有 risk_group 的市场; RiskModel 用任意 data_source 连同一 DB, 表名靠 market_index_spec）
     from investbrief.risk.models import RiskModel
     from investbrief.risk.render import render_risk_card, render_gold_section
-    risk_model = RiskModel(us.data)
-    risk_scores = {
-        "us": _safe_risk_score(risk_model, "us"),
-        "cn": _safe_risk_score(risk_model, "cn"),
-        "gold": _safe_risk_score(risk_model, "gold"),
-    }
-    us_risk_html = render_risk_card(risk_scores["us"])
-    cn_risk_html = render_risk_card(risk_scores["cn"])
-    gold_section_html = render_gold_section(risk_scores["gold"])
+    any_data = next(iter(providers.values())).data
+    risk_model = RiskModel(any_data)
+    risk_scores, risk_html = {}, {}
+    for code, p in providers.items():
+        if not p.risk_group:
+            continue
+        risk_scores[code] = _safe_risk_score(risk_model, code)
+        if code == "gold":
+            risk_html[code] = render_gold_section(risk_scores[code])
+        else:
+            risk_html[code] = render_risk_card(risk_scores[code])
 
-    # 经济环境四象限(resilient — empty dict renders empty card)
+    # regime（只对 supports_regime 的市场）
     from investbrief.regime.engine import RegimeEngine
     from investbrief.regime.render import render_regime_card
-    regime_engine = RegimeEngine(us.data)
-    regime_data = {
-        "us": _safe_regime_judge(regime_engine, "us"),
-        "cn": _safe_regime_judge(regime_engine, "cn"),
-    }
-    us_regime_html = render_regime_card(regime_data["us"])
-    cn_regime_html = render_regime_card(regime_data["cn"])
+    regime_engine = RegimeEngine(any_data)
+    regime_data, regime_html = {}, {}
+    for code, p in providers.items():
+        if p.supports_regime:
+            regime_data[code] = _safe_regime_judge(regime_engine, code)
+            regime_html[code] = render_regime_card(regime_data[code])
 
-    # Claude ①⑥（一次调用同时生成核心观点 + 风险）
+    # Claude ①⑥（仍传 us/cn macro + 全市场 risk/regime）
     if skip_summary:
         logger.info("Skipping Claude brief (--skip-summary)")
         macro_summary = "<p>（已跳过 AI 研判）</p>"
@@ -153,7 +125,7 @@ def run_macro_report(args):
         logger.info("Generating macro brief via Claude (①⑥)")
         from investbrief.market.macro_brief import generate_macro_brief
         macro_summary, risk_outlook = generate_macro_brief(
-            us_data, cn_data, news,
+            market_macro.get("us", {}), market_macro.get("cn", {}), news,
             risk_scores=risk_scores, regime_data=regime_data)
 
     # Research views (sell-side market commentary) — Tavily fetch + Claude synthesis
@@ -175,11 +147,14 @@ def run_macro_report(args):
         except Exception as e:
             logger.warning(f"Research views failed: {e}")
 
-    # Render sections
-    us_html = us.render_section(us_data, render_config,
-                                risk_html=us_risk_html, regime_html=us_regime_html)
-    cn_html = cn.render_section(cn_data, render_config,
-                                risk_html=cn_risk_html, regime_html=cn_regime_html)
+    # render sections（按 market_codes 顺序; gold 的 risk_html 已是 render_gold_section 输出, gold.render_section 透传返回）
+    sections = []
+    for code, p in providers.items():
+        sections.append(p.render_section(
+            market_macro[code], render_config,
+            risk_html=risk_html.get(code, ""),
+            regime_html=regime_html.get(code, "")))
+    market_section_html = "".join(sections)
 
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
     report_data = {
@@ -189,7 +164,7 @@ def run_macro_report(args):
         "market": "all",
         "macro_summary": macro_summary,
         "risk_outlook": risk_outlook,
-        "market_section_html": us_html + cn_html + gold_section_html,
+        "market_section_html": market_section_html,
         "research_views": research_views_html,
         "news": news,
     }
@@ -197,10 +172,10 @@ def run_macro_report(args):
     if getattr(args, "dry_run", False):
         logger.info("Dry run - outputting report data to stdout")
         print(json.dumps(report_data, ensure_ascii=False, indent=2, default=str))
+        # Release SQLite connections (each provider holds one)
         try:
-            gold_data.close()
-            us.data.close()
-            cn.data.close()
+            for p in providers.values():
+                p.data.close()
         except Exception:
             pass
         return
@@ -208,11 +183,10 @@ def run_macro_report(args):
     from investbrief.pipelines._send import send_report
     send_report(report_data, config, recipients)
 
-    # Release SQLite connections (us/cn/gold each hold one)
+    # Release SQLite connections (each provider holds one)
     try:
-        gold_data.close()
-        us.data.close()
-        cn.data.close()
+        for p in providers.values():
+            p.data.close()
     except Exception:
         pass
 
