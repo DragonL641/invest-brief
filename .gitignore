@@ -13,5 +13,5 @@ node_modules/
 /package.json
 /package-lock.json
 
-# P1: macro SQLite (stateful data layer)
-data/macro_data.db
+# P1: SQLite state/cache (macro_data.db + picks_cache.db 等)
+data/*.db

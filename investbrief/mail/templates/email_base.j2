@@ -306,8 +306,9 @@
     /* Earnings surprise */
     .earnings-beat { color: #27ae60; font-weight: 600; }
     .earnings-miss { color: #e74c3c; font-weight: 600; }
-    /* Asset cards (大类资产) — flex 响应式网格：桌面 3 列等高，移动端单列 stack */
-    .asset-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    /* Asset cards (大类资产) — flex 响应式网格：桌面 3 列等高，移动端单列 stack。
+       间距用每个 card 的 inline margin 提供，不依赖 flex gap（多数邮件客户端忽略 gap）。 */
+    .asset-grid { display: flex; flex-wrap: wrap; }
     .asset-card {
       flex: 1 1 30%;
       min-width: 0;

@@ -159,6 +159,38 @@ def test_cn_render_section_embeds_risk_html(cn_provider):
     assert html.find("<!--RISK-MARKER-->") < last_close
 
 
+def _asset_card_open_tag(html: str) -> str:
+    """提取首个 asset-card 的开标签（含 style 属性），用于断言内联样式。"""
+    start = html.find('class="asset-card"')
+    assert start != -1, "render_section 未产出 asset-card"
+    return html[start:html.find(">", start) + 1]
+
+
+def test_us_asset_card_has_inline_margin_spacing(us_provider):
+    """回归：大类资产卡片间距必须由每个 card 的 inline margin 提供，不能只靠
+    flex gap —— 多数邮件客户端（Gmail 移动端/Outlook/网易QQ邮箱）忽略 flex gap，
+    导致灰底卡片贴合粘成一团（见 issue: 大类资产卡片粘在一起）。"""
+    data = {"asset_performance": [{"name": "S&P 500", "point": 100.0, "change": 0.0, "volume": "-"}]}
+    html = us_provider.render_section(data, {"color_up": "#e74c3c", "color_down": "#27ae60"})
+    tag = _asset_card_open_tag(html)
+    assert "margin" in tag, "asset-card 缺少 inline margin，间距会因 gap 被忽略而消失"
+    grid_start = html.find('class="asset-grid"')
+    grid_tag = html[grid_start:html.find(">", grid_start) + 1]
+    assert "gap" not in grid_tag, "asset-grid 不应再依赖 gap（改用 card margin）"
+
+
+def test_cn_asset_card_has_inline_margin_spacing(cn_provider):
+    """同 test_us_asset_card_has_inline_margin_spacing，CN 侧回归。"""
+    data = {"asset_performance": [{"name": "上证指数", "symbol": "000001", "point": 3000.0,
+                                    "change": 0.0, "change_amt": 0.0, "amount": None}]}
+    html = cn_provider.render_section(data, {"color_up": "#e74c3c", "color_down": "#27ae60"})
+    tag = _asset_card_open_tag(html)
+    assert "margin" in tag, "asset-card 缺少 inline margin，间距会因 gap 被忽略而消失"
+    grid_start = html.find('class="asset-grid"')
+    grid_tag = html[grid_start:html.find(">", grid_start) + 1]
+    assert "gap" not in grid_tag, "asset-grid 不应再依赖 gap（改用 card margin）"
+
+
 def test_us_monetary_render_formats_yield_to_2dp(us_provider):
     """问题1回归：收益率渲染统一 ≤2 位小数；联邦基金目标(字符串)原样保留。"""
     html = us_provider._render_monetary_policy(

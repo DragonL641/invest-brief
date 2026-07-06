@@ -196,7 +196,7 @@ class CNMarketProvider(MarketProvider):
             amount_str = (f'<div style="font-size:11px;color:#999;margin-top:6px;">额 {self._format_amount(amount)}</div>'
                           if amount else "")
             cards += f'''
-        <div class="asset-card" style="background:#f8f9fa;border-radius:8px;padding:12px 10px;text-align:center;">
+        <div class="asset-card" style="background:#f8f9fa;border-radius:8px;padding:12px 10px;text-align:center;margin:4px;">
           <div style="font-size:12px;color:#7f8c8d;margin-bottom:4px;">{idx['name']}</div>
           <div style="font-size:18px;font-weight:bold;color:#2c3e50;">{point:,.2f}</div>
           <div style="font-size:14px;font-weight:bold;color:{color};">{change_str}</div>
@@ -204,7 +204,7 @@ class CNMarketProvider(MarketProvider):
         </div>'''
 
         return f'''
-      <div class="asset-grid" style="display:flex;flex-wrap:wrap;gap:6px;">
+      <div class="asset-grid" style="display:flex;flex-wrap:wrap;">
         {cards.strip()}
       </div>'''
 

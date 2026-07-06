@@ -195,7 +195,7 @@ class USMarketProvider(MarketProvider):
                 vol_html = (f'<div style="font-size:11px;color:#999;margin-top:6px;">量 {vol}</div>'
                             if vol != "-" else "")
                 cards += f'''
-        <div class="asset-card" style="background:#f8f9fa;border-radius:8px;padding:12px 10px;text-align:center;">
+        <div class="asset-card" style="background:#f8f9fa;border-radius:8px;padding:12px 10px;text-align:center;margin:4px;">
           <div style="font-size:12px;color:#7f8c8d;margin-bottom:4px;">{idx['name']}</div>
           <div style="font-size:18px;font-weight:bold;color:#2c3e50;">{idx['point']:,.2f}</div>
           <div style="font-size:14px;font-weight:bold;color:{color};">{change_str}</div>
@@ -204,7 +204,7 @@ class USMarketProvider(MarketProvider):
             html += f'''
       <div style="margin-bottom:4px;">
         <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:6px;">{label}</div>
-        <div class="asset-grid" style="display:flex;flex-wrap:wrap;gap:6px;">
+        <div class="asset-grid" style="display:flex;flex-wrap:wrap;">
           {cards.strip()}
         </div>
       </div>'''
