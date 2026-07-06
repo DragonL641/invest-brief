@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 
 import pandas as pd
 
-from investbrief.risk.config import CN_ALL_INDICATORS, US_ALL_INDICATORS, GOLD_ALL_INDICATORS
 from investbrief.risk.calc_utils import normalize_score
 import logging
 
@@ -18,16 +17,9 @@ class BaseIndicator(ABC):
         self.data = data_source
 
     def _get_config(self, name: str, market: str) -> dict:
-        """Get indicator config for given market."""
-        if market == "cn":
-            indicators = CN_ALL_INDICATORS
-        elif market == "us":
-            indicators = US_ALL_INDICATORS
-        elif market == "gold":
-            indicators = GOLD_ALL_INDICATORS
-        else:
-            indicators = {}
-        return indicators.get(name, {})
+        """Get indicator config for given market (by risk_group)."""
+        from investbrief.risk.config import load_indicators
+        return load_indicators(market).get(name, {})
 
     def _score(self, value: float, indicator_name: str, market: str) -> float:
         """Calculate 0-10 risk score for an indicator value."""

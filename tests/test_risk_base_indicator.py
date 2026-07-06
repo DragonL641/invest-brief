@@ -39,3 +39,22 @@ class TestScoreByPercentile:
     def test_insufficient_samples_returns_none(self):
         # 默认 min_samples=100, 少量历史点返回None -> 调用方回退固定阈值
         assert _ind()._score_by_percentile(5, [1, 2, 3]) is None
+
+
+def test_get_config_by_group(monkeypatch):
+    """_get_config 应按 group 取(不依赖 market 字符串分发)。"""
+    from investbrief.risk.indicators.base import BaseIndicator
+    from investbrief.risk.config import load_indicators
+
+    class _Dummy(BaseIndicator):
+        def calculate(self, market, date=None):
+            return {}
+
+    d = _Dummy(data_source=None)
+    cn_cfg = d._get_config("ma50_deviation", "cn")
+    assert cn_cfg == load_indicators("cn").get("ma50_deviation", {})
+    us_cfg = d._get_config("index_pe", "us")
+    assert us_cfg == load_indicators("us").get("index_pe", {})
+    gold_cfg = d._get_config("gold_gdp_ratio", "gold")
+    assert gold_cfg == load_indicators("gold").get("gold_gdp_ratio", {})
+    assert d._get_config("nope", "cn") == {}
