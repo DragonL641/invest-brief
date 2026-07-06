@@ -70,7 +70,7 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
             continue
         try:
             hist = _data.fetch_history(symbol, market, days=_history_days(profile_name))
-            fund = _data.fetch_fundamentals(symbol, market) if profile_name != "swing" else {}
+            fund = _data.fetch_fundamentals(symbol, market)  # 即使 swing 也拉(供卡片展示,只是 swing 不用它算因子)
             if hist is None or hist.empty:
                 continue
             # 深拉阶段校验:基本面 gate(只在数据存在时执行,缺失则跳过该 gate)
@@ -188,7 +188,7 @@ def _enrich(pick: dict, hist, prof: dict, fund: dict | None = None, val: dict | 
         c = hist["close"]
         close = float(c.iloc[-1])
         pick["price"] = round(close, 2)
-        mas = ta.ma_set(c, (20, 60, 120))
+        mas = ta.ma_set(c, (5, 10, 20, 60, 120))   # 含 5/10/20 才能算 ma_alignment
         ma20, ma60, ma120 = mas.get("ma20"), mas.get("ma60"), mas.get("ma120")
         pick["key_mas"] = {"ma20": ma20, "ma60": ma60, "ma120": ma120}
         risk = prof.get("risk", {})
@@ -200,7 +200,7 @@ def _enrich(pick: dict, hist, prof: dict, fund: dict | None = None, val: dict | 
         macd = ta.macd(c)
         rets = ta.returns(c)
         pick["technicals"] = {
-            "rsi": ta.rsi(c), "macd_cross": macd.get("macd_cross"),
+            "rsi": ta.rsi(c), "macd_cross": macd.get("macd_cross"), "macd_bar": macd.get("macd_bar"),
             "ma_alignment": mas.get("ma_alignment"),
             "return_5d": rets.get("return_5d"), "return_20d": rets.get("return_20d"),
             "return_60d": rets.get("return_60d"),
@@ -211,6 +211,25 @@ def _enrich(pick: dict, hist, prof: dict, fund: dict | None = None, val: dict | 
         pick["fundamentals"] = {**(fund or {}), "pe": (val or {}).get("pe"), "pb": (val or {}).get("pb")}
     except Exception as e:
         logger.warning(f"enrich {pick.get('symbol')} failed: {e}")
+
+
+def _enrich_with_holdings(pick: dict, with_ai: bool):
+    """复用 holdings 逐股分析,补 机构态度/盈利预测/综合研判。
+
+    编排层(pipelines)调用 holdings.analyzer —— 不破坏"域间不互引"不变量
+    (picks 域本身不 import holdings)。失败降级(维度缺省,不阻塞)。
+    """
+    try:
+        from investbrief.holdings.analyzer import HoldingsAnalyzer
+        hr = HoldingsAnalyzer().analyze_one(pick["symbol"], pick["market"], "stock", with_ai=with_ai)
+        if hr.rating:
+            pick["rating"] = hr.rating
+        if hr.forecast:
+            pick["forecast"] = hr.forecast
+        if hr.ai_conclusion:
+            pick["ai_conclusion"] = hr.ai_conclusion
+    except Exception as e:
+        logger.warning(f"holdings enrich {pick.get('symbol')} failed: {e}")
 
 
 def _candidate_cap(profile_name: str) -> int:
@@ -279,13 +298,17 @@ def run_picks_report(args):
 
     all_picks: list[dict] = []
     sections_html = ""
+    skip_summary = getattr(args, "skip_summary", False)
     for prof_name in _PROFILES:
         cn = _safe_build(prof_name, "cn")
         us = _safe_build(prof_name, "us")
-        all_picks += [p for p in (cn, us) if p]
+        # 复用 holdings 逐股分析,补 机构态度/盈利预测/综合研判(编排层调用,域不变量不破)
+        for p in (cn, us):
+            if p:
+                _enrich_with_holdings(p, with_ai=not skip_summary)
+                all_picks.append(p)
         sections_html += _renderer.render_pick_section(prof_name, cn, us)
 
-    skip_summary = getattr(args, "skip_summary", False)
     picks_brief = "" if skip_summary else _brief.generate_picks_brief(all_picks)
 
     now = datetime.now(ZoneInfo("Asia/Shanghai"))

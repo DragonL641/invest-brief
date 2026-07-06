@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from investbrief.picks.factors import FACTOR_LABELS
+from investbrief.core.textfmt import md_inline as _md
 
 _PROFILE_TITLE = {"swing": "波段 · 2周~3个月", "medium": "中长线 · 3个月~1年", "long": "长线 · 1年~5年+"}
 _MARKET_BADGE = {"cn": ("A股", "#e74c3c"), "us": ("美股", "#3498db")}
@@ -125,7 +126,16 @@ def _fundamentals_dim(pick: dict) -> str:
 def _technicals_dim(pick: dict) -> str:
     t = pick.get("technicals") or {}
     align = {"bullish": "多头", "bearish": "空头", "mixed": "交织"}.get(t.get("ma_alignment"), "—")
-    cross = {"golden": "金叉", "death": "死叉"}.get(t.get("macd_cross"), "—")
+    _mc = t.get("macd_cross")
+    _mb = t.get("macd_bar")
+    if _mc == "golden":
+        cross = "金叉"
+    elif _mc == "death":
+        cross = "死叉"
+    elif isinstance(_mb, (int, float)):
+        cross = "红柱" if _mb > 0 else "绿柱"
+    else:
+        cross = "—"
     cells = [
         _cell("MA20", _num(t.get("ma20"))),
         _cell("MA60", _num(t.get("ma60"))),
@@ -144,6 +154,35 @@ def _price_dim(pick: dict) -> str:
         _cell("现价", f'<b>{_fmt(pick.get("price"))}</b>'),
         _cell("止损", _fmt(pick.get("stop_level")), "neg"),
     ]))
+
+
+# ---------- 机构态度 / 盈利预测(复用 holdings analyzer 数据) ----------
+def _rating_dim(pick: dict) -> str:
+    rt = pick.get("rating") or {}
+    if not rt or not (rt.get("distribution") or rt.get("price_target")):
+        return ""
+    cells = []
+    dist = rt.get("distribution") or {}
+    if dist:
+        total = rt.get("total") or sum(dist.values()) or 1
+        buy_pct = (dist.get("buy", 0) + dist.get("strong_buy", 0) + dist.get("outperform", 0)) / total * 100
+        cells.append(_cell("买入共识", f"{buy_pct:.0f}%"))
+    pt = rt.get("price_target") or {}
+    if pt.get("upside_pct") is not None:
+        cls = "pos" if pt["upside_pct"] > 0 else "neg"
+        cells.append(_cell("目标空间", f"{pt['upside_pct']:+.0f}%", cls))
+    return _dim("机构态度", "".join(cells)) if cells else ""
+
+
+def _forecast_dim(pick: dict) -> str:
+    fc = pick.get("forecast") or {}
+    if not fc or fc.get("eps_next") is None:
+        return ""
+    cells = [_cell("下季EPS", _num(fc.get("eps_next")))]
+    if fc.get("yoy_pct") is not None:
+        cls = "pos" if fc["yoy_pct"] > 0 else "neg"
+        cells.append(_cell("同比", f"{fc['yoy_pct']:+.0f}%", cls))
+    return _dim("盈利预测", "".join(cells))
 
 
 # ---------- 具体买入逻辑(用实际指标值解释,不只"前 X%") ----------
@@ -223,6 +262,8 @@ def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> 
         _factor_dim(pick),
         _fundamentals_dim(pick),
         _technicals_dim(pick),
+        _rating_dim(pick),
+        _forecast_dim(pick),
         _price_dim(pick),
     ] if d)
     sig = _signals(pick)
@@ -231,6 +272,8 @@ def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> 
     if logic_lines:
         items = "".join(f"<li>{x}</li>" for x in logic_lines)
         logic_html = f'<div class="logic-box"><b>买入逻辑</b><ul>{items}</ul></div>'
+    ai = pick.get("ai_conclusion")
+    ai_html = f'<div class="logic-box" style="background:#f8f9fa;border-left-color:#1f3a5f;color:#2c3e50;"><b>🤖 综合研判</b><div style="margin-top:4px;">{_md(ai)}</div></div>' if ai else ""
 
     return f'''<div class="card" style="border-left-color:{mkt_color};">
   <div class="card-head">
@@ -241,6 +284,7 @@ def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> 
     {sig}
     <div class="dims">{dims}</div>
     {logic_html}
+    {ai_html}
   </div>
 </div>'''
 
