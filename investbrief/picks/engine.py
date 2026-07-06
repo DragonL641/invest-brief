@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from investbrief.picks.factors import FACTOR_CATEGORY  # 同域 picks→picks,OK
+from investbrief.picks.factors import FACTOR_CATEGORY, FACTOR_LABELS  # 同域 picks→picks,OK
 
 
 def rank_picks(candidates: list[dict], profile: dict, market: str) -> list[dict]:
@@ -84,12 +84,13 @@ def _profile_name(profile: dict) -> str | None:
 
 
 def _triggers(factor_scores: dict, factor_cfg: dict) -> list[str]:
-    """挑出 percentile ≥ 70 的因子作为买入逻辑条目(人读)。"""
+    """挑出 percentile ≥ 70 的因子作为买入逻辑条目(中文可读)。"""
     out = []
     for f, sc in factor_scores.items():
         p = sc.get("pct")
         if p is not None and p >= 70:
-            out.append(f"{f} 处于池内前 {100 - p:.0f}%")
+            label = FACTOR_LABELS.get(f, f)
+            out.append(f"{label} 居池内前 {100 - p:.0f}%")
     return out
 
 

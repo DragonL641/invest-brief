@@ -2,16 +2,9 @@
 """picks 卡片/段落 HTML(注入 email_picks.j2 的 sections_html,同 holdings 模式)。"""
 from __future__ import annotations
 
-_PROFILE_TITLE = {"swing": "波段 · 2周~3个月", "medium": "中长线 · 3个月~1年", "long": "长线 · 1年~5年+"}
+from investbrief.picks.factors import FACTOR_LABELS
 
-# 因子英文 key → 中文展示名(邮件可读性)
-_FACTOR_LABELS = {
-    "trend_strength": "趋势强度", "momentum_60d_ex5": "动量(60日)",
-    "ma20_deviation": "均线位置", "volume_price": "量价配合",
-    "low_volatility_20d": "低波动", "growth": "成长", "quality": "质量",
-    "industry_prosperity": "行业景气", "valuation": "估值",
-    "momentum_12m_ex1m": "动量(12月)", "moat": "护城河",
-}
+_PROFILE_TITLE = {"swing": "波段 · 2周~3个月", "medium": "中长线 · 3个月~1年", "long": "长线 · 1年~5年+"}
 
 _MARKET_ACCENT = {"cn": "#e74c3c", "us": "#3498db"}   # A股红 / 美股蓝
 _MARKET_LABEL = {"cn": "A股", "us": "美股"}
@@ -93,7 +86,7 @@ def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> 
 
 
 def _factor_row(key: str, sc: dict) -> str:
-    label = _FACTOR_LABELS.get(key, key)
+    label = FACTOR_LABELS.get(key, key)
     pct = sc.get("pct")
     weighted = sc.get("weighted")
     pct_disp = f"{pct:.0f}" if isinstance(pct, (int, float)) else "—"

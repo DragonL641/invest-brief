@@ -130,6 +130,16 @@ def _moat(hist, fund, _val) -> float | None:
     return float(gm * 100 + capex_term * 30)
 
 
+FACTOR_LABELS: dict[str, str] = {
+    # 因子英文 key → 中文展示名(engine.triggers / renderer 共用)
+    "trend_strength": "趋势强度", "momentum_60d_ex5": "动量(60日)",
+    "ma20_deviation": "均线位置", "volume_price": "量价配合",
+    "low_volatility_20d": "低波动", "growth": "成长", "quality": "质量",
+    "industry_prosperity": "行业景气", "valuation": "估值",
+    "momentum_12m_ex1m": "动量(12月)", "moat": "护城河",
+}
+
+
 FACTOR_REGISTRY: dict[str, Callable] = {
     "trend_strength": _trend_strength,
     "momentum_60d_ex5": _momentum_60d_ex5,
