@@ -129,7 +129,7 @@ def fetch_fundamentals(symbol: str, market: str) -> dict:
     if c and c.fresh(key, ttl_days=7):
         return c.get(key) or {}
     raw = _do_fetch_fundamentals(symbol, market)
-    out = normalize_fundamentals(raw) if market == "cn" else _normalize_us_fund(raw)
+    out = _normalize_cn_fund(raw) if market == "cn" else _normalize_us_fund(raw)
     if c and out:
         c.set(key, out, ttl_days=7)
     return out
@@ -146,6 +146,34 @@ def _do_fetch_fundamentals(symbol: str, market: str) -> dict:
     except Exception as e:
         logger.warning(f"fetch_fundamentals {market}:{symbol} failed: {e}")
         return {}
+
+
+def _normalize_cn_fund(raw: dict) -> dict:
+    """get_financial_indicators 输出 → 统一 fundamentals 键(小数)。
+
+    get_financial_indicators 已把同花顺原始中文列解析成英文 key + 百分数
+    (roe=10.35 表 10.35%, gross_margin, revenue_growth, profit_growth, debt_ratio,
+    operating_cashflow_per_share)。这里映射到 factors 消费的统一键并转小数,
+    与 _normalize_us_fund 对称。注意:不能用 normalize_fundamentals(那个找中文 key)。
+    """
+    def _d(v):
+        if v is None:
+            return None
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return None
+        return f / 100 if abs(f) > 1.5 else f
+    ocf = raw.get("operating_cashflow_per_share")
+    return {
+        "roe": _d(raw.get("roe")),
+        "gross_margin": _d(raw.get("gross_margin")),
+        "revenue_yoy": _d(raw.get("revenue_growth")),
+        "profit_yoy": _d(raw.get("profit_growth")),
+        "debt_ratio": _d(raw.get("debt_ratio")),
+        "fcf_positive": bool(ocf > 0) if ocf is not None else None,
+        "capex_ratio": None,
+    }
 
 
 def _normalize_us_fund(info: dict) -> dict:

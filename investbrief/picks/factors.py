@@ -95,12 +95,18 @@ def _industry_prosperity(hist, fund, _val) -> float | None:
 
 
 def _valuation(hist, _fund, val) -> float | None:
-    """估值因子:低分位好(invert 由 engine)。返回 (pe_pct+pb_pct)/2。"""
-    pe, pb = val.get("pe_pct_3y"), val.get("pb_pct_3y")
-    if pe is None and pb is None:
-        return None
-    parts = [x for x in (pe, pb) if x is not None]
-    return float(sum(parts) / len(parts))
+    """估值因子:低估值好(invert 由 engine 截面 rank)。
+
+    优先用 3 年分位(pe_pct_3y/pb_pct_3y);当前 data 未实现估值历史 →
+    回退当前 PE/PB(spot 现成),截面 rank + invert 同样保证"低 PE 排前"。
+    """
+    pe_pct, pb_pct = val.get("pe_pct_3y"), val.get("pb_pct_3y")
+    if pe_pct is not None or pb_pct is not None:
+        parts = [x for x in (pe_pct, pb_pct) if x is not None]
+        return float(sum(parts) / len(parts))
+    pe, pb = val.get("pe"), val.get("pb")
+    parts = [x for x in (pe, pb) if x is not None and x > 0]
+    return float(sum(parts) / len(parts)) if parts else None
 
 
 def _momentum_12m_ex1m(hist, _fund, _val) -> float | None:
