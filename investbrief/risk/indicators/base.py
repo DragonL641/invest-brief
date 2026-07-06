@@ -39,25 +39,23 @@ class BaseIndicator(ABC):
         return score_by_percentile(value, history, invert=invert, min_samples=min_samples)
 
     def _get_index_data(self, market: str, days: int = 100, date: str | None = None) -> "pd.DataFrame":
-        """Get index daily data for calculation."""
-        # gold: 日频金价存于 macro_data(GOLD_PRICE_CNY, 元/克), 不走 index_daily
-        if market == "gold":
-            base = ("SELECT date, value AS close FROM macro_data "
-                    "WHERE indicator='GOLD_PRICE_CNY' AND country='cn' AND value IS NOT NULL")
+        """Get index daily data via market_index_spec (no hardcoded table/code)."""
+        from investbrief.data import market_index_spec
+        spec = market_index_spec(market)
+        if spec["kind"] == "macro":
+            base = (f"SELECT date, value AS close FROM macro_data "
+                    f"WHERE indicator='{spec['indicator']}' AND country='{spec['country']}' AND value IS NOT NULL")
             if date:
                 return self.data.query(base + " AND date <= ? ORDER BY date DESC LIMIT ?",
                                        (date, days)).iloc[::-1]
             return self.data.query(base + " ORDER BY date DESC LIMIT ?", (days,)).iloc[::-1]
 
-        table = "cn_index_daily" if market == "cn" else "us_index_daily"
-        code = "sh000001" if market == "cn" else "^GSPC"
-
+        table, code = spec["table"], spec["code"]
         if date:
             sql = f"SELECT * FROM {table} WHERE code = ? AND date <= ? ORDER BY date DESC LIMIT ?"
             return self.data.query(sql, (code, date, days)).iloc[::-1]
-        else:
-            sql = f"SELECT * FROM {table} WHERE code = ? ORDER BY date DESC LIMIT ?"
-            return self.data.query(sql, (code, days)).iloc[::-1]
+        sql = f"SELECT * FROM {table} WHERE code = ? ORDER BY date DESC LIMIT ?"
+        return self.data.query(sql, (code, days)).iloc[::-1]
 
     @abstractmethod
     def calculate(self, market: str, date: str | None = None) -> dict:

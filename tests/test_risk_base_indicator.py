@@ -58,3 +58,53 @@ def test_get_config_by_group(monkeypatch):
     gold_cfg = d._get_config("gold_gdp_ratio", "gold")
     assert gold_cfg == load_indicators("gold").get("gold_gdp_ratio", {})
     assert d._get_config("nope", "cn") == {}
+
+
+def test_get_index_data_unknown_market_raises():
+    """改用 market_index_spec 后, 未知 market(如 kr)应抛 KeyError, 而非走 else 兜底成 us。"""
+    import pandas as pd
+    import pytest
+    from investbrief.risk.indicators.base import BaseIndicator
+
+    class _FakeData:
+        def query(self, sql, params=()):
+            return pd.DataFrame([{"date": "2024-01-01", "close": 1.0}])
+
+    class _Dummy(BaseIndicator):
+        def calculate(self, market, date=None):
+            return {}
+
+    d = _Dummy(_FakeData())
+    with pytest.raises(KeyError):
+        d._get_index_data("kr", days=10)
+
+
+def test_get_index_data_uses_market_spec_sql():
+    """改用 market_index_spec 后, SQL/params 含正确表名/code。
+
+    Note: table 走 f-string 插值(出现在 SQL 串里), code 走 `?` 占位绑定(出现在 params 里),
+    所以断言要分别核对这两处 — 单看 SQL 串看不到 code。
+    """
+    import pandas as pd
+    from investbrief.risk.indicators.base import BaseIndicator
+
+    captured = {"sql": [], "params": []}
+
+    class _FakeData:
+        def query(self, sql, params=()):
+            captured["sql"].append(sql)
+            captured["params"].append(params)
+            return pd.DataFrame([{"date": "2024-01-01", "close": 1.0}])
+
+    class _Dummy(BaseIndicator):
+        def calculate(self, market, date=None):
+            return {}
+
+    d = _Dummy(_FakeData())
+    d._get_index_data("cn", days=10)
+    # 表名插值在 SQL, code 走参数绑定
+    assert any("cn_index_daily" in s for s in captured["sql"])
+    assert any("sh000001" in p for p in captured["params"])
+    d._get_index_data("gold", days=10)
+    # gold: indicator 直接插值进 SQL
+    assert any("GOLD_PRICE_CNY" in s for s in captured["sql"])
