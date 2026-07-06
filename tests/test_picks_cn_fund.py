@@ -1,6 +1,7 @@
 # tests/test_picks_cn_fund.py
 """picks.data._normalize_cn_fund: 回归 — get_financial_indicators 返回英文 key+百分数,
 之前误用 normalize_fundamentals(找中文 key)→ CN 基本面全空,只剩 fcf_positive。"""
+import pytest
 from investbrief.picks.data import _normalize_cn_fund
 
 
@@ -9,11 +10,11 @@ def test_maps_english_keys_to_decimals():
            "profit_growth": 97.5, "debt_ratio": 51.37,
            "operating_cashflow_per_share": 1.05}
     out = _normalize_cn_fund(raw)
-    assert out["roe"] == 0.1035
-    assert out["gross_margin"] == 0.3633
-    assert out["revenue_yoy"] == 0.2479
-    assert out["profit_yoy"] == 0.975
-    assert out["debt_ratio"] == 0.5137
+    assert out["roe"] == pytest.approx(0.1035)
+    assert out["gross_margin"] == pytest.approx(0.3633)
+    assert out["revenue_yoy"] == pytest.approx(0.2479)
+    assert out["profit_yoy"] == pytest.approx(0.975)
+    assert out["debt_ratio"] == pytest.approx(0.5137)
     assert out["fcf_positive"] is True
 
 
