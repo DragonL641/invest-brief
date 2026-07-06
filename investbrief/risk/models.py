@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from investbrief.risk.config import (
-    CN_ALL_INDICATORS, US_ALL_INDICATORS, GOLD_ALL_INDICATORS, MARKET_STATE_MAP,
+    MARKET_STATE_MAP,
     FIVE_DIMENSIONS, score_to_risk_level,
 )
 from investbrief.risk.indicators.valuation import ValuationIndicator
@@ -59,11 +59,11 @@ class RiskModel:
         action, dimensions, indicators.
         """
         # Gold market uses only GoldIndicator; cn/us use the five stock indicators
+        from investbrief.risk.config import load_indicators
+        indicators_config = load_indicators(market)
         if market == "gold":
-            indicators_config = GOLD_ALL_INDICATORS
             all_results = dict(self._gold.calculate("gold", date))
         else:
-            indicators_config = CN_ALL_INDICATORS if market == "cn" else US_ALL_INDICATORS
             all_results = {}
             all_results.update(self._valuation.calculate(market, date))
             all_results.update(self._technical.calculate(market, date))
