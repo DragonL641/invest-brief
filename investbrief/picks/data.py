@@ -230,6 +230,15 @@ def _cn_amount_to_float(val) -> float:
         return float("nan")
 
 
+def _df_empty(x) -> bool:
+    """True if x is None / 不是 DataFrame / 空 DataFrame。
+
+    akshare/yfinance 在 ETF、限流或异常时可能返回 str(错误消息)而非 DataFrame,
+    直接 .empty 会抛 'str' object has no attribute 'empty'。统一用它防御。
+    """
+    return not isinstance(x, pd.DataFrame) or x.empty
+
+
 def _cn_net_income_by_year(symbol: str) -> dict[str, float]:
     """从 stock_financial_abstract_ths 取年度(12-31)报告期的净利润。
 
@@ -238,7 +247,7 @@ def _cn_net_income_by_year(symbol: str) -> dict[str, float]:
     """
     from investbrief.datasources.akshare import AKShareClient
     df = AKShareClient().get_financial_abstract_df(symbol)
-    if df is None or df.empty or "报告期" not in df.columns or "净利润" not in df.columns:
+    if _df_empty(df) or "报告期" not in df.columns or "净利润" not in df.columns:
         return {}
     df = df.copy()
     df["_period"] = df["报告期"].astype(str)
@@ -257,7 +266,7 @@ def _us_net_income_by_year(symbol: str) -> dict[str, float]:
     # YFinanceClient 未暴露 financials,直接走 yfinance API(与 _normalize_us_fund 走 .info 对称)
     import yfinance as yf
     fin = yf.Ticker(symbol).financials
-    if fin is None or fin.empty or "Net Income" not in fin.index:
+    if _df_empty(fin) or "Net Income" not in fin.index:
         return {}
     row = fin.loc["Net Income"]
     out: dict[str, float] = {}
@@ -300,7 +309,7 @@ def fetch_earliest_report_period(symbol: str, market: str) -> str | None:
         if market == "cn":
             from investbrief.datasources.akshare import AKShareClient
             df = AKShareClient().get_financial_abstract_df(symbol)
-            if df is None or df.empty or "报告期" not in df.columns:
+            if _df_empty(df) or "报告期" not in df.columns:
                 return None
             first = str(df.iloc[0]["报告期"])
             if c and first:
@@ -309,7 +318,7 @@ def fetch_earliest_report_period(symbol: str, market: str) -> str | None:
         # US
         import yfinance as yf
         fin = yf.Ticker(symbol).financials
-        if fin is None or fin.empty:
+        if _df_empty(fin):
             return None
         earliest_col = min(fin.columns)
         # yfinance 列是 Timestamp → ISO 字符串
