@@ -164,18 +164,19 @@ def _explain(pick: dict) -> list[str]:
         label = FACTOR_LABELS.get(key, key)
         if key == "trend_strength":
             dev = t.get("close_vs_ma60_pct")
-            extra = f",收盘{_fmt(price)}高于MA60 {_fmt(ma60)}({_fmt_raw(dev)})"
+            extra = f",收盘{_fmt(price)}高于MA60 {_fmt(ma60)}({_ret(dev)})"
             if align_cn:
                 extra += f",{align_cn}"
             lines.append(f"{label}:趋势强{extra}")
         elif key == "momentum_60d_ex5":
-            lines.append(f"{label}:60日涨幅(剔除最近5日){_fmt_raw(raw)}")
+            lines.append(f"{label}:60日涨幅(剔除最近5日){_ret(raw)}")
         elif key == "ma20_deviation":
-            lines.append(f"{label}:距MA20乖离 {_fmt_raw(raw)},贴近均线属低吸位置")
+            lines.append(f"{label}:距MA20乖离 {_ret(raw)},贴近均线属低吸位置")
         elif key == "volume_price":
-            lines.append(f"{label}:放量上涨日均量/缩量回调日均量 = {_fmt_raw(raw)},量能配合向上")
+            vp = f"{raw:.2f}倍" if isinstance(raw, (int, float)) else "—"
+            lines.append(f"{label}:放量上涨日均量/缩量回调日均量 = {vp},量能配合向上")
         elif key == "low_volatility_20d":
-            lines.append(f"{label}:20日波动率 {_fmt_raw(raw)},池内偏低更稳健")
+            lines.append(f"{label}:20日波动率 {_num(raw,4)},池内偏低更稳健")
         elif key == "growth":
             lines.append(f"{label}:营收同比 {_pct(f.get('revenue_yoy'))},净利润同比 {_pct(f.get('profit_yoy'))}")
         elif key == "quality":
@@ -187,7 +188,7 @@ def _explain(pick: dict) -> list[str]:
         elif key == "industry_prosperity":
             lines.append(f"{label}:营收增速 {_pct(f.get('revenue_yoy'))}(行业景气代理)")
         elif key == "momentum_12m_ex1m":
-            lines.append(f"{label}:12月动量(剔除最近1月){_fmt_raw(raw)}")
+            lines.append(f"{label}:12月动量(剔除最近1月){_ret(raw)}")
         else:
             if isinstance(raw, (int, float)):
                 lines.append(f"{label}:{_fmt_raw(raw)}(池内前 ...%)")
@@ -201,6 +202,13 @@ def _fmt_raw(v) -> str:
     if isinstance(v, (int, float)) and abs(v) < 1.5:
         return f"{v*100:+.1f}%"
     return _fmt(v)
+
+
+def _ret(v) -> str:
+    """收益比例(0.0237 → '+2.4%',2.37 → '+237.0%')。用于动量/乖离等 return-ratio 因子。"""
+    if not isinstance(v, (int, float)):
+        return "—"
+    return f"{v*100:+.1f}%"
 
 
 # ---------- 卡片 ----------
