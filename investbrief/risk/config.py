@@ -17,13 +17,26 @@ from investbrief.core.strategy_loader import load_strategy
 
 _INDICATORS = load_strategy("risk_indicators")
 COMMON_INDICATORS = _INDICATORS["common"]
-CN_INDICATORS = _INDICATORS["cn"]
-US_INDICATORS = _INDICATORS["us"]
-GOLD_INDICATORS = _INDICATORS["gold"]
+CN_INDICATORS = _INDICATORS["cn"]  # 仍被 tests/test_risk_config.py 引用
+US_INDICATORS = _INDICATORS["us"]  # 仍被 tests/test_risk_config.py 引用
 
-CN_ALL_INDICATORS = {**COMMON_INDICATORS, **CN_INDICATORS}
-US_ALL_INDICATORS = {**COMMON_INDICATORS, **US_INDICATORS}
-GOLD_ALL_INDICATORS = GOLD_INDICATORS
+
+def load_indicators(group: str) -> dict:
+    """统一入口: 按 risk_group 名取该市场的全部 indicator 配置。
+
+    cn/us 合并 common; gold 不含 common。未知 group 返回 {}。
+    """
+    if group == "gold":
+        return _INDICATORS.get("gold", {})
+    if group in ("cn", "us"):
+        return {**COMMON_INDICATORS, **_INDICATORS.get(group, {})}
+    return {}
+
+
+# 向后兼容别名 (阶段4 收尾时随 indicator 文件一起删)
+CN_ALL_INDICATORS = load_indicators("cn")
+US_ALL_INDICATORS = load_indicators("us")
+GOLD_ALL_INDICATORS = load_indicators("gold")
 
 # === Five Dimensions for Radar Chart ===
 FIVE_DIMENSIONS = {
