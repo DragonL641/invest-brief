@@ -6,6 +6,7 @@ import logging
 
 from investbrief.core.llm import call_claude
 from investbrief.core.llm_json import extract_json
+from investbrief.picks.factors import FACTOR_LABELS
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,11 @@ def serialize_picks_context(picks: list[dict]) -> str:
         "profile": p.get("profile"), "market": p.get("market"),
         "symbol": p.get("symbol"), "name": p.get("name"),
         "composite": p.get("composite"),
-        "top_factors": sorted(p.get("factor_scores", {}).items(),
-                              key=lambda kv: (kv[1].get("weighted") or 0), reverse=True)[:2],
+        "top_factors": [
+            {"因子": FACTOR_LABELS.get(k, k), "贡献": round(sc.get("weighted") or 0, 1)}
+            for k, sc in sorted(p.get("factor_scores", {}).items(),
+                                key=lambda kv: (kv[1].get("weighted") or 0), reverse=True)[:2]
+        ],
         "industry": p.get("industry"),
     } for p in picks]
     return json.dumps(compact, ensure_ascii=False, default=str)
