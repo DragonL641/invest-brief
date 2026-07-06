@@ -1,17 +1,60 @@
 # investbrief/picks/renderer.py
-"""picks 卡片/段落 HTML(注入 email_picks.j2 的 sections_html,同 holdings 模式)。"""
+"""picks 卡片/段落 HTML(注入 email_picks.j2 的 picks_sections)。
+
+卡片信息密度参考 holdings 邮件:量化因子分项 + 基本面 + 技术面 + 关键信号 + 具体买入逻辑。
+买入逻辑用实际指标值解释(不只"前 X%")。段落内两只标的上下堆叠(手机友好)。
+"""
 from __future__ import annotations
 
 from investbrief.picks.factors import FACTOR_LABELS
 
 _PROFILE_TITLE = {"swing": "波段 · 2周~3个月", "medium": "中长线 · 3个月~1年", "long": "长线 · 1年~5年+"}
+_MARKET_BADGE = {"cn": ("A股", "#e74c3c"), "us": ("美股", "#3498db")}
 
-_MARKET_ACCENT = {"cn": "#e74c3c", "us": "#3498db"}   # A股红 / 美股蓝
-_MARKET_LABEL = {"cn": "A股", "us": "美股"}
+
+# ---------- 格式化 ----------
+def _fmt(v) -> str:
+    if v is None:
+        return "—"
+    if isinstance(v, float):
+        return f"{v:.2f}"
+    return str(v)
+
+
+def _pct(v) -> str:  # 小数 0.2479 → "+24.8%" / "-5.0%"
+    if v is None:
+        return "—"
+    try:
+        return f"{v*100:+.1f}%" if abs(v) < 1.5 else f"{v:+.1f}%"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _num(v, d=2) -> str:
+    if v is None:
+        return "—"
+    try:
+        return f"{float(v):.{d}f}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _bar(pct) -> str:
+    w = pct if isinstance(pct, (int, float)) else 0
+    color = "#27ae60" if (isinstance(pct, (int, float)) and pct >= 70) else (
+        "#f39c12" if (isinstance(pct, (int, float)) and pct >= 40) else "#d5dbdb")
+    return f'<span class="fbar-track"><span class="fbar-fill" style="width:{w:.0f}%;background:{color};"></span></span>'
+
+
+def _cell(label, value, cls="") -> str:
+    return f'<span class="cell {cls}"><span class="cl">{label}</span>{value}</span>'
+
+
+def _dim(name: str, cells_html: str) -> str:
+    return f'<div class="dim-row"><div class="dim-name">{name}</div><div class="dim-cells">{cells_html}</div></div>'
 
 
 def _score_color(v) -> str:
-    """综合分配色:高=绿,中=橙,低=灰。"""
     if not isinstance(v, (int, float)):
         return "#95a5a6"
     if v >= 60:
@@ -21,100 +64,182 @@ def _score_color(v) -> str:
     return "#95a5a6"
 
 
-def _bar_color(pct) -> str:
-    if not isinstance(pct, (int, float)):
-        return "#d5dbdb"
-    if pct >= 70:
-        return "#27ae60"
-    if pct >= 40:
-        return "#f39c12"
-    return "#d5dbdb"
+# ---------- 关键信号 tag ----------
+def _signals(pick: dict) -> str:
+    t = pick.get("technicals") or {}
+    tags = []
+    ma = t.get("ma_alignment")
+    if ma == "bullish":
+        tags.append(("均线多头", "up"))
+    elif ma == "bearish":
+        tags.append(("均线空头", "down"))
+    rsi = t.get("rsi")
+    if isinstance(rsi, (int, float)):
+        if rsi >= 70:
+            tags.append(("RSI超买", "warn"))
+        elif rsi <= 30:
+            tags.append(("RSI超卖", "up"))
+    cross = t.get("macd_cross")
+    if cross == "golden":
+        tags.append(("MACD金叉", "up"))
+    elif cross == "death":
+        tags.append(("MACD死叉", "down"))
+    r20 = t.get("return_20d")
+    if isinstance(r20, (int, float)):
+        if r20 >= 10:
+            tags.append((f"20日+{r20:.0f}%", "up"))
+        elif r20 <= -10:
+            tags.append((f"20日{r20:.0f}%", "down"))
+    if not tags:
+        return ""
+    return '<div class="signal-row">' + "".join(
+        f'<span class="signal-tag tag-{cls}">{txt}</span>' for txt, cls in tags) + '</div>'
 
 
-def _fmt(v) -> str:
+# ---------- 量化因子行 ----------
+def _factor_dim(pick: dict) -> str:
+    fs = pick.get("factor_scores") or {}
+    cells = []
+    for k, sc in fs.items():
+        label = FACTOR_LABELS.get(k, k)
+        pct = sc.get("pct")
+        pct_disp = f"{pct:.0f}%" if isinstance(pct, (int, float)) else "—"
+        cells.append(f'<span class="cell">{label}{_bar(pct)}<span style="color:#95a5a6;font-size:11px;">{pct_disp}</span></span>')
+    return _dim("量化因子", "".join(cells)) if cells else ""
+
+
+# ---------- 基本面 / 技术面 / 价位 维度 ----------
+def _fundamentals_dim(pick: dict) -> str:
+    f = pick.get("fundamentals") or {}
+    cells = [
+        _cell("PE", _num(f.get("pe"))),
+        _cell("PB", _num(f.get("pb"))),
+        _cell("ROE", _pct(f.get("roe"))),
+        _cell("毛利率", _pct(f.get("gross_margin"))),
+        _cell("营收", _pct(f.get("revenue_yoy"))),
+        _cell("净利", _pct(f.get("profit_yoy"))),
+    ]
+    return _dim("基本面", "".join(cells))
+
+
+def _technicals_dim(pick: dict) -> str:
+    t = pick.get("technicals") or {}
+    align = {"bullish": "多头", "bearish": "空头", "mixed": "交织"}.get(t.get("ma_alignment"), "—")
+    cross = {"golden": "金叉", "death": "死叉"}.get(t.get("macd_cross"), "—")
+    cells = [
+        _cell("MA20", _num(t.get("ma20"))),
+        _cell("MA60", _num(t.get("ma60"))),
+        _cell("MA120", _num(t.get("ma120"))),
+        _cell("均线", align),
+        _cell("RSI", _num(t.get("rsi"))),
+        _cell("MACD", cross),
+        _cell("5日", _pct((t.get("return_5d") or 0) / 100 if isinstance(t.get("return_5d"), (int, float)) else None)),
+        _cell("60日", _pct((t.get("return_60d") or 0) / 100 if isinstance(t.get("return_60d"), (int, float)) else None)),
+    ]
+    return _dim("技术面", "".join(cells))
+
+
+def _price_dim(pick: dict) -> str:
+    return _dim("价位", "".join([
+        _cell("现价", f'<b>{_fmt(pick.get("price"))}</b>'),
+        _cell("止损", _fmt(pick.get("stop_level")), "neg"),
+    ]))
+
+
+# ---------- 具体买入逻辑(用实际指标值解释,不只"前 X%") ----------
+def _explain(pick: dict) -> list[str]:
+    """对头部因子(贡献最大的几项)用实际指标值生成具体解释。"""
+    t = pick.get("technicals") or {}
+    f = pick.get("fundamentals") or {}
+    fs = pick.get("factor_scores") or {}
+    price = pick.get("price")
+    ma60 = t.get("ma60")
+    align_cn = {"bullish": "MA20>MA60>MA120 多头排列", "bearish": "MA20<MA60<MA120 空头排列"}.get(t.get("ma_alignment"), "")
+
+    # 按贡献排序,取前 4 个有数据的因子逐条解释
+    ordered = sorted(fs.items(), key=lambda kv: (kv[1].get("weighted") or 0), reverse=True)[:4]
+    lines = []
+    for key, sc in ordered:
+        raw = sc.get("raw")
+        label = FACTOR_LABELS.get(key, key)
+        if key == "trend_strength":
+            dev = t.get("close_vs_ma60_pct")
+            extra = f",收盘{_fmt(price)}高于MA60 {_fmt(ma60)}({_fmt_raw(dev)})"
+            if align_cn:
+                extra += f",{align_cn}"
+            lines.append(f"{label}:趋势强{extra}")
+        elif key == "momentum_60d_ex5":
+            lines.append(f"{label}:60日涨幅(剔除最近5日){_fmt_raw(raw)}")
+        elif key == "ma20_deviation":
+            lines.append(f"{label}:距MA20乖离 {_fmt_raw(raw)},贴近均线属低吸位置")
+        elif key == "volume_price":
+            lines.append(f"{label}:放量上涨日均量/缩量回调日均量 = {_fmt_raw(raw)},量能配合向上")
+        elif key == "low_volatility_20d":
+            lines.append(f"{label}:20日波动率 {_fmt_raw(raw)},池内偏低更稳健")
+        elif key == "growth":
+            lines.append(f"{label}:营收同比 {_pct(f.get('revenue_yoy'))},净利润同比 {_pct(f.get('profit_yoy'))}")
+        elif key == "quality":
+            lines.append(f"{label}:ROE {_pct(f.get('roe'))},毛利率 {_pct(f.get('gross_margin'))},经营现金流为正" if f.get("fcf_positive") else f"{label}:ROE {_pct(f.get('roe'))},毛利率 {_pct(f.get('gross_margin'))}")
+        elif key == "valuation":
+            lines.append(f"{label}:PE {_num(f.get('pe'))} / PB {_num(f.get('pb'))},池内估值偏低")
+        elif key == "moat":
+            lines.append(f"{label}:毛利率 {_pct(f.get('gross_margin'))},轻资产(低资本开支)特征")
+        elif key == "industry_prosperity":
+            lines.append(f"{label}:营收增速 {_pct(f.get('revenue_yoy'))}(行业景气代理)")
+        elif key == "momentum_12m_ex1m":
+            lines.append(f"{label}:12月动量(剔除最近1月){_fmt_raw(raw)}")
+        else:
+            if isinstance(raw, (int, float)):
+                lines.append(f"{label}:{_fmt_raw(raw)}(池内前 ...%)")
+    return lines
+
+
+def _fmt_raw(v) -> str:
+    """因子原始值展示:小数(比例)→ 百分比,否则 2 位小数。"""
     if v is None:
         return "—"
-    if isinstance(v, float):
-        return f"{v:.2f}"
-    return str(v)
+    if isinstance(v, (int, float)) and abs(v) < 1.5:
+        return f"{v*100:+.1f}%"
+    return _fmt(v)
 
 
+# ---------- 卡片 ----------
 def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> str:
     if pick is None:
-        mkt = _MARKET_LABEL.get(market, "")
-        return (f'<div class="pick-card" style="background:#fafbfc;border:1px dashed #d5dbdb;'
-                f'border-radius:10px;padding:20px;margin:6px 0;text-align:center;'
-                f'color:#b0b8bf;font-size:13px;">{mkt}本期无符合条件标的</div>')
-    accent = _MARKET_ACCENT.get(pick.get("market"), "#95a5a6")
-    mkt_label = _MARKET_LABEL.get(pick.get("market"), "")
+        mkt = _MARKET_BADGE.get(market, ("", ""))[0]
+        return f'<div class="card empty">{mkt}本期无符合条件标的</div>'
+    mkt_label, mkt_color = _MARKET_BADGE.get(pick.get("market"), ("", "#95a5a6"))
     comp = pick.get("composite", 0)
 
-    # 因子行(中文标签 + 分位进度条 + 分位 + 贡献)
-    rows = "".join(_factor_row(k, sc) for k, sc in (pick.get("factor_scores") or {}).items())
+    dims = "".join(d for d in [
+        _factor_dim(pick),
+        _fundamentals_dim(pick),
+        _technicals_dim(pick),
+        _price_dim(pick),
+    ] if d)
+    sig = _signals(pick)
+    logic_lines = _explain(pick)
+    logic_html = ""
+    if logic_lines:
+        items = "".join(f"<li>{x}</li>" for x in logic_lines)
+        logic_html = f'<div class="logic-box"><b>买入逻辑</b><ul>{items}</ul></div>'
 
-    # 买入逻辑(triggers)
-    triggers = pick.get("triggers") or []
-    trig_html = ""
-    if triggers:
-        items = "".join(f"<li>{t}</li>" for t in triggers)
-        trig_html = (f'<div style="margin-top:10px;padding:8px 10px;background:#fef9e7;'
-                     f'border-left:3px solid #f1c40f;border-radius:4px;font-size:12px;color:#7d6608;">'
-                     f'<b>买入逻辑</b><ul style="margin:4px 0 0;padding-left:18px;">{items}</ul></div>')
-
-    mas = pick.get("key_mas") or {}
-    return f'''<div class="pick-card" style="background:#fff;border-radius:10px;padding:14px 16px;margin:6px 0;border-left:4px solid {accent};box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-    <div>
-      <span style="font-size:16px;font-weight:700;color:#2c3e50;">{pick.get("name","")}</span>
-      <span style="color:#95a5a6;font-size:12px;margin-left:5px;">{pick.get("symbol","")}</span>
-      <span style="background:{accent};color:#fff;font-size:10px;padding:1px 7px;border-radius:9px;margin-left:6px;">{mkt_label}</span>
-    </div>
-    <div style="text-align:right;line-height:1;">
-      <div style="font-size:24px;font-weight:800;color:{_score_color(comp)};">{comp}</div>
-      <div style="font-size:10px;color:#bdc3c7;margin-top:2px;">综合分</div>
-    </div>
+    return f'''<div class="card" style="border-left-color:{mkt_color};">
+  <div class="card-head">
+    <span class="card-name">{pick.get("name","")}</span><span class="card-sym">{pick.get("symbol","")}</span><span class="mkt-badge" style="background:{mkt_color};">{mkt_label}</span>
+    <span class="score"><span class="score-num" style="color:{_score_color(comp)};">{_num(comp,1)}</span><span class="score-lbl">综合分</span></span>
   </div>
-  <table style="width:100%;font-size:12px;border-collapse:collapse;">{rows}</table>
-  <div style="display:flex;gap:10px;margin-top:10px;padding-top:8px;border-top:1px solid #f0f0f0;">
-    <div style="flex:1;"><div style="color:#bdc3c7;font-size:10px;">现价</div><div style="font-weight:700;color:#2c3e50;font-size:14px;">{_fmt(pick.get("price"))}</div></div>
-    <div style="flex:1;"><div style="color:#bdc3c7;font-size:10px;">MA20</div><div style="color:#34495e;">{_fmt(mas.get("ma20"))}</div></div>
-    <div style="flex:1;"><div style="color:#bdc3c7;font-size:10px;">MA60</div><div style="color:#34495e;">{_fmt(mas.get("ma60"))}</div></div>
-    <div style="flex:1;"><div style="color:#bdc3c7;font-size:10px;">止损</div><div style="color:#e74c3c;font-weight:600;">{_fmt(pick.get("stop_level"))}</div></div>
+  <div class="card-body">
+    {sig}
+    <div class="dims">{dims}</div>
+    {logic_html}
   </div>
-  {trig_html}
 </div>'''
-
-
-def _factor_row(key: str, sc: dict) -> str:
-    label = FACTOR_LABELS.get(key, key)
-    pct = sc.get("pct")
-    weighted = sc.get("weighted")
-    pct_disp = f"{pct:.0f}" if isinstance(pct, (int, float)) else "—"
-    bar_w = pct if isinstance(pct, (int, float)) else 0
-    if isinstance(weighted, (int, float)) and weighted > 0:
-        w_disp = f"+{weighted:.1f}"
-        w_color = "#27ae60"
-    elif isinstance(weighted, (int, float)):
-        w_disp = f"{weighted:.1f}"
-        w_color = "#bdc3c7"
-    else:
-        w_disp = "—"
-        w_color = "#d5dbdb"
-    return f'''<tr>
-  <td style="padding:4px 0;color:#566573;width:74px;">{label}</td>
-  <td style="width:90px;padding:0 8px;"><div style="background:#eef0f2;border-radius:3px;height:7px;"><div style="background:{_bar_color(pct)};height:7px;border-radius:3px;width:{bar_w:.0f}%;"></div></div></td>
-  <td style="color:#95a5a6;text-align:right;width:32px;font-size:11px;">{pct_disp}</td>
-  <td style="text-align:right;width:42px;color:{w_color};font-weight:600;font-size:11px;">{w_disp}</td>
-</tr>'''
 
 
 def render_pick_section(profile: str, cn_pick: dict | None, us_pick: dict | None) -> str:
+    """同周期 A股+美股 两只【上下堆叠】(手机友好,不再左右排布)。"""
     title = _PROFILE_TITLE.get(profile, profile)
-    return f'''
-<div class="pick-section" style="margin:18px 0;">
-  <div style="font-size:15px;font-weight:700;color:#2c3e50;border-left:3px solid #2c3e50;padding-left:8px;margin-bottom:8px;">{title}</div>
-  <div style="display:flex;gap:10px;">
-    <div style="flex:1;min-width:0;">{render_pick_card(cn_pick, profile, "cn")}</div>
-    <div style="flex:1;min-width:0;">{render_pick_card(us_pick, profile, "us")}</div>
-  </div>
-</div>'''
+    return f'''<div class="profile-title">{title}</div>
+{render_pick_card(cn_pick, profile, "cn")}
+{render_pick_card(us_pick, profile, "us")}'''

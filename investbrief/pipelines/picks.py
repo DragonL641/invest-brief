@@ -62,6 +62,7 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     min_listed_days = u.get("min_listed_days")
     min_listed_years = u.get("min_listed_years")
     cands = []
+    detail = {}  # symbol -> (hist, fund, val) 供 Top1 补齐卡片展示维度
     for _, row in candidates_df.iterrows():
         raw_code = str(row.get("代码", row.get("symbol", "")))
         symbol = _clean_us_symbol(raw_code) if market == "us" else raw_code
@@ -90,6 +91,7 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
             cands.append({"symbol": symbol, "name": str(row.get("名称", symbol)),
                           "market": market, "raw_factors": raw,
                           "industry": _industry_for(symbol, market)})
+            detail[symbol] = (hist, fund, val)
         except Exception as e:
             logger.warning(f"candidate {market}:{symbol} failed: {e}")
             continue
@@ -99,8 +101,9 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     if not ranked:
         return None
     top = ranked[0]
-    # 补 price/key_mas/stop_level(从历史)——必须在渲染前完成
-    _enrich(top, _data.fetch_history(top["symbol"], market, days=120), prof)
+    # 补 price/key_mas/stop + 技术面/基本面/估值(卡片展示用)——必须在渲染前完成
+    _h, _f, _v = detail.get(top["symbol"], (None, {}, {}))
+    _enrich(top, _h, prof, _f, _v)
     return top
 
 
@@ -176,20 +179,36 @@ def _passes_listing_gates(symbol: str, market: str, min_days: int | None,
         return True
 
 
-def _enrich(pick: dict, hist, prof: dict):
+def _enrich(pick: dict, hist, prof: dict, fund: dict | None = None, val: dict | None = None):
+    """补 price/key_mas/stop + 技术面/基本面/估值(卡片展示维度)。"""
     try:
         if hist is None or hist.empty:
             return
         from investbrief.core import ta
         c = hist["close"]
-        pick["price"] = ta._last(c)
+        close = float(c.iloc[-1])
+        pick["price"] = round(close, 2)
         mas = ta.ma_set(c, (20, 60, 120))
-        pick["key_mas"] = {"ma20": mas.get("ma20"), "ma60": mas.get("ma60"), "ma120": mas.get("ma120")}
+        ma20, ma60, ma120 = mas.get("ma20"), mas.get("ma60"), mas.get("ma120")
+        pick["key_mas"] = {"ma20": ma20, "ma60": ma60, "ma120": ma120}
         risk = prof.get("risk", {})
-        if risk.get("stop_break_ma20") and mas.get("ma20"):
-            pick["stop_level"] = round(mas["ma20"] * (1 - risk.get("stop_max_dd", 0.08)), 2)
-        elif risk.get("stop_break_ma60") and mas.get("ma60"):
-            pick["stop_level"] = round(mas["ma60"], 2)
+        if risk.get("stop_break_ma20") and ma20:
+            pick["stop_level"] = round(ma20 * (1 - risk.get("stop_max_dd", 0.08)), 2)
+        elif risk.get("stop_break_ma60") and ma60:
+            pick["stop_level"] = round(ma60, 2)
+        # 技术面(卡片展示)
+        macd = ta.macd(c)
+        rets = ta.returns(c)
+        pick["technicals"] = {
+            "rsi": ta.rsi(c), "macd_cross": macd.get("macd_cross"),
+            "ma_alignment": mas.get("ma_alignment"),
+            "return_5d": rets.get("return_5d"), "return_20d": rets.get("return_20d"),
+            "return_60d": rets.get("return_60d"),
+            "ma20": ma20, "ma60": ma60, "ma120": ma120,
+            "close_vs_ma60_pct": (close / ma60 - 1) if (ma60 and close and ma60 != 0) else None,
+        }
+        # 基本面 + 估值(merge fund + val.pe/pb)
+        pick["fundamentals"] = {**(fund or {}), "pe": (val or {}).get("pe"), "pb": (val or {}).get("pb")}
     except Exception as e:
         logger.warning(f"enrich {pick.get('symbol')} failed: {e}")
 
