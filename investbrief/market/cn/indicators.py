@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 
 
 class CnValuationIndicator:
-    """CN 估值: hsh300_erp / zz500_erp / structural_divergence / index_pe(cn)。
+    """CN 估值: hsh300_erp / zz500_erp / structural_divergence。
 
-    _erp_for_index / _structural_divergence / _pe_cn 方法体逐字搬迁自
+    _erp_for_index / _structural_divergence 方法体逐字搬迁自
     risk/indicators/valuation.py, 仅适配取数与打分依赖。
-    _buffett_cn 不搬(calculate 从未调用, 死代码, 丢弃)。
+    _buffett_cn / _pe_cn 不搬(calculate 从未调用, 死代码, 丢弃)。
     """
 
     def __init__(self, config: dict):
@@ -35,7 +35,6 @@ class CnValuationIndicator:
         results["hsh300_erp"] = self._erp_for_index(data_source, "HSH300_PE", date)
         results["zz500_erp"] = self._erp_for_index(data_source, "ZZ500_PE", date)
         results["structural_divergence"] = self._structural_divergence(data_source, date)
-        results["index_pe"] = self._pe_cn(data_source, date)
         return results
 
     def _erp_for_index(self, data_source, pe_indicator: str, date: str | None = None) -> dict:
@@ -110,34 +109,6 @@ class CnValuationIndicator:
         except Exception as e:
             logger.error(f"Failed structural divergence: {e}")
             return {"score": 5.0, "value": None, "percentile": None}
-
-    def _pe_cn(self, data_source, date: str | None = None) -> dict:
-        if date:
-            hist = data_source.query(
-                "SELECT pe_ratio FROM sentiment_data WHERE market='cn' "
-                "AND pe_ratio IS NOT NULL AND date <= ? ORDER BY date",
-                (date,),
-            )
-        else:
-            hist = data_source.query(
-                "SELECT pe_ratio FROM sentiment_data WHERE market='cn' "
-                "AND pe_ratio IS NOT NULL ORDER BY date"
-            )
-        if hist.empty:
-            return {"score": 5.0, "value": None, "percentile": None}
-
-        pe = float(hist.iloc[-1]["pe_ratio"])
-        sample = hist["pe_ratio"].tolist()
-        score = score_by_percentile(pe, sample)
-        if score is None:
-            score = score_with_config(pe, "index_pe", self._market, self._config)  # 样本不足回退固定阈值
-            scoring = f"固定阈值(样本{len(sample)}不足)"
-            pct = None
-        else:
-            scoring = f"历史分位({len(sample)}点)"
-            import numpy as np
-            pct = round(float((np.array(sample) < pe).mean() * 100), 0)
-        return {"score": score, "value": pe, "percentile": pct, "scoring": scoring}
 
 
 class CnLiquidityIndicator:

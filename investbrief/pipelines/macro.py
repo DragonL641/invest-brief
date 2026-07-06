@@ -110,8 +110,8 @@ def run_macro_report(args):
         if not p.risk_group:
             continue
         try:
-            config = load_indicators(p.risk_group)
-            indicators = _build_indicators(code, p.data, config)
+            ind_config = load_indicators(p.risk_group)
+            indicators = _build_indicators(code, p.data, ind_config)
             model = RiskModel(p.data, indicators=indicators)
             risk_scores[code] = model.calculate_score(code)
         except Exception as e:

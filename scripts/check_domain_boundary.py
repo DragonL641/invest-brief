@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""域边界 lint: market/** 不得 import risk/**; risk/** 不得 import market/**。
+"""域边界 lint: market/risk 互不 import; core/** 不得 import risk/market。
 
 CI 可调用: python scripts/check_domain_boundary.py
 """
@@ -31,6 +31,9 @@ for p in root.glob("market/**/*.py"):
     check(p, "investbrief.risk", "market")
 for p in root.glob("risk/**/*.py"):
     check(p, "investbrief.market", "risk")
+for p in root.glob("core/**/*.py"):
+    check(p, "investbrief.risk", "core")
+    check(p, "investbrief.market", "core")
 
 if VIOLATIONS:
     print("\n".join(VIOLATIONS))

@@ -229,6 +229,10 @@ class BaseData(ABC):
     def update_incremental(self):
         """Incremental update since last recorded date."""
 
+    def is_fresh(self) -> bool:
+        """当日数据是否已更新(DB-First 快路径)。子类(CNData/USData)覆盖; GoldData 用默认。"""
+        return True
+
     def _retry_api(self, fn):
         """Call API function with retries on failure."""
         import time

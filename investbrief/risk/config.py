@@ -33,7 +33,7 @@ def load_indicators(group: str) -> dict:
     return {}
 
 
-# 向后兼容别名 (阶段4 收尾时随 indicator 文件一起删)
+# 长期保留: risk/render.py 的 NAME_MAP 等仍按市场引用这些别名
 CN_ALL_INDICATORS = load_indicators("cn")
 US_ALL_INDICATORS = load_indicators("us")
 GOLD_ALL_INDICATORS = load_indicators("gold")
