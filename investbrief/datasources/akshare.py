@@ -315,12 +315,14 @@ class AKShareClient:
         """获取个股日K线（前复权）。eastmoney(stock_zh_a_hist)失败时 fallback 到新浪源。"""
         end_date = datetime.now().strftime("%Y%m%d")
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+        # eastmoney 限流时 3 次重试耗 ~13s/标的;只试 1 次,失败立即转新浪 fallback。
         df = _with_retry(
             lambda: ak.stock_zh_a_hist(
                 symbol=symbol, period="daily",
                 start_date=start_date, end_date=end_date, adjust="qfq",
             ),
             label=f"stock_zh_a_hist({symbol})",
+            attempts=1,
         )
         if df is not None and not df.empty:
             df = df.rename(columns={
