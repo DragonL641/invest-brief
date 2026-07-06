@@ -35,6 +35,11 @@ class USMarketProvider(MarketProvider):
     flag = "🇺🇸"
     currency = "$"
 
+    # —— 能力声明 ——
+    risk_group = "us"
+    supports_regime = True
+    data_class = USData
+
     def __init__(self, data: "USData | None" = None):
         self.data = data if data is not None else USData()
 
@@ -47,6 +52,25 @@ class USMarketProvider(MarketProvider):
             self.data.update_incremental()
         except Exception as e:
             logger.warning(f"US data refresh failed, falling back to stored values: {e}")
+
+    # ==================== News & Calendar ====================
+
+    def get_news(self, config: dict, limit: int) -> list:
+        from investbrief.market.us.news import DataProvider
+        try:
+            return DataProvider(config).get_financial_news(
+                tickers=[], limit=limit, user_tickers=[])
+        except Exception as e:
+            logger.warning(f"US news fetch failed: {e}")
+            return []
+
+    def get_economic_calendar(self) -> list:
+        from investbrief.market.us.calendar import get_upcoming_events_with_yfinance
+        try:
+            return get_upcoming_events_with_yfinance()
+        except Exception as e:
+            logger.warning(f"US calendar fetch failed: {e}")
+            return []
 
     # ==================== Data Methods ====================
 
