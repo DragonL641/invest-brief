@@ -30,6 +30,10 @@ def _parse_shiller_date(value) -> str | None:
 class USData(BaseData):
     """US stock market data acquisition and storage."""
 
+    market_code = "us"
+    primary_index = "^GSPC"
+    primary_table = "us_index_daily"
+
     INDEX_SYMBOLS = [
         "^GSPC", "^IXIC", "^DJI", "^VIX", "^TNX", "^FVX", "^IRX",
         "HYG", "CL=F", "DX-Y.NYB", "GC=F",

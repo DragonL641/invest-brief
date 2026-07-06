@@ -16,6 +16,12 @@ class BaseData(ABC):
 
     VALID_TABLES = {"cn_index_daily", "us_index_daily", "macro_data", "sentiment_data", "update_log"}
 
+    # —— 市场声明（子类覆盖）——
+    market_code: str = ""
+    primary_index: str = ""          # 主指数 code, 如 "sh000001"/"^GSPC"; gold 留空
+    primary_table: str = ""          # 主指数表, 如 "cn_index_daily"/"us_index_daily"
+    primary_indicator: tuple[str, str] | None = None  # (indicator, country), 用于 macro_data 存储的市场(gold)
+
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
         self._conn = None

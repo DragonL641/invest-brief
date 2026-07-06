@@ -77,6 +77,11 @@ FRED_TIMEOUT = 30
 class GoldData(BaseData):
     """Gold market data acquisition. Stores into the existing macro_data table."""
 
+    market_code = "gold"
+    primary_index = ""                       # gold 不走 *_index_daily
+    primary_table = ""
+    primary_indicator = ("GOLD_PRICE_CNY", "cn")  # 日频金价存于 macro_data
+
     def update_all(self):
         """Full download: seed annual + daily history + fetch latest M2/CPI/USDCNY/gold."""
         logger.info("Starting gold data download")

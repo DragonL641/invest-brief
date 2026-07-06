@@ -482,3 +482,36 @@ def test_latest_data_date_rejects_unknown_table(db):
     """_latest_data_date rejects unknown table names (injection guard)."""
     with pytest.raises(ValueError):
         db._latest_data_date("evil; DROP TABLE")
+
+
+# ---------- 市场声明 + market_index_spec (Task 5+6) ----------
+
+def test_basedata_market_attrs_default_empty():
+    from investbrief.data.base import BaseData
+    assert BaseData.market_code == ""
+    assert BaseData.primary_index == ""
+    assert BaseData.primary_table == ""
+
+
+def test_cn_us_gold_declare_market_attrs():
+    from investbrief.data.cn_data import CNData
+    from investbrief.data.us_data import USData
+    from investbrief.data.gold_data import GoldData
+    assert CNData.market_code == "cn"
+    assert CNData.primary_index == "sh000001"
+    assert CNData.primary_table == "cn_index_daily"
+    assert USData.market_code == "us"
+    assert USData.primary_index == "^GSPC"
+    assert USData.primary_table == "us_index_daily"
+    assert GoldData.market_code == "gold"
+    assert GoldData.primary_indicator == ("GOLD_PRICE_CNY", "cn")
+
+
+def test_market_index_spec():
+    import pytest
+    from investbrief.data import market_index_spec
+    assert market_index_spec("cn") == {"kind": "index", "table": "cn_index_daily", "code": "sh000001"}
+    assert market_index_spec("us") == {"kind": "index", "table": "us_index_daily", "code": "^GSPC"}
+    assert market_index_spec("gold") == {"kind": "macro", "indicator": "GOLD_PRICE_CNY", "country": "cn"}
+    with pytest.raises(KeyError):
+        market_index_spec("kr")

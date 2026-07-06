@@ -11,6 +11,10 @@ logger = logging.getLogger(__name__)
 class CNData(BaseData):
     """A-share market data acquisition and storage."""
 
+    market_code = "cn"
+    primary_index = "sh000001"
+    primary_table = "cn_index_daily"
+
     # invest-brief 需要的 5 个 A 股指数（覆盖原 sh000001 单一来源）
     INDEX_CODES = ["sh000001", "sz399001", "sz399006", "sh000300", "sh000688"]
 
