@@ -93,21 +93,23 @@ def fetch_history(symbol: str, market: str, days: int = 250) -> pd.DataFrame:
     key = f"hist:{market}:{symbol}"
     c = cache()
     if c and c.fresh(key, ttl_days=1):
-        return c.get(key) or pd.DataFrame()
+        v = c.get(key)
+        return v if isinstance(v, pd.DataFrame) else pd.DataFrame()
     df = _do_fetch_history(symbol, market, days)
-    if c and not df.empty:
+    if c and isinstance(df, pd.DataFrame) and not df.empty:
         c.set(key, df, ttl_days=1)
-    return df
+    return df if isinstance(df, pd.DataFrame) else pd.DataFrame()
 
 
 def _do_fetch_history(symbol: str, market: str, days: int) -> pd.DataFrame:
     try:
         if market == "cn":
             from investbrief.datasources.akshare import AKShareClient
-            return AKShareClient().get_stock_history(symbol, days=days) or pd.DataFrame()
+            df = AKShareClient().get_stock_history(symbol, days=days)
+            return df if isinstance(df, pd.DataFrame) else pd.DataFrame()
         from investbrief.datasources.yfinance import YFinanceClient
         df = YFinanceClient().get_history(symbol, period=f"{days}d")
-        if df is None or df.empty:
+        if _df_empty(df):   # yfinance 对 ETF/限流可能返回 str,统一防御
             return pd.DataFrame()
         # yfinance 返回大写列名(Open/Close/Volume),归一化为小写以匹配 factors 约定
         df = df.rename(columns={
