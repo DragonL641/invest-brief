@@ -105,3 +105,16 @@ def validate_holdings(holdings, email: str):
             raise ValueError(
                 f"config.json recipient {email} fund type only supported for cn market: {h}"
             )
+
+
+def enabled_market_codes(config: dict) -> list[str]:
+    """启用的市场 code 列表(含默认包含的资产型市场 gold)。
+
+    复用现有 config['markets'][m]['enabled'] 结构 —— 不新增 schema。
+    gold 不在 markets 里时默认包含(它随 us/cn 调度, 无独立 cron)。
+    """
+    markets = config.get("markets", {})
+    codes = [m for m, cfg in markets.items() if cfg.get("enabled", True)]
+    if "gold" not in markets:
+        codes.append("gold")
+    return codes
