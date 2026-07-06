@@ -2,10 +2,12 @@
 from investbrief.market.base import MarketProvider
 from investbrief.market.us.provider import USMarketProvider
 from investbrief.market.cn.provider import CNMarketProvider
+from investbrief.market.gold.provider import GoldMarketProvider
 
 MARKET_PROVIDERS = {
     "us": USMarketProvider,
     "cn": CNMarketProvider,
+    "gold": GoldMarketProvider,
 }
 
 
