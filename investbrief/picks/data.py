@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 # 缓存单例(进程级);path 由 pipeline 注入,默认 data/picks_cache.db
 _cache: FactorCache | None = None
 
+# 日K 历史的进程内缓存(同一次运行内复用,如 _enrich 二次拉取)。
+# 不进 FactorCache:那是 JSON KV,DataFrame 被 json.dumps 挤成 str → 命中时返回空 → price/MA 全空。
+_hist_mem: dict[str, "pd.DataFrame"] = {}
+
 
 def init_cache(path: str):
     global _cache
@@ -91,14 +95,14 @@ def fetch_history(symbol: str, market: str, days: int = 250) -> pd.DataFrame:
     返回 DataFrame 列名统一为小写(close/volume/...),与 factors 读取约定一致。
     """
     key = f"hist:{market}:{symbol}"
-    c = cache()
-    if c and c.fresh(key, ttl_days=1):
-        v = c.get(key)
-        return v if isinstance(v, pd.DataFrame) else pd.DataFrame()
+    cached = _hist_mem.get(key)
+    if cached is not None and not cached.empty:
+        return cached
     df = _do_fetch_history(symbol, market, days)
-    if c and isinstance(df, pd.DataFrame) and not df.empty:
-        c.set(key, df, ttl_days=1)
-    return df if isinstance(df, pd.DataFrame) else pd.DataFrame()
+    df = df if isinstance(df, pd.DataFrame) else pd.DataFrame()
+    if not df.empty:
+        _hist_mem[key] = df
+    return df
 
 
 def _do_fetch_history(symbol: str, market: str, days: int) -> pd.DataFrame:

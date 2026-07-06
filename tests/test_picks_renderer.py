@@ -18,7 +18,8 @@ def test_render_pick_card_contains_symbol_and_composite():
     html = renderer.render_pick_card(_pick())
     assert "000001" in html
     assert "85.0" in html or "85" in html
-    assert "trend_strength" in html
+    assert "趋势强度" in html          # 中文因子名
+    assert "现价" in html and "10.50" in html   # 现价块 + 值
 
 
 def test_render_pick_card_handles_none_pick():
@@ -30,4 +31,4 @@ def test_render_pick_card_handles_none_pick():
 def test_render_pick_section_wraps_two_cards():
     section = renderer.render_pick_section("swing", _pick("cn1"), _pick("us1", 80.0))
     assert "cn1" in section and "us1" in section
-    assert "<h" in section   # 有标题
+    assert "波段" in section            # 段落标题
