@@ -12,6 +12,8 @@ from investbrief.data.cn_data import CNData
 from investbrief.data.gold_data import GoldData
 from investbrief.data.us_data import USData
 from investbrief.risk.models import RiskModel
+from investbrief.risk.config import load_indicators
+from investbrief.pipelines.macro import _build_indicators
 
 
 def _db_has_data() -> bool:
@@ -34,7 +36,9 @@ def test_calculate_score_real_db(market, cls):
     """calculate_score 端到端：结构正确 + 分数在 0-100 + 维度非全 5.0（确实在算）。"""
     ds = cls()
     try:
-        result = RiskModel(ds).calculate_score(market)
+        config = load_indicators(market)
+        indicators = _build_indicators(market, ds, config)
+        result = RiskModel(ds, indicators=indicators).calculate_score(market)
     finally:
         ds.close()
 

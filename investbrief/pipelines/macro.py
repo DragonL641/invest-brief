@@ -12,15 +12,6 @@ logger = logging.getLogger(__name__)
 NEWS_LIMIT = 5
 
 
-def _safe_risk_score(model, market):
-    """calculate_score with resilience — returns {} on failure (renders empty card)."""
-    try:
-        return model.calculate_score(market)
-    except Exception as e:
-        logger.warning(f"Risk score for {market} failed: {e}")
-        return {}
-
-
 def _safe_regime_judge(engine, market):
     """Regime judge with resilience — returns {} on failure (renders empty card)."""
     try:

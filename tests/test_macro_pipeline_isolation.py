@@ -37,7 +37,6 @@ def _stub_providers(monkeypatch, market_codes):
 
     monkeypatch.setattr(macro, "create_provider", lambda code: _StubProvider(code))
     monkeypatch.setattr(macro, "enabled_market_codes", lambda cfg: market_codes)
-    monkeypatch.setattr(macro, "_safe_risk_score", lambda m, c: {"total_score": 50.0})
     monkeypatch.setattr(macro, "_safe_regime_judge", lambda e, c: {"quadrant": "中性"})
     return captured
 

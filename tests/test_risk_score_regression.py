@@ -2,6 +2,9 @@
 
 重构前后跑此测试, 分数漂移即说明 indicator 改造引入了数值变化。
 DB 无数据时 skip (CI 兼容)。
+
+注: RiskModel 自 Task 25/27 起强制注入 indicators —— 通过 pipeline 的
+``_build_indicators`` 工厂按市场装配, 与生产代码同路径。
 """
 import pytest
 
@@ -9,6 +12,8 @@ from investbrief.data.cn_data import CNData
 from investbrief.data.us_data import USData
 from investbrief.data.gold_data import GoldData
 from investbrief.risk.models import RiskModel
+from investbrief.risk.config import load_indicators
+from investbrief.pipelines.macro import _build_indicators
 
 
 def _db_has_data():
@@ -24,6 +29,13 @@ def _db_has_data():
 pytestmark = pytest.mark.skipif(not _db_has_data(), reason="needs P1-populated macro_data.db")
 
 
+def _build_model(market_code, data_source):
+    """按市场装配 indicators 并注入 RiskModel —— 复用 pipeline 生产路径。"""
+    config = load_indicators(market_code)
+    indicators = _build_indicators(market_code, data_source, config)
+    return RiskModel(data_source, indicators=indicators)
+
+
 @pytest.mark.parametrize("market_code,data_cls,expected_min,expected_max", [
     ("us", USData, 0.0, 100.0),
     ("cn", CNData, 0.0, 100.0),
@@ -33,7 +45,7 @@ def test_calculate_score_stable_range(market_code, data_cls, expected_min, expec
     """三个市场的总分都落在 0-100 合法区间, 且 dimensions 五维齐全(非空)。"""
     data = data_cls()
     try:
-        model = RiskModel(data)
+        model = _build_model(market_code, data)
         score = model.calculate_score(market_code)
         assert expected_min <= score["total_score"] <= expected_max
         assert score["market"] == market_code
@@ -53,7 +65,7 @@ def test_us_cn_gold_scores_recorded():
     for code, cls in [("us", USData), ("cn", CNData), ("gold", GoldData)]:
         data = cls()
         try:
-            model = RiskModel(data)
+            model = _build_model(code, data)
             results[code] = model.calculate_score(code)["total_score"]
         finally:
             data.close()

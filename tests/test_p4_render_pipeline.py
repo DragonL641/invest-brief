@@ -4,10 +4,13 @@ from investbrief.core.config import DB_PATH
 import pytest
 from investbrief.data.us_data import USData
 from investbrief.data.cn_data import CNData
+from investbrief.data.gold_data import GoldData
 from investbrief.market.us.provider import USMarketProvider
 from investbrief.market.cn.provider import CNMarketProvider
 from investbrief.risk.models import RiskModel
+from investbrief.risk.config import load_indicators
 from investbrief.risk.render import render_risk_card, render_gold_section
+from investbrief.pipelines.macro import _build_indicators
 
 
 def _db_ready():
@@ -25,12 +28,22 @@ def _db_ready():
 pytestmark = pytest.mark.skipif(not _db_ready(), reason="needs P1-P3-populated DB")
 
 
+def _build_model(market_code, data_source):
+    """按市场装配 indicators 并注入 RiskModel —— 复用 pipeline 生产路径。"""
+    config = load_indicators(market_code)
+    indicators = _build_indicators(market_code, data_source, config)
+    return RiskModel(data_source, indicators=indicators)
+
+
 def test_three_market_risk_cards_render():
     rc = {"color_up": "#e74c3c", "color_down": "#27ae60"}
     us = USMarketProvider(data=USData())
     cn = CNMarketProvider(data=CNData())
-    model = RiskModel(us.data)
-    risk = {m: model.calculate_score(m) for m in ("us", "cn", "gold")}
+    gold_data = GoldData()
+    risk = {}
+    for m, data_source in (("us", us.data), ("cn", cn.data), ("gold", gold_data)):
+        model = _build_model(m, data_source)
+        risk[m] = model.calculate_score(m)
 
     us_html = us.render_section(us.fetch_all(), rc, risk_html=render_risk_card(risk["us"]))
     cn_html = cn.render_section(cn.fetch_all(), rc, risk_html=render_risk_card(risk["cn"]))
@@ -48,3 +61,4 @@ def test_three_market_risk_cards_render():
 
     us.data.close()
     cn.data.close()
+    gold_data.close()

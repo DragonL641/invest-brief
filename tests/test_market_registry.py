@@ -74,7 +74,6 @@ def test_fake_market_runs_through_pipeline(monkeypatch, capsys):
         monkeypatch.setattr(macro, "enabled_market_codes", lambda cfg: ["us", "cn", "gold", "kr"])
         monkeypatch.setattr(macro, "create_provider", lambda c: _KRFakeProvider())
         monkeypatch.setattr(macro, "load_config", lambda: {"recipients": [{"active": True}]})
-        monkeypatch.setattr(macro, "_safe_risk_score", lambda m, c: {})
         monkeypatch.setattr(macro, "_safe_regime_judge", lambda e, c: {})
         args = type("A", (), {"dry_run": True, "skip_summary": True, "update": False, "only": "macro"})()
         macro.run_macro_report(args)

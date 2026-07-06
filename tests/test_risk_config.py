@@ -1,4 +1,4 @@
-"""Tests for config and calc_utils."""
+"""Tests for risk config + scoring helpers (formerly risk/calc_utils)."""
 
 import pandas as pd
 import pytest
@@ -7,7 +7,7 @@ from investbrief.risk.config import (
     CN_ALL_INDICATORS, US_ALL_INDICATORS, MARKET_STATE_MAP,
     COMMON_INDICATORS, CN_INDICATORS, US_INDICATORS,
 )
-from investbrief.risk.calc_utils import (
+from investbrief.core.scoring import (
     moving_average, normalize_score, percentile_rank,
     calculate_macd, consecutive_count, safe_divide,
 )

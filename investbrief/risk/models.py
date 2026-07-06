@@ -9,31 +9,28 @@ from investbrief.risk.config import (
     MARKET_STATE_MAP,
     FIVE_DIMENSIONS, score_to_risk_level,
 )
-from investbrief.risk.indicators.valuation import ValuationIndicator
-from investbrief.risk.indicators.technical import TechnicalIndicator
-from investbrief.risk.indicators.liquidity import LiquidityIndicator
-from investbrief.risk.indicators.sentiment import SentimentIndicator
-from investbrief.risk.indicators.macro import MacroIndicator
-from investbrief.risk.indicators.gold import GoldIndicator
-from investbrief.risk.calc_utils import percentile_rank
+from investbrief.core.scoring import percentile_rank
 
 logger = logging.getLogger(__name__)
 
 
 class RiskModel:
-    """Core risk scoring model that aggregates all indicators."""
+    """Core risk scoring model that aggregates all indicators.
 
-    def __init__(self, data_source, indicators: list | None = None):
-        self.data = data_source
-        self._injected_indicators = indicators    # None = 旧路径, 非空 = 注入
+    Indicators MUST be injected by the caller (assembled per-market by the
+    pipeline via ``market/<mkt>/indicators.py`` factories). The legacy
+    in-class indicator instantiation was removed together with the old
+    ``risk/indicators/`` package.
+    """
+
+    def __init__(self, data_source, indicators: list):
         if indicators is None:
-            # 旧路径: 保留内部 indicator 实例(过渡期, Task 27 删除)
-            self._valuation = ValuationIndicator(data_source)
-            self._technical = TechnicalIndicator(data_source)
-            self._liquidity = LiquidityIndicator(data_source)
-            self._sentiment = SentimentIndicator(data_source)
-            self._macro = MacroIndicator(data_source)
-            self._gold = GoldIndicator(data_source)
+            raise ValueError(
+                "RiskModel now requires injected indicators "
+                "(see pipelines/macro.py:_build_indicators)"
+            )
+        self.data = data_source
+        self._injected_indicators = indicators
 
     def _primary_series_sql(self, market: str) -> tuple[str, str]:
         """返回 (trading_days_sql, kind)，kind ∈ {'index','macro'}。
@@ -61,26 +58,15 @@ class RiskModel:
         Returns dict with: total_score, state, crash_prob, expected_return,
         action, dimensions, indicators.
         """
-        # Gold market uses only GoldIndicator; cn/us use the five stock indicators
+        # Indicators are injected; each implements calculate(data_source, date).
         from investbrief.risk.config import load_indicators
         indicators_config = load_indicators(market)
-        if self._injected_indicators is not None:
-            # 注入路径: 新签名 calculate(data_source, date)
-            all_results = {}
-            for ind in self._injected_indicators:
-                try:
-                    all_results.update(ind.calculate(self.data, date))
-                except Exception as e:
-                    logger.warning(f"Indicator {type(ind).__name__} failed: {e}")
-        elif market == "gold":
-            all_results = dict(self._gold.calculate("gold", date))      # 旧签名
-        else:
-            all_results = {}
-            all_results.update(self._valuation.calculate(market, date)) # 旧签名
-            all_results.update(self._technical.calculate(market, date))
-            all_results.update(self._liquidity.calculate(market, date))
-            all_results.update(self._sentiment.calculate(market, date))
-            all_results.update(self._macro.calculate(market, date))
+        all_results = {}
+        for ind in self._injected_indicators:
+            try:
+                all_results.update(ind.calculate(self.data, date))
+            except Exception as e:
+                logger.warning(f"Indicator {type(ind).__name__} failed: {e}")
 
         # Weighted sum: 缺失数据(value=None)的指标彻底退出加权, 而非默认5.0中性
         # (历史点很多指标无数据, 若算5.0会稀释顶部该有的高分)
