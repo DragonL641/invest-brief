@@ -32,6 +32,26 @@ class RiskModel:
         self._macro = MacroIndicator(data_source)
         self._gold = GoldIndicator(data_source)
 
+    def _primary_series_sql(self, market: str) -> tuple[str, str]:
+        """返回 (trading_days_sql, kind)，kind ∈ {'index','macro'}。
+
+        表名/code 从 market_index_spec(market) 查, 不依赖 self.data 属于哪个市场
+        (RiskModel 用单一 data_source 算多市场, 表名只能靠 market 选)。
+        """
+        from investbrief.data import market_index_spec
+        spec = market_index_spec(market)
+        if spec["kind"] == "macro":
+            return (
+                f"SELECT DISTINCT date FROM macro_data WHERE indicator='{spec['indicator']}' "
+                f"AND country='{spec['country']}' AND date >= ? AND date <= ? ORDER BY date",
+                "macro",
+            )
+        return (
+            f"SELECT DISTINCT date FROM {spec['table']} WHERE code = ? "
+            f"AND date >= ? AND date <= ? ORDER BY date",
+            "index",
+        )
+
     def calculate_score(self, market: str, date: str | None = None) -> dict:
         """Calculate full risk assessment for a market on a given date.
 
@@ -112,20 +132,13 @@ class RiskModel:
 
         Returns DataFrame with columns: date, total_score, state
         """
-        if market == "gold":
-            trading_days = self.data.query(
-                "SELECT DISTINCT date FROM macro_data WHERE indicator='GOLD_PRICE_CNY' "
-                "AND country='cn' AND date >= ? AND date <= ? ORDER BY date",
-                (start_date, end_date),
-            )
+        from investbrief.data import market_index_spec
+        sql, kind = self._primary_series_sql(market)
+        if kind == "macro":
+            trading_days = self.data.query(sql, (start_date, end_date))
         else:
-            table = "cn_index_daily" if market == "cn" else "us_index_daily"
-            code = "sh000001" if market == "cn" else "^GSPC"
-            trading_days = self.data.query(
-                f"SELECT DISTINCT date FROM {table} WHERE code = ? "
-                f"AND date >= ? AND date <= ? ORDER BY date",
-                (code, start_date, end_date),
-            )
+            code = market_index_spec(market)["code"]
+            trading_days = self.data.query(sql, (code, start_date, end_date))
 
         if trading_days.empty:
             return pd.DataFrame(columns=["date", "total_score", "state"])
@@ -181,16 +194,17 @@ class RiskModel:
             closest = history.nsmallest(top_n, "score_diff")
 
             results = []
-            if market == "gold":
-                sql_future = ("SELECT value AS close FROM macro_data WHERE indicator='GOLD_PRICE_CNY' "
-                              "AND country='cn' AND date > ? ORDER BY date LIMIT 63")
-                sql_now = ("SELECT value AS close FROM macro_data WHERE indicator='GOLD_PRICE_CNY' "
-                           "AND country='cn' AND date >= ? ORDER BY date LIMIT 1")
+            from investbrief.data import market_index_spec
+            spec = market_index_spec(market)
+            if spec["kind"] == "macro":
+                sql_future = (f"SELECT value AS close FROM macro_data WHERE indicator='{spec['indicator']}' "
+                              f"AND country='{spec['country']}' AND date > ? ORDER BY date LIMIT 63")
+                sql_now = (f"SELECT value AS close FROM macro_data WHERE indicator='{spec['indicator']}' "
+                           f"AND country='{spec['country']}' AND date >= ? ORDER BY date LIMIT 1")
                 p_future = lambda d: (d,)
                 p_now = lambda d: (d,)
             else:
-                table = "cn_index_daily" if market == "cn" else "us_index_daily"
-                code = "sh000001" if market == "cn" else "^GSPC"
+                table, code = spec["table"], spec["code"]
                 sql_future = f"SELECT close FROM {table} WHERE code = ? AND date > ? ORDER BY date LIMIT 63"
                 sql_now = f"SELECT close FROM {table} WHERE code = ? AND date >= ? ORDER BY date LIMIT 1"
                 p_future = lambda d: (code, d)
