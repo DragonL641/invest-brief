@@ -14,6 +14,11 @@ class MarketProvider(ABC):
     country_name: str = ""
     currency: str = "$"
 
+    # —— 能力声明（子类覆盖；None/False = 该市场不具备此能力）——
+    risk_group: str | None = None        # risk_indicators.yaml 的 group 名；None = 不参与 risk
+    supports_regime: bool = False        # 是否参与 regime 四象限
+    data_class: type | None = None       # 该市场的 BaseData 子类
+
     @abstractmethod
     def get_indices(self) -> list[dict[str, Any]]:
         """获取主要指数行情。"""
@@ -29,6 +34,14 @@ class MarketProvider(ABC):
     @abstractmethod
     def render_section(self, data: dict[str, Any], config: dict[str, Any], **kwargs) -> str:
         """渲染该市场的 HTML 区块。"""
+
+    def get_news(self, config: dict, limit: int) -> list:
+        """该市场的新闻列表。默认空，子类覆盖。"""
+        return []
+
+    def get_economic_calendar(self) -> list:
+        """该市场的经济日历。默认空，子类覆盖。"""
+        return []
 
     def _render_economic_calendar(self, calendar: list[dict]) -> str:
         """渲染经济日历卡片（US/CN 共用，消除两份逐字重复的副本）。"""
