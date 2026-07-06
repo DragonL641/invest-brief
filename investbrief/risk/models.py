@@ -23,14 +23,17 @@ logger = logging.getLogger(__name__)
 class RiskModel:
     """Core risk scoring model that aggregates all indicators."""
 
-    def __init__(self, data_source):
+    def __init__(self, data_source, indicators: list | None = None):
         self.data = data_source
-        self._valuation = ValuationIndicator(data_source)
-        self._technical = TechnicalIndicator(data_source)
-        self._liquidity = LiquidityIndicator(data_source)
-        self._sentiment = SentimentIndicator(data_source)
-        self._macro = MacroIndicator(data_source)
-        self._gold = GoldIndicator(data_source)
+        self._injected_indicators = indicators    # None = 旧路径, 非空 = 注入
+        if indicators is None:
+            # 旧路径: 保留内部 indicator 实例(过渡期, Task 27 删除)
+            self._valuation = ValuationIndicator(data_source)
+            self._technical = TechnicalIndicator(data_source)
+            self._liquidity = LiquidityIndicator(data_source)
+            self._sentiment = SentimentIndicator(data_source)
+            self._macro = MacroIndicator(data_source)
+            self._gold = GoldIndicator(data_source)
 
     def _primary_series_sql(self, market: str) -> tuple[str, str]:
         """返回 (trading_days_sql, kind)，kind ∈ {'index','macro'}。
@@ -61,11 +64,19 @@ class RiskModel:
         # Gold market uses only GoldIndicator; cn/us use the five stock indicators
         from investbrief.risk.config import load_indicators
         indicators_config = load_indicators(market)
-        if market == "gold":
-            all_results = dict(self._gold.calculate("gold", date))
+        if self._injected_indicators is not None:
+            # 注入路径: 新签名 calculate(data_source, date)
+            all_results = {}
+            for ind in self._injected_indicators:
+                try:
+                    all_results.update(ind.calculate(self.data, date))
+                except Exception as e:
+                    logger.warning(f"Indicator {type(ind).__name__} failed: {e}")
+        elif market == "gold":
+            all_results = dict(self._gold.calculate("gold", date))      # 旧签名
         else:
             all_results = {}
-            all_results.update(self._valuation.calculate(market, date))
+            all_results.update(self._valuation.calculate(market, date)) # 旧签名
             all_results.update(self._technical.calculate(market, date))
             all_results.update(self._liquidity.calculate(market, date))
             all_results.update(self._sentiment.calculate(market, date))
