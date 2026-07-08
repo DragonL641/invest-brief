@@ -12,6 +12,8 @@ from investbrief.regime.engine import (
     _direction_vote,
     _classify,
     _confidence,
+    _credit_direction,
+    _apply_credit_confidence,
     _judge_from_series,
 )
 
@@ -86,6 +88,94 @@ class TestConfidence:
         assert c >= 75
 
 
+class TestCreditDirection:
+    """CN 信用轴:M2_YOY(已是同比)+ SOCIAL_FIN(月度流量,先 YoY 去季节性)。"""
+
+    def test_both_up_expansion(self):
+        # M2_YOY 单调升 + SOCIAL_FIN 流量同比升 → expansion
+        m2 = [7.0, 7.5, 8.0, 8.5, 9.0, 9.5]  # window=3, last 4 diff all up
+        # SOCIAL_FIN 13 期流量(period=12 → 1 YoY 点,不够 vote)→ 需 16+ 期
+        sf = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100,
+              110, 110, 110]  # YoY: 末 4 期 [10, 10, 10, 10] 平 → 不参与(无方向)
+        # 这里 SOCIAL_FIN YoY 全平 → 投票 unknown → 仅 M2 投票 → 仍判 expansion(单信号)
+        r = _credit_direction({"M2_YOY": m2, "SOCIAL_FIN": sf}, 12, 3, 2)
+        assert r == "expansion"
+
+    def test_both_down_slowdown(self):
+        m2 = [9.5, 9.0, 8.5, 8.0, 7.5, 7.0]
+        # SOCIAL_FIN 流量:13+ 期,后段比前段低 → YoY 下行
+        sf = [200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200,
+              190, 180, 170]
+        r = _credit_direction({"M2_YOY": m2, "SOCIAL_FIN": sf}, 12, 3, 2)
+        assert r == "slowdown"
+
+    def test_mixed_unknown(self):
+        # M2 升 + SOCIAL_FIN YoY 降 → 混合 → unknown(不强改 confidence)
+        m2 = [7.0, 7.5, 8.0, 8.5, 9.0, 9.5]
+        sf = [200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200,
+              190, 180, 170]
+        r = _credit_direction({"M2_YOY": m2, "SOCIAL_FIN": sf}, 12, 3, 2)
+        assert r == "unknown"
+
+    def test_empty_unknown(self):
+        assert _credit_direction({}, 12, 3, 2) == "unknown"
+
+    def test_insufficient_samples_unknown(self):
+        # 序列短于 window+1 → 不投票 → unknown
+        assert _credit_direction({"M2_YOY": [8.0, 8.1]}, 12, 3, 2) == "unknown"
+
+    def test_socialfin_seasonality_removed(self):
+        """SOCIAL_FIN 月度流量有强季节性(1月巨量)。
+        直接投票会被季节性误导;先 YoY 去季节性后才看趋势。
+        构造:连续两年 1 月巨量、其他月小,但年度总量稳定 → YoY 平 → 不投票(unknown)。
+        """
+        # 24 个月,Jan=72000 其他月=5000(模拟季节性),两年完全相同 → YoY=0
+        sf = []
+        for year in range(2):
+            for month in range(12):
+                sf.append(72000 if month == 0 else 5000)
+        m2 = [8.0, 8.5, 9.0, 9.5]  # M2 升 → 单信号 expansion
+        r = _credit_direction({"M2_YOY": m2, "SOCIAL_FIN": sf}, 12, 3, 2)
+        # SOCIAL_FIN YoY 全 0 → unknown;只剩 M2 → expansion
+        assert r == "expansion"
+
+
+class TestApplyCreditConfidence:
+    def test_same_direction_expansion_boost(self):
+        # growth 扩张 + 信用扩张 → +10
+        c = _apply_credit_confidence(70, "expansion", "expansion")
+        assert c == 80
+
+    def test_same_direction_slowdown_boost(self):
+        c = _apply_credit_confidence(70, "slowdown", "slowdown")
+        assert c == 80
+
+    def test_credit_turn_warns_expansion(self):
+        # growth 扩张 + 信用放缓 → -10(拐点预警)
+        c = _apply_credit_confidence(70, "expansion", "slowdown")
+        assert c == 60
+
+    def test_credit_turn_warns_slowdown_pre_recovery(self):
+        # growth 放缓 + 信用扩张 → -10(复苏前置,GDP 可能跟随)
+        c = _apply_credit_confidence(70, "slowdown", "expansion")
+        assert c == 60
+
+    def test_credit_unknown_no_change(self):
+        assert _apply_credit_confidence(70, "expansion", "unknown") == 70
+
+    def test_growth_unknown_no_change(self):
+        # growth 不明 → 信用不足以强改
+        assert _apply_credit_confidence(70, "unknown", "expansion") == 70
+
+    def test_clamp_high(self):
+        # 95 + 10 → clamp 95
+        assert _apply_credit_confidence(95, "expansion", "expansion") == 95
+
+    def test_clamp_low(self):
+        # 20 - 10 → clamp 20
+        assert _apply_credit_confidence(20, "expansion", "slowdown") == 20
+
+
 class TestJudgeFromSeries:
     def test_us_prosperity_scenario(self):
         # US: GDP 月度(period=12),构造 24 个月加速上行 → 同比上行 → 扩张
@@ -104,6 +194,66 @@ class TestJudgeFromSeries:
         r = _judge_from_series([], [], "us")
         assert r["quadrant"] == "中性"
         assert r["growth_axis"] == "未知"
+
+    def test_cn_credit_axis_boosts_confidence_on_alignment(self):
+        """CN: GDP 扩张 + 信用扩张 → confidence 比无信用时高 10。
+
+        构造 GDP 季度加速上行(二次式,同比单调升)+ CPI 下行 + M2 同比单调升
+        + SOCIAL_FIN 流量 YoY 单调升 → growth=扩张/inflation=下行 → 繁荣,
+        信用同向 → confidence 90 → +10=95(clamp)。
+        """
+        # 8 季度 GDP 二次式
+        gdp = [100.0 + 2 * i * i for i in range(8)]
+        cpi = [3.0, 2.9, 2.8, 2.7]  # 月度下行
+        # 不传信用 vs 传信用对比
+        r_no_credit = _judge_from_series(gdp, cpi, "cn")
+        assert r_no_credit["quadrant"] == "繁荣"
+        base_conf = r_no_credit["confidence"]
+
+        m2 = [7.0, 7.5, 8.0, 8.5, 9.0, 9.5]  # 同比升
+        sf = [100] * 12 + [110, 110, 110, 110]  # 16 期:YoY=10% 平 → 不参与,仅 M2 投票
+        r_with_credit = _judge_from_series(gdp, cpi, "cn",
+                                           credit_series={"M2_YOY": m2, "SOCIAL_FIN": sf})
+        assert r_with_credit["quadrant"] == "繁荣"  # 象限不变
+        assert r_with_credit["credit_axis"] == "扩张"
+        assert r_with_credit["confidence"] == min(95, base_conf + 10)
+        # 信用末值应进 indicators
+        assert "M2_YOY" in r_with_credit["indicators"]
+        assert r_with_credit["indicators"]["M2_YOY"] == 9.5
+
+    def test_cn_credit_axis_warns_on_divergence(self):
+        """CN: GDP 扩张 + 信用放缓 → confidence -10(拐点预警)。"""
+        gdp = [100.0 + 2 * i * i for i in range(8)]  # GDP 加速 → 扩张
+        cpi = [3.0, 2.9, 2.8, 2.7]
+        r_base = _judge_from_series(gdp, cpi, "cn")
+        # 信用放缓:M2 + 社融 YoY 都下行
+        m2 = [9.5, 9.0, 8.5, 8.0, 7.5, 7.0]
+        sf = [200] * 12 + [190, 180, 170, 160]
+        r = _judge_from_series(gdp, cpi, "cn",
+                               credit_series={"M2_YOY": m2, "SOCIAL_FIN": sf})
+        assert r["quadrant"] == "繁荣"  # 象限仍由 GDP×CPI 决定
+        assert r["credit_axis"] == "放缓"
+        assert r["confidence"] == max(20, r_base["confidence"] - 10)
+
+    def test_cn_credit_mixed_no_change(self):
+        """CN: 信用混合(M2 升 + 社融降)→ credit_axis=未知 → confidence 不变。"""
+        gdp = [100.0 + 2 * i * i for i in range(8)]
+        cpi = [3.0, 2.9, 2.8, 2.7]
+        r_base = _judge_from_series(gdp, cpi, "cn")
+        m2 = [7.0, 7.5, 8.0, 8.5, 9.0, 9.5]  # 升
+        sf = [200] * 12 + [190, 180, 170, 160]  # 降
+        r = _judge_from_series(gdp, cpi, "cn",
+                               credit_series={"M2_YOY": m2, "SOCIAL_FIN": sf})
+        assert r["credit_axis"] == "未知"
+        assert r["confidence"] == r_base["confidence"]
+
+    def test_us_never_has_credit_axis(self):
+        """US 不传 credit_series → credit_axis=None(永远 None,即使 market='us')。"""
+        gdp = [100 + 0.1 * i * i for i in range(24)]
+        cpi = [3.0, 2.9, 2.8, 2.7]
+        r = _judge_from_series(gdp, cpi, "us")
+        assert r["credit_axis"] is None
+        assert "M2_YOY" not in r["indicators"]
 
 
 import pandas as pd
@@ -192,3 +342,69 @@ class TestRegimeEngine:
         r = eng.judge("cn")
         assert r["quadrant"] == "繁荣"
         assert r["market"] == "cn"
+
+    def test_judge_cn_reads_credit_series(self):
+        """CN judge 自动读 macro_data 的 M2_YOY + SOCIAL_FIN → credit_axis 不为 None。
+
+        构造 GDP 扩张 + CPI 下行 + M2 同比单调升 → credit_axis='扩张',confidence 提升。
+        """
+        gdp = [("GDP", "cn", f"2024-Q{n}", 100.0 + 2 * i * i) for i, n in enumerate(range(1, 5))] + \
+              [("GDP", "cn", f"2025-Q{n}", 100.0 + 2 * (4 + i) * (4 + i)) for i, n in enumerate(range(1, 5))]
+        cpi = [("CPI", "cn", "2025-04-01", 1.1),
+               ("CPI", "cn", "2025-05-01", 1.0),
+               ("CPI", "cn", "2025-06-01", 0.9),
+               ("CPI", "cn", "2025-07-01", 0.8),
+               ("CPI", "cn", "2025-08-01", 0.7)]
+        # M2 同比 6 月单调升 → 投票 up
+        m2 = [("M2_YOY", "cn", f"2026-{m:02d}-01", 7.0 + 0.5 * i)
+              for i, m in enumerate(range(1, 7))]
+        rows = gdp + cpi + m2
+        eng = RegimeEngine(_FakeData(rows))
+        r = eng.judge("cn")
+        assert r["quadrant"] == "繁荣"
+        assert r["credit_axis"] == "扩张"  # M2 单调升(无 SOCIAL_FIN → 单信号也确认)
+        assert "M2_YOY" in r["indicators"]
+
+    def test_judge_cn_no_credit_data_degrades_gracefully(self):
+        """CN 无 M2/社融 数据 → credit_axis='未知',confidence 不变(优雅降级)。"""
+        gdp = [("GDP", "cn", f"2024-Q{n}", 100.0 + 2 * i * i) for i, n in enumerate(range(1, 5))] + \
+              [("GDP", "cn", f"2025-Q{n}", 100.0 + 2 * (4 + i) * (4 + i)) for i, n in enumerate(range(1, 5))]
+        cpi = [("CPI", "cn", "2025-04-01", 1.1),
+               ("CPI", "cn", "2025-05-01", 1.0),
+               ("CPI", "cn", "2025-06-01", 0.9),
+               ("CPI", "cn", "2025-07-01", 0.8),
+               ("CPI", "cn", "2025-08-01", 0.7)]
+        eng = RegimeEngine(_FakeData(gdp + cpi))
+        r = eng.judge("cn")
+        assert r["quadrant"] == "繁荣"
+        assert r["credit_axis"] == "未知"  # 无信用数据
+
+    def test_cn_switch_runs_1_no_lookback_downgrade(self):
+        """CN: SWITCH_CONFIRMATION_RUNS_CN=1 → 不回看,即使末值象限跳变也不降级。
+
+        构造 CN GDP + CPI:含末值判通胀(末值 CPI 跳升>阈值),去末值判繁荣。
+        若 RUNS=2 会降级中性;RUNS=1 → 保持通胀。
+        """
+        gdp = [("GDP", "cn", f"2024-Q{n}", 100.0 + 2 * i * i) for i, n in enumerate(range(1, 5))] + \
+              [("GDP", "cn", f"2025-Q{n}", 100.0 + 2 * (4 + i) * (4 + i)) for i, n in enumerate(range(1, 5))]
+        # CPI 末两期急升:CPI=4.5>INFLATION_UP_THRESHOLD=2.5 → 通胀上行象限
+        cpi = [("CPI", "cn", "2025-04-01", 1.1),
+               ("CPI", "cn", "2025-05-01", 1.0),
+               ("CPI", "cn", "2025-06-01", 0.9),
+               ("CPI", "cn", "2025-07-01", 3.5),
+               ("CPI", "cn", "2025-08-01", 4.5)]
+        eng = RegimeEngine(_FakeData(gdp + cpi))
+        r = eng.judge("cn")
+        # RUNS=1 → 不回看 → 保持末值判定(通胀)
+        assert r["quadrant"] == "通胀"
+
+    def test_us_switch_runs_2_still_lookback_downgrades(self):
+        """US: SWITCH_CONFIRMATION_RUNS_US=2 → 回看,象限跳变降级中性(已有测试 + 此对照)。"""
+        # 复用 _us_rows 末两期 CPI 跳升 → 末值通胀 vs 去末值繁荣 → 降级
+        rows = [r for r in self._us_rows()
+                if not (r[0] == "CPI" and r[2] in ("2025-06-01", "2025-07-01"))]
+        rows += [("CPI", "us", "2025-06-01", 3.5),
+                 ("CPI", "us", "2025-07-01", 4.5)]
+        eng = RegimeEngine(_FakeData(rows))
+        r = eng.judge("us")
+        assert r["quadrant"] == "中性"

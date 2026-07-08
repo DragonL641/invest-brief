@@ -40,6 +40,7 @@ def render_regime_card(data: dict) -> str:
     confidence = data.get("confidence", 0)
     growth_label = data.get("growth_axis", "未知")
     inflation_label = data.get("inflation_axis", "未知")
+    credit_label = data.get("credit_axis")  # None(US,无信用轴)/"扩张"/"放缓"/"未知"
     inds = data.get("indicators") or {}
 
     # 构造 2×2 表格(带行/列标签)
@@ -64,6 +65,14 @@ def render_regime_card(data: dict) -> str:
             parts.append(f'CPI同比 {inds["CPI_LATEST"]:.1f}% · 通胀{inflation_label}')
         except (TypeError, ValueError):
             parts.append(f'CPI同比 {inds["CPI_LATEST"]} · 通胀{inflation_label}')
+    # CN 信用轴(M2+社融,growth 领先指标);US credit_label=None 不显示
+    # SOCIAL_FIN 是月度流量(亿),单点值太噪不展示;只展示 M2 同比作具体读数
+    if credit_label:
+        credit_bits = [f"信用{credit_label}"]
+        m2 = inds.get("M2_YOY")
+        if isinstance(m2, (int, float)):
+            credit_bits.append(f"M2同比 {m2:.1f}%")
+        parts.append(" · ".join(credit_bits))
     basis = " · ".join(parts)
 
     return (

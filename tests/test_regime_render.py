@@ -65,3 +65,20 @@ def test_does_not_use_price_colors():
     html = render_regime_card(_data())
     # 当前格用主题蓝(#2980b9),不用红(#e74c3c)/绿(#27ae60)作为高亮
     assert "background:#e8f4f8" in html  # 浅蓝底
+
+
+def test_cn_credit_axis_shown_when_present():
+    """CN 卡片显示信用轴(M2 + 社融);US 不显示。"""
+    cn_data = _data(market="cn")
+    cn_data["credit_axis"] = "扩张"
+    cn_data["indicators"]["M2_YOY"] = 8.6
+    html = render_regime_card(cn_data)
+    assert "信用扩张" in html
+    assert "M2同比" in html
+
+
+def test_us_credit_axis_omitted():
+    """US 卡片不显示信用轴(credit_axis=None)。"""
+    html = render_regime_card(_data(market="us"))
+    assert "信用" not in html
+    assert "M2同比" not in html

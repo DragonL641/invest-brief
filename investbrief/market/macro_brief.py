@@ -107,11 +107,15 @@ def serialize_macro_context(us_data: dict, cn_data: dict, news: list,
         for market, name in (("us", "美国"), ("cn", "中国")):
             r = regime_data.get(market) or {}
             if r.get("quadrant"):
+                # CN 多一轴:信用(M2+社融作 growth 领先指标);US 无
+                credit = r.get("credit_axis")
+                credit_str = f"/信用{credit}" if credit else ""
                 lines.append(
                     f"- {name}: {r['quadrant']}（置信度{r.get('confidence', '?')}%，"
-                    f"增长{r.get('growth_axis', '?')}/通胀{r.get('inflation_axis', '?')}）"
+                    f"增长{r.get('growth_axis', '?')}/通胀{r.get('inflation_axis', '?')}"
+                    f"{credit_str}）"
                 )
-                # 关键数值：让 Claude 看到具体 GDP 同比 / CPI 而非只看象限标签
+                # 关键数值：让 Claude 看到具体 GDP 同比 / CPI / M2 / 社融 而非只看象限标签
                 inds = r.get("indicators") or {}
                 kv = ", ".join(f"{k}={v}" for k, v in inds.items()
                                if isinstance(v, (int, float)))

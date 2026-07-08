@@ -1,7 +1,8 @@
 """经济环境四象限判定引擎(Browne 增长×通胀)。
 
 模块级纯函数(_yoy_from_absolute / _direction_vote / _classify / _confidence /
-_judge_from_series)不依赖 DB,可独立单测。RegimeEngine 类负责取数 + 切换确认(见 Task 3)。
+_credit_direction / _apply_credit_confidence / _judge_from_series)不依赖 DB,
+可独立单测。RegimeEngine 类负责取数 + 切换确认。
 """
 import logging
 
@@ -9,18 +10,20 @@ from investbrief.regime.config import (
     INFLATION_UP_THRESHOLD, DIRECTION_VOTE_MIN_AGREEING,
     VOTE_WINDOW_MONTHLY, VOTE_WINDOW_QUARTERLY,
     GDP_PERIOD_CN, GDP_PERIOD_US,
-)
-from investbrief.regime.config import (
-    SWITCH_CONFIRMATION_RUNS, GROWTH_INDICATOR, INFLATION_INDICATOR,
+    SWITCH_CONFIRMATION_RUNS_CN, SWITCH_CONFIRMATION_RUNS_US,
+    GROWTH_INDICATOR, INFLATION_INDICATOR,
+    CREDIT_INDICATORS_CN, CREDIT_PERIOD_CN,
 )
 
 logger = logging.getLogger(__name__)
 
 _GDP_PERIOD = {"cn": GDP_PERIOD_CN, "us": GDP_PERIOD_US}
 _GDP_WINDOW = {"cn": VOTE_WINDOW_QUARTERLY, "us": VOTE_WINDOW_MONTHLY}
+_SWITCH_RUNS = {"cn": SWITCH_CONFIRMATION_RUNS_CN, "us": SWITCH_CONFIRMATION_RUNS_US}
 
 _GROWTH_LABEL = {"expansion": "扩张", "slowdown": "放缓", "unknown": "未知"}
 _INFLATION_LABEL = {"up": "上行", "down": "下行", "unknown": "未知"}
+_CREDIT_LABEL = {"expansion": "扩张", "slowdown": "放缓", "unknown": "未知"}
 
 
 def _yoy_from_absolute(values: list[float], period: int) -> list[float]:
@@ -84,8 +87,74 @@ def _confidence(growth_dir: str, inflation_dir: str, quadrant: str) -> int:
     return min(90, conf)
 
 
-def _judge_from_series(gdp_values: list[float], cpi_values: list[float], market: str) -> dict:
-    """从原始 GDP 绝对值 + CPI 同比序列判定象限(纯函数,不读 DB)。"""
+def _credit_direction(
+    credit_series: dict, period: int, window: int, min_agreeing: int,
+    seasonal_indicators: tuple = ("SOCIAL_FIN",),
+) -> str:
+    """信用序列(M2_YOY + SOCIAL_FIN)→ 综合信用方向 'expansion'/'slowdown'/'unknown'。
+
+    M2_YOY 已是同比,直接 _direction_vote;seasonal_indicators 中的序列(默认 SOCIAL_FIN)
+    是月度流量(强季节性),先 _yoy_from_absolute(period) 去季节性再投票。
+    多序列投票一致才确认;混合信号 → 'unknown'(中性,不强改 confidence)。
+
+    Args:
+        credit_series: {indicator: values_list},例如 {"M2_YOY": [...], "SOCIAL_FIN": [...]}
+        period: 流量序列的 YoY 偏移周期(月度=12);已是同比的序列不受影响
+        window: _direction_vote 窗口
+        min_agreeing: _direction_vote 最少一致期数
+    """
+    votes = []
+    for ind, vals in credit_series.items():
+        series = vals
+        if ind in seasonal_indicators:
+            series = _yoy_from_absolute(vals, period)
+        if len(series) < window + 1:
+            continue
+        votes.append(_direction_vote(series, window, min_agreeing))
+    # 过滤 'unknown' 投票:某指标"不确定"不应否决其他指标的明确信号
+    votes = [v for v in votes if v != "unknown"]
+    if not votes:
+        return "unknown"
+    if all(v == "up" for v in votes):
+        return "expansion"
+    if all(v == "down" for v in votes):
+        return "slowdown"
+    return "unknown"  # 真正混合(有 up 有 down)→ 中性
+
+
+def _apply_credit_confidence(base: int, growth_dir: str, credit_dir: str) -> int:
+    """信用方向对 confidence 的修正(不改 quadrant,五象限语义保持)。
+
+    信用是 GDP 的领先指标:
+    - 同向(信用+GDP 都扩张 or 都放缓):confidence +10(确认趋势)
+    - 反向(信用拐头 vs GDP 当下):confidence -10(拐点预警,GDP 可能跟随信用转向)
+    - credit_dir='unknown':不修正
+    """
+    if credit_dir == "unknown":
+        return base
+    if (credit_dir == "expansion" and growth_dir == "expansion") or \
+       (credit_dir == "slowdown" and growth_dir == "slowdown"):
+        delta = 10
+    elif (credit_dir == "expansion" and growth_dir == "slowdown") or \
+         (credit_dir == "slowdown" and growth_dir == "expansion"):
+        delta = -10
+    else:
+        delta = 0  # growth_dir='unknown' 时信用不足以强改
+    return max(20, min(95, base + delta))
+
+
+def _judge_from_series(
+    gdp_values: list[float],
+    cpi_values: list[float],
+    market: str,
+    credit_series: dict | None = None,
+) -> dict:
+    """从原始 GDP 绝对值 + CPI 同比序列判定象限(纯函数,不读 DB)。
+
+    CN 额外读 credit_series(M2_YOY + SOCIAL_FIN)作 growth 前置确认:
+    仅修正 confidence + 暴露 credit_axis 字段,不改 quadrant(避免破坏五象限语义)。
+    US 不传 credit_series(无合适序列)。
+    """
     period = _GDP_PERIOD.get(market, GDP_PERIOD_CN)
     gdp_window = _GDP_WINDOW.get(market, VOTE_WINDOW_MONTHLY)
     gdp_yoy = _yoy_from_absolute(gdp_values, period)
@@ -98,17 +167,31 @@ def _judge_from_series(gdp_values: list[float], cpi_values: list[float], market:
     quadrant = _classify(growth_dir, inflation_dir, cpi_latest)
     confidence = _confidence(growth_dir, inflation_dir, quadrant)
 
+    # CN 信用轴(M2 + 社融):growth 的领先指标,仅调 confidence(不改象限)
+    credit_dir = "unknown"
+    if market == "cn" and credit_series:
+        credit_dir = _credit_direction(
+            credit_series, CREDIT_PERIOD_CN, VOTE_WINDOW_MONTHLY, DIRECTION_VOTE_MIN_AGREEING,
+        )
+        confidence = _apply_credit_confidence(confidence, growth_dir, credit_dir)
+
     indicators = {}
     if gdp_yoy:
         indicators["GDP_YOY"] = gdp_yoy[-1]
     if cpi_values:
         indicators["CPI_LATEST"] = cpi_latest
+    if credit_dir != "unknown":
+        # 暴露信用末值,让 Claude 看到具体 M2/社融 而非只看 credit_axis 标签
+        for ind, vals in (credit_series or {}).items():
+            if vals:
+                indicators[ind] = vals[-1]
 
     return {
         "quadrant": quadrant,
         "confidence": confidence,
         "growth_axis": _GROWTH_LABEL.get(growth_dir, "未知"),
         "inflation_axis": _INFLATION_LABEL.get(inflation_dir, "未知"),
+        "credit_axis": _CREDIT_LABEL.get(credit_dir, "未知") if market == "cn" else None,
         "indicators": indicators,
     }
 
@@ -127,12 +210,24 @@ class RegimeEngine:
         gdp_values = self._fetch_series(GROWTH_INDICATOR, market)
         cpi_values = self._fetch_series(INFLATION_INDICATOR, market)
 
-        result = _judge_from_series(gdp_values, cpi_values, market)
+        # CN 额外读信用序列(M2_YOY + SOCIAL_FIN)作 growth 前置确认;US 不读
+        credit_series = None
+        if market == "cn":
+            collected = {}
+            for ind in CREDIT_INDICATORS_CN:
+                vals = self._fetch_series(ind, "cn")
+                if vals:
+                    collected[ind] = vals
+            if collected:
+                credit_series = collected
 
-        # 去噪层 3:切换确认期(无状态回看)
-        # lookback = RUNS - 1:RUNS=2 → 去掉最近 1 期重判,比较 2 次判定
-        # 若象限不一致 → 降级中性(避免单期噪音触发切换)
-        lookback = SWITCH_CONFIRMATION_RUNS - 1
+        result = _judge_from_series(gdp_values, cpi_values, market, credit_series)
+
+        # 去噪层 3:切换确认期(无状态回看,按 market 数据频率选 RUNS)
+        # CN 季度 GDP 稀疏 → RUNS=1(不回看);US 月度密 → RUNS=2(去 1 期重判)
+        # 注:回看只重判 quadrant,credit 不影响象限 → credit_series=None 传入(语义更纯)
+        runs = _SWITCH_RUNS.get(market, SWITCH_CONFIRMATION_RUNS_US)
+        lookback = runs - 1
         if (lookback > 0 and result["quadrant"] != "中性"
                 and len(gdp_values) > lookback and len(cpi_values) > lookback):
             prev = _judge_from_series(gdp_values[:-lookback], cpi_values[:-lookback], market)
