@@ -238,6 +238,7 @@ class CNData(BaseData):
     def update_sentiment(self):
         """Fetch margin balance, northbound, accounts, market cap, PE, pledge."""
         self._update_margin()
+        self._update_north_flow()
         self._update_market_cap_pe()
         self._update_index_pes()
         self._update_pledge_ratio()
@@ -288,6 +289,34 @@ class CNData(BaseData):
                 self.set_update_date("sentiment_margin_cn", last_merged_date)
         except Exception as e:
             logger.error(f"Failed to update CN margin: {e}")
+
+    def _update_north_flow(self):
+        """北向资金当日净买额(亿元) -> sentiment_data.north_flow (market='cn').
+
+        源: ak.stock_hsgt_hist_em(symbol='北向资金'), 列 '当日成交净买额'.
+        注意: 沪深交易所自 2024-08-19 起不再公布日频北向资金净买额(监管变更),
+        因此历史数据止于 2024-08-16(约 2264 行, 2014-11-17 起). 之后无新日频数据,
+        north_flow 列对新增交易日保持 NULL(优雅降级); 历史分位指标仍可用存量样本.
+        """
+        try:
+            df = self._retry_api(lambda: ak.stock_hsgt_hist_em(symbol="北向资金"))
+            if df is None or df.empty:
+                return
+            last_saved = self.get_update_date("sentiment_north_flow_cn")
+            last_merged_date = None
+            for _, row in df.iterrows():
+                date_str = str(row["日期"])[:10]
+                if last_saved and date_str <= last_saved:
+                    continue
+                flow = row.get("当日成交净买额")
+                if pd.notna(flow):
+                    self.merge_sentiment_row("cn", date_str, north_flow=float(flow))
+                    last_merged_date = date_str
+            if last_merged_date:
+                self.set_update_date("sentiment_north_flow_cn", last_merged_date)
+                logger.info(f"Updated north_flow to {last_merged_date}")
+        except Exception as e:
+            logger.error(f"Failed to update CN north_flow: {e}")
 
     def _update_market_cap_pe(self):
         try:

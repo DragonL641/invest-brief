@@ -89,6 +89,7 @@ class GoldData(BaseData):
         self._seed_gold_daily_sge()      # 日频金价(元/克, SGE) for MA200
         self.update_fred_series("M2SL", "M2", "us")
         self.update_fred_series("CPIAUCSL", "CPI_INDEX", "us")  # 指数, 与 us_data 同比% CPI 分开
+        self.update_fred_series("DFII10", "REAL_YIELD_10Y", "us")  # 10Y TIPS 实际利率
         self.update_world_gdp()
         self.update_fred_series("DEXCHUS", "USDCNY", "global")  # 汇率先入库
         self.update_gold_price()  # 用库里最新汇率换算当日金价(USD/oz)

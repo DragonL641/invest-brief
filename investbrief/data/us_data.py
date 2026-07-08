@@ -91,6 +91,7 @@ class USData(BaseData):
         """Fetch CPI and GDP data."""
         self._update_cpi()
         self._update_gdp()
+        self._update_pmi()
 
     def _update_cpi(self):
         try:
@@ -145,6 +146,36 @@ class USData(BaseData):
                 self.set_update_date("macro_data_gdp_us", gdp_df["date"].max())
         except Exception as e:
             logger.error(f"Failed to update US GDP: {e}")
+
+    def _update_pmi(self):
+        """美国 Markit 制造业 PMI -> macro_data(indicator='PMI', country='us').
+
+        源: ak.macro_usa_pmi, 列 '今值'/'日期'. 全部记录商品='美国Markit制造业PMI报告',
+        故直接取每条最新值. 写入前按日期去重保留最新.
+        """
+        try:
+            df = self._retry_api(lambda: ak.macro_usa_pmi())
+            if df is None or df.empty:
+                return
+            rows = []
+            for _, row in df.iterrows():
+                value = row.get("今值")
+                date_col = row.get("日期")
+                if pd.notna(value) and pd.notna(date_col):
+                    rows.append({
+                        "indicator": "PMI",
+                        "country": "us",
+                        "date": str(date_col)[:10],
+                        "value": float(value),
+                    })
+            if rows:
+                pmi_df = pd.DataFrame(rows)
+                # 同一日期可能多条(初值/终值), 取最后一条
+                pmi_df = pmi_df.drop_duplicates(subset=["date"], keep="last")
+                self.upsert_df("macro_data", pmi_df)
+                self.set_update_date("macro_data_pmi_us", pmi_df["date"].max())
+        except Exception as e:
+            logger.error(f"Failed to update US PMI: {e}")
 
     def update_sentiment(self):
         """Fetch SPY PE, Shiller PE history, credit spread proxy, VIX, market breadth."""
