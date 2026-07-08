@@ -108,3 +108,18 @@ def test_main_flow_in_registry_and_labels():
     assert factors.FACTOR_LABELS["main_flow"] == "主力资金"
     # flow 类别:不参与行业中性化
     assert factors.FACTOR_CATEGORY["main_flow"] == "flow"
+
+
+def test_profitability_stability_in_registry():
+    """#11: profitability_stability 因子注册(long profile 质量子维度)。"""
+    assert "profitability_stability" in factors.FACTOR_REGISTRY
+    assert factors.FACTOR_LABELS["profitability_stability"] == "盈利稳定性"
+    assert factors.FACTOR_CATEGORY["profitability_stability"] == "fundamental"
+
+
+def test_profitability_stability_reads_profitable_years():
+    """#11: 因子直接用 fund['profitable_years'](越大越稳,不 invert)。"""
+    fn = factors.FACTOR_REGISTRY["profitability_stability"]
+    assert fn(None, {"profitable_years": 3}, {}) == 3.0
+    assert fn(None, {"profitable_years": 8}, {}) == 8.0
+    assert fn(None, {}, {}) is None   # 缺失 → None(engine 截面 rank 降级)

@@ -127,6 +127,25 @@ def _moat(hist, fund, _val) -> float | None:
     return float(gm * 100 + capex_term * 30)
 
 
+def _profitability_stability(hist, fund, _val) -> float | None:
+    """连续盈利年数(quality 子维度,从 quality 拆出独立成因子)。
+
+    越多越稳 → 截面 rank 后越大越好(不 invert)。数据由 pipeline 注入
+    fund['profitable_years'](picks.data.fetch_profitable_years, 30d 缓存;
+    CN 同花顺年度报告期 / US yfinance financials)。
+
+    gate min_profitable_years=3 做二元剔除后, 3 年 vs 8 年原本无区分度;
+    本因子让"连续盈利能力"在通过 gate 的候选中有独立 gradation。
+    """
+    years = fund.get("profitable_years")
+    if years is None:
+        return None
+    try:
+        return float(years)
+    except (TypeError, ValueError):
+        return None
+
+
 def _main_flow(hist, fund, _val) -> float | None:
     """主力资金近5日净流入占比均值(%)。正值=净流入(偏多)。CN only(US → None)。
 
@@ -143,6 +162,7 @@ FACTOR_LABELS: dict[str, str] = {
     "low_volatility_20d": "低波动", "growth": "成长", "quality": "质量",
     "valuation": "估值",
     "momentum_12m_ex1m": "动量(12月)", "moat": "护城河",
+    "profitability_stability": "盈利稳定性",
     "main_flow": "主力资金",
 }
 
@@ -158,6 +178,7 @@ FACTOR_REGISTRY: dict[str, Callable] = {
     "valuation": _valuation,
     "momentum_12m_ex1m": _momentum_12m_ex1m,
     "moat": _moat,
+    "profitability_stability": _profitability_stability,
     "main_flow": _main_flow,
 }
 
@@ -174,5 +195,6 @@ FACTOR_CATEGORY: dict[str, str] = {
     "quality": "fundamental",
     "valuation": "fundamental",
     "moat": "fundamental",
+    "profitability_stability": "fundamental",   # quality 子维度,参与行业中性化
     "main_flow": "flow",   # 资金面:不参与行业中性化(swing 也关了中性化)
 }

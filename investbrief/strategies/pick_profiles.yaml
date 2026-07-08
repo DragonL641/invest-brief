@@ -50,10 +50,11 @@ profiles:
         min_profitable_years: 3     # active: fetch_profitable_years(CN 同花顺年度报告期;US yfinance financials)
       cautious_cyclical: true
     factors:
-      quality:    {weight: 0.35}
-      moat:       {weight: 0.25}
-      growth:     {weight: 0.20}
-      valuation:  {weight: 0.20, invert: true}
+      quality:                 {weight: 0.20}   # was 0.35; 释放 0.15 给 profitability_stability
+      moat:                    {weight: 0.25}
+      growth:                  {weight: 0.20}
+      valuation:               {weight: 0.20, invert: true}
+      profitability_stability: {weight: 0.15}   # 连续盈利年数(quality 子维度,从 quality 拆出独立 gradation)
     standardize: rank_percentile
     industry_neutralize: true   # active(US sector via yfinance);CN 降级 no-op
     top_n: 1

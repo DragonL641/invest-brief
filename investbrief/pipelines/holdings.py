@@ -4,9 +4,11 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from investbrief.core.config import load_config, CONFIG_FILE, REPORTS_DIR
+from investbrief.core.config import load_config, CONFIG_FILE, REPORTS_DIR, DB_PATH
 
 logger = logging.getLogger(__name__)
+
+_CACHE_PATH = str(DB_PATH).replace("macro_data.db", "holdings_cache.db")
 
 
 def run_holdings_report(args):
@@ -17,6 +19,9 @@ def run_holdings_report(args):
     """
     logger.info("=" * 60)
     logger.info("invest-brief - Holdings report pipeline (per-recipient)")
+    # 注入季频维度跨日缓存(rating/fundamentals/cn_activity, TTL=7d, 限流缓解)
+    from investbrief.holdings.analyzer import init_cache
+    init_cache(_CACHE_PATH)
     config = load_config()
     recipients = [r for r in config.get("recipients", [])
                   if r.get("active", True) and r.get("holdings")]

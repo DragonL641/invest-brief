@@ -88,6 +88,10 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
             # 用 spread 构造新 dict 避免污染 fund 的 7 天缓存。
             if "main_flow" in prof["factors"]:
                 fund = {**fund, "main_flow_5d": _data.fetch_flow(symbol, market, days=5)}
+            # profitability_stability 因子:连续盈利年数。gate(min_profitable_years)也用此值,
+            # 拉一次注入 fund 供两者复用(fetch_profitable_years 自带 30d 缓存兜底跨调用)。
+            if "profitability_stability" in prof["factors"] or gates.get("min_profitable_years"):
+                fund = {**fund, "profitable_years": _data.fetch_profitable_years(symbol, market)}
             # 深拉阶段校验:基本面 gate(只在数据存在时执行,缺失则跳过该 gate)
             if gates and not _passes_fundamental_gates(fund, gates, symbol, market):
                 return None
@@ -158,9 +162,13 @@ def _passes_fundamental_gates(fund: dict, gates: dict, symbol: str = "",
     if pos_cf and "fcf_positive" in fund and not fund["fcf_positive"]:
         return False
     # TODO B: profitable years(数据缺失 → 跳过,不静默过滤)
+    # fund['profitable_years'] 由 _process_candidate 注入(复用,避免二次拉取);
+    # 缺失(long profile 未走注入路径或 fetch 返回 None)时回退到直接 fetch。
     min_years = gates.get("min_profitable_years")
     if min_years is not None and symbol and market:
-        years = _data.fetch_profitable_years(symbol, market)
+        years = fund.get("profitable_years")
+        if years is None:
+            years = _data.fetch_profitable_years(symbol, market)
         if years is not None and years < min_years:
             return False
     return True

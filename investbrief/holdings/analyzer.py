@@ -17,10 +17,28 @@ from investbrief.datasources.finnhub import FinnhubClient
 from investbrief.datasources.yfinance import YFinanceClient
 from investbrief.holdings.etf.analyzer import ETFAnalyzer, ETFAnalysisResult
 from investbrief.holdings.etf.indicators import compute_indicators
+from investbrief.picks.cache import FactorCache
 
 logger = logging.getLogger(__name__)
 
 _pool = ThreadPoolExecutor(max_workers=2)  # CN stock 专题接口多，高并发加速触发 eastmoney 限流
+
+# 跨日 TTL 缓存(复用 picks.cache.FactorCache): rating/fundamentals/cn_activity
+# 是季频数据(分析师评级 / 财报 / 机构调研), TTL=7 天安全; quote/history/news 高频不缓存。
+# 缓存文件 data/holdings_cache.db(与 picks_cache.db 分库, key 不碰撞), 可随时清空。
+# miss 即重新拉取, 引擎正确性不依赖它。线程安全由 FactorCache 内部 Lock 保证。
+_fcache: FactorCache | None = None
+_SEASONAL_TTL = 7.0   # 季频: 分析师评级 / 基本面 / 调研
+
+
+def init_cache(path: str):
+    """注入 FactorCache 单例(pipelines/holdings.py 启动时调用;测试可显式 init 或留空禁用)。"""
+    global _fcache
+    _fcache = FactorCache(path)
+
+
+def _factor_cache() -> FactorCache | None:
+    return _fcache
 
 
 @dataclass
@@ -210,9 +228,16 @@ class HoldingsAnalyzer:
         - 龙虎榜：get_dragon_tiger_list 返回全市场最近 days 日上榜股票（字段 symbol），
           需按 symbol 后过滤统计次数。
         - 机构调研：get_institutional_research(symbol, days) 已按 symbol 过滤，长度即次数。
+
+        季频缓存 TTL=7d(机构调研 90 天窗口,龙虎榜 30 天窗口;7 天陈旧对持仓邮件可接受,
+        且省去全市场 dragon_tiger_list 扫描 + 每股 research 调用)。
         """
         if market != "cn":
             return {}
+        key = f"cn_act:{market}:{symbol}"
+        return self._cached(key, _SEASONAL_TTL, lambda: self._fetch_cn_activity(symbol)) or {}
+
+    def _fetch_cn_activity(self, symbol: str):
         try:
             dragon = self._get_dragon_tiger_cached(30)
             dt_count = sum(1 for d in dragon if str(d.get("symbol", "")) == str(symbol))
@@ -222,8 +247,8 @@ class HoldingsAnalyzer:
                 "institution_research_count": len(research),
             }
         except Exception as e:
-            logger.warning(f"cn_activity collect failed for {symbol}: {e}")
-            return {}
+            logger.warning(f"cn_activity fetch failed for {symbol}: {e}")
+            return None
 
     def _collect_forecast(self, symbol: str, market: str) -> dict:
         """盈利预估（EPS next-quarter + yoy growth）。CN 返回 {}（无免费源）。
@@ -248,16 +273,96 @@ class HoldingsAnalyzer:
             logger.warning(f"forecast collect failed for {symbol}: {e}")
             return {}
 
+    # ==================== 季频维度跨日缓存(rating / fundamentals / cn_activity) ====================
+
+    def _cached(self, key: str, ttl_days: float, fn: Callable):
+        """TTL 缓存包装:命中复用,未命中调 fn 并写缓存。
+
+        fn 抛异常或返回 None → 不缓存(返回 None/原值,调用方各自降级)。
+        _factor_cache() 为 None(未 init_cache,如单测) → 透传 fn 直调,无缓存。
+        """
+        c = _factor_cache()
+        if c is not None and c.fresh(key, ttl_days):
+            v = c.get(key)
+            if v is not None:
+                return v
+        try:
+            v = fn()
+        except Exception as e:
+            logger.warning(f"cached fetch [{key}] failed: {e}")
+            return None
+        if c is not None and v is not None:
+            c.set(key, v, ttl_days=ttl_days)
+        return v
+
+    def _collect_rating(self, symbol: str, market: str, *, current=None) -> dict:
+        """分析师评级(季频,TTL=7d 缓存原始 API 响应;最终结构 fresh build)。
+
+        US 的 price_target.upside_pct 依赖 live current → 取缓存的 raw bundle 后,
+        每次 _build_us_rating 用当天 current 重算(不缓存 upside)。
+        CN 无 current 依赖。raw fetch 任一源失败 → _build_*_rating 内部优雅降级。
+        """
+        key = f"rating:{market}:{symbol}"
+        raw = self._cached(key, _SEASONAL_TTL, lambda: self._fetch_rating_raw(symbol, market))
+        raw = raw or {}
+        if market == "us":
+            return self._build_us_rating(
+                raw.get("recommendation"), raw.get("price_target"),
+                raw.get("upgrades"), current,
+            )
+        return self._build_cn_rating(raw.get("summary"), raw.get("reports"))
+
+    def _fetch_rating_raw(self, symbol: str, market: str) -> dict:
+        """拉评级原始 API 响应并合并(US: yf+fh;CN: akshare)。返回可 JSON 序列化的 bundle。"""
+        if market == "us":
+            d = self._parallel({
+                "recommendation_yf": lambda: self._yf.get_recommendations(symbol),
+                "recommendation_fh": lambda: self._fh.get_recommendation(symbol),
+                "price_target_fh": lambda: self._fh.get_price_target(symbol),
+                "price_target_yf": lambda: self._yf.get_price_targets(symbol),
+                "upgrades": lambda: self._yf.get_upgrades_downgrades(symbol),
+            })
+            recommendation = self._merge_us_recommendation(
+                d.get("recommendation_fh"), d.get("recommendation_yf"))
+            price_target = d.get("price_target_fh") or {}
+            if not price_target.get("target_mean"):
+                yf_pt = d.get("price_target_yf") or {}
+                if yf_pt.get("mean"):
+                    price_target = {
+                        "target_mean": yf_pt.get("mean"),
+                        "target_high": yf_pt.get("high"),
+                        "target_low": yf_pt.get("low"),
+                        "number_of_analysts": None,
+                    }
+            return {"recommendation": recommendation,
+                    "price_target": price_target, "upgrades": d.get("upgrades")}
+        # CN
+        d = self._parallel({
+            "summary": lambda: self._ak.get_analyst_rating_summary(symbol),
+            "reports": lambda: self._ak.get_research_reports(symbol, limit=5),
+        })
+        return {"summary": d.get("summary"), "reports": d.get("reports")}
+
+    def _collect_fundamentals(self, symbol: str, market: str):
+        """基本面季频源(US: yfinance info / CN: akshare 财务指标),TTL=7d 缓存。
+
+        返回原始 dict(US: info / CN: get_financial_indicators 输出),由调用方
+        构造最终 fundamentals dict(CN 的 pe 来自 live quote,不在此缓存)。
+        """
+        key = f"fund:{market}:{symbol}"
+        return self._cached(key, _SEASONAL_TTL, lambda: self._fetch_fund_raw(symbol, market))
+
+    def _fetch_fund_raw(self, symbol: str, market: str):
+        if market == "us":
+            return self._yf.get_info(symbol)
+        return self._ak.get_financial_indicators(symbol)
+
     def _analyze_us_stock(self, symbol: str, *, with_ai: bool = True) -> HoldingResult:
+        # 季频维度(fundamentals)走跨日缓存;rating 需 live current → quote 拉到后 fresh build
+        info = self._collect_fundamentals(symbol, "us") or {}
+        # 日频维度(quote/history/news/events/insider/forecast)并行,不缓存
         data = self._parallel({
             "quote": lambda: self._yf.get_quote(symbol),
-            "info": lambda: self._yf.get_info(symbol),
-            # 评级：yfinance 为主（免费、稳定），finnhub 为辅（提供 trend，但 free tier 常 403）
-            "recommendation_yf": lambda: self._yf.get_recommendations(symbol),
-            "recommendation_fh": lambda: self._fh.get_recommendation(symbol),
-            "price_target_fh": lambda: self._fh.get_price_target(symbol),
-            "price_target_yf": lambda: self._yf.get_price_targets(symbol),
-            "upgrades": lambda: self._yf.get_upgrades_downgrades(symbol),
             "history": lambda: self._yf.get_history(symbol, period="6mo"),
             "news": lambda: self._fh.get_company_news(symbol, days=7),
             "events": lambda: self._collect_events(symbol, "us"),
@@ -265,22 +370,7 @@ class HoldingsAnalyzer:
             "forecast": lambda: self._collect_forecast(symbol, "us"),
         })
         quote = data.get("quote") or {}
-        info = data.get("info") or {}
         current = quote.get("price")
-        recommendation = self._merge_us_recommendation(
-            data.get("recommendation_fh"), data.get("recommendation_yf"),
-        )
-        # finnhub price-target may 403 on free tier → fallback to yfinance
-        price_target = data.get("price_target_fh") or {}
-        if not price_target.get("target_mean"):
-            yf_pt = data.get("price_target_yf") or {}
-            if yf_pt.get("mean"):
-                price_target = {
-                    "target_mean": yf_pt.get("mean"),
-                    "target_high": yf_pt.get("high"),
-                    "target_low": yf_pt.get("low"),
-                    "number_of_analysts": None,
-                }
         result = HoldingResult(
             symbol=symbol, market="us", type="stock",
             name=str(info.get("longName") or info.get("shortName") or symbol),
@@ -293,10 +383,7 @@ class HoldingsAnalyzer:
                 "volume": quote.get("volume"),
                 "market_cap": quote.get("market_cap") or info.get("market_cap"),
             },
-            rating=self._build_us_rating(
-                recommendation, price_target,
-                data.get("upgrades"), current,
-            ),
+            rating=self._collect_rating(symbol, "us", current=current),
             fundamentals={
                 "pe": info.get("trailingPE") or info.get("forwardPE"),
                 "roe": _ratio(info.get("returnOnEquity")),
@@ -315,11 +402,12 @@ class HoldingsAnalyzer:
         return self._with_ai(result) if with_ai else result
 
     def _analyze_cn_stock(self, symbol: str, *, with_ai: bool = True) -> HoldingResult:
+        # 季频维度(rating + fundamentals)走跨日缓存
+        fin = self._collect_fundamentals(symbol, "cn") or {}
+        # 日频维度(quote/flow/history/news/events/insider/cn_activity)并行,不缓存
+        # (cn_activity 内部自带 7d 季频缓存)
         data = self._parallel({
             "quote": lambda: self._ak.get_stock_quote(symbol),
-            "rating": lambda: self._ak.get_analyst_rating_summary(symbol),
-            "reports": lambda: self._ak.get_research_reports(symbol, limit=5),
-            "fundamentals": lambda: self._ak.get_financial_indicators(symbol),
             "flow": lambda: self._ak.get_stock_fund_flow(symbol),
             "history": lambda: self._ak.get_stock_history(symbol, days=180),
             "news": lambda: self._ak.get_stock_news(symbol, limit=5),
@@ -328,7 +416,6 @@ class HoldingsAnalyzer:
             "cn_activity": lambda: self._collect_cn_activity(symbol, "cn"),
         })
         quote = data.get("quote") or {}
-        fin = data.get("fundamentals") or {}
         flow = data.get("flow") or {}
         result = HoldingResult(
             symbol=symbol, market="cn", type="stock",
@@ -343,7 +430,7 @@ class HoldingsAnalyzer:
                 "amount": quote.get("amount"),
                 "market_cap": quote.get("market_cap"),
             },
-            rating=self._build_cn_rating(data.get("rating"), data.get("reports")),
+            rating=self._collect_rating(symbol, "cn"),
             fundamentals={
                 "pe": quote.get("pe"),
                 "eps": fin.get("eps"),

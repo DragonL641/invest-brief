@@ -9,7 +9,7 @@ from investbrief.market.us.provider import USMarketProvider
 from investbrief.market.cn.provider import CNMarketProvider
 from investbrief.risk.models import RiskModel
 from investbrief.risk.config import load_indicators
-from investbrief.risk.render import render_risk_card, render_gold_section
+from investbrief.risk.render import render_risk_card, render_gold_section, _fmt_num
 from investbrief.pipelines.macro import _build_indicators
 
 
@@ -51,8 +51,10 @@ def test_three_market_risk_cards_render():
     combined = us_html + cn_html + gold_html
 
     # Each market's score + state appears
+    # 用 render 的 _fmt_num 格式化(整数浮点 46.0 → "46", 与卡片显示一致),
+    # 避免 str(46.0)="46.0" 与渲染 "46" 不匹配的边界问题。
     for m in ("us", "cn", "gold"):
-        assert str(risk[m]["total_score"]) in combined
+        assert _fmt_num(risk[m]["total_score"]) in combined
         assert risk[m]["state"] in combined
     # Gold section header present
     assert "黄金" in gold_html

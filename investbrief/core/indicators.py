@@ -3,13 +3,14 @@
 market/<mkt>/indicators.py 的专属 indicator 与本模块的 TechnicalIndicator
 都不 import risk —— config 由 pipeline 注入, 算法调 core.scoring。
 
-TechnicalIndicator._ma50_deviation / _volume_shrinkage 逐字搬迁自
+TechnicalIndicator._ma50_deviation / _volume_shrinkage 搬迁自
 risk/indicators/technical.py, 仅适配 4 处依赖:
   1. self.data                            -> data_source 参数
   2. self._get_index_data(market, days, date) -> get_index_series(data_source, self._market, days, date)
   3. self._score_by_percentile(v, hist)   -> score_by_percentile(v, hist)  (本两方法未用到)
   4. self._score(v, name, market)         -> score_with_config(v, name, self._market, self._config)
-计算逻辑(均线窗口/分位样本/缩量阈值)与 technical.py 逐字一致, 勿改算法。
+ma50_deviation 已改为分位打分(近 3 年序列,与其他技术/估值指标口径一致);
+volume_shrinkage 算法与 technical.py 一致, 勿改。
 """
 import logging
 
@@ -146,21 +147,42 @@ class TechnicalIndicator:
         return results
 
     def _ma50_deviation(self, data_source, date: str | None = None) -> dict:
-        """(Close - MA50) / MA50。搬迁自 risk/indicators/technical.py:_ma50_deviation。"""
+        """(Close - MA50) / MA50 当前值在近 3 年序列的分位 → 风险分。
+
+        改造自固定阈值 normalize_score(dev, 0, 0.15) → 与其他技术/估值指标
+        口径一致的分位打分(score_by_percentile)。"偏离 MA50 多少算超买"是相对的:
+        牛市 +15% 常态、震荡市 +8% 罕见, 故用历史分位而非绝对阈值。
+
+        样本: 近 3 年(~750 交易日)每日 ma50_deviation 序列(MA50 warmup 期 NaN 丢弃)。
+        高偏离 = 高风险 = 高分(不 invert, 与原 normalize_score 方向一致)。
+        样本不足(<100 点) → 回退中性 5.0(与其他 percentile 指标的缺失处理一致)。
+        """
+        from investbrief.core.scoring import score_by_percentile
         try:
-            df = get_index_series(data_source, self._market, 60, date)
-            if len(df) < 50:
+            # 800 自然日 ≈ 750 交易日(~3 年); +50 缓冲 MA50 warmup
+            df = get_index_series(data_source, self._market, 800, date)
+            if len(df) < 100:
                 return {"score": 5.0, "value": None, "percentile": None}
 
             close = df["close"].astype(float)
             ma50 = moving_average(close, 50)
-            current_close = float(close.iloc[-1])
-            current_ma50 = float(ma50.iloc[-1])
+            deviation = (close - ma50) / ma50
+            dev_series = deviation.dropna()
+            if len(dev_series) < 100:
+                return {"score": 5.0, "value": None, "percentile": None}
 
-            deviation = safe_divide(current_close - current_ma50, current_ma50)
-            score = score_with_config(deviation, "ma50_deviation", self._market, self._config)
-
-            return {"score": score, "value": deviation, "percentile": None}
+            cur = float(dev_series.iloc[-1])
+            score = score_by_percentile(cur, dev_series.tolist(), invert=False, min_samples=100)
+            if score is None:
+                return {"score": 5.0, "value": None, "percentile": None}
+            import numpy as np
+            pct = float((np.array(dev_series) < cur).mean() * 100)
+            return {
+                "score": score,
+                "value": round(cur, 4),
+                "percentile": round(pct, 0),
+                "scoring": f"近3年分位({len(dev_series)}点)",
+            }
         except Exception as e:
             logger.error(f"Failed to calculate MA50 deviation: {e}")
             return {"score": 5.0, "value": None, "percentile": None}
