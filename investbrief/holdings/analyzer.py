@@ -362,7 +362,11 @@ class HoldingsAnalyzer:
         # endpoint (history/events/insider/forecast/fundamentals) 一律跳过，因为
         # quote 不通说明 yfinance 整体不可达，其余调用也会各自等到 8s timeout。
         # 这样每股 yfinance 调用从 5 降到失败时 1（8s timeout），避免 150s 阻塞。
-        quote = self._yf.get_quote(symbol)
+        try:
+            quote = self._yf.get_quote(symbol)
+        except Exception as e:  # noqa: BLE001 — get_quote may raise on edge/mock; treat as unreachable
+            logger.warning(f"yfinance quote error for {symbol}: {e}")
+            quote = None
         if not quote:
             logger.warning(
                 f"yfinance quote failed for {symbol}; skipping other yfinance endpoints"
