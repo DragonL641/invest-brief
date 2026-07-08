@@ -45,6 +45,11 @@ class YFinanceClient:
     _MIN_INTERVAL = 0.4  # seconds between yfinance requests
     _lock = threading.Lock()
     _last_request = 0.0
+    # Session timeout/retry: yfinance's default curl_cffi session hangs 30s per
+    # endpoint with its own internal retry loop. We cap at 8s + 3 retries so a
+    # dead network fails fast instead of blocking 150s (5 endpoints × 30s).
+    _TIMEOUT = 8
+    _RETRIES = 3
 
     def __init__(self):
         try:
@@ -54,9 +59,36 @@ class YFinanceClient:
         except ImportError:
             self._yf = None
             self.enabled = False
+        self._session = self._build_session()
         self._ticker_cache: dict = {}
         self._history_cache: dict = {}
         self._max_cache = 50
+
+    @classmethod
+    def _build_session(cls):
+        """Build a session with short timeout + bounded retries.
+
+        Preferred: curl_cffi.Session (yfinance 1.3.0 default transport) with
+        ``timeout=8, retry=3``. curl_cffi uses ``retry`` (not ``retries``).
+        Fallback: requests.Session + HTTPAdapter(Retry(total=3)) — loses curl
+        impersonation but keeps timeout/retry controllable.
+        """
+        try:
+            from curl_cffi.requests import Session as CurlSession
+            return CurlSession(timeout=cls._TIMEOUT, retry=cls._RETRIES)
+        except Exception as e:  # noqa: BLE001 — any import/construct failure → fallback
+            logger.warning(f"curl_cffi Session unavailable ({e}); fallback to requests.Session")
+            import requests
+            from requests.adapters import HTTPAdapter
+            try:
+                from urllib3.util.retry import Retry
+                adapter = HTTPAdapter(max_retries=Retry(total=cls._RETRIES, backoff_factor=0.3))
+            except Exception:  # noqa: BLE001
+                adapter = HTTPAdapter()
+            s = requests.Session()
+            s.mount("https://", adapter)
+            s.mount("http://", adapter)
+            return s
 
     @classmethod
     def _throttle(cls):
@@ -73,7 +105,7 @@ class YFinanceClient:
             oldest = next(iter(self._ticker_cache))
             del self._ticker_cache[oldest]
         if symbol not in self._ticker_cache:
-            self._ticker_cache[symbol] = self._yf.Ticker(symbol)
+            self._ticker_cache[symbol] = self._yf.Ticker(symbol, session=self._session)
         return self._ticker_cache[symbol]
 
     # ==================== Price ====================

@@ -358,19 +358,37 @@ class HoldingsAnalyzer:
         return self._ak.get_financial_indicators(symbol)
 
     def _analyze_us_stock(self, symbol: str, *, with_ai: bool = True) -> HoldingResult:
-        # 季频维度(fundamentals)走跨日缓存;rating 需 live current → quote 拉到后 fresh build
+        # quote 作为 yfinance 健康探针：先单独调用。失败 → 该股其他 yfinance
+        # endpoint (history/events/insider/forecast/fundamentals) 一律跳过，因为
+        # quote 不通说明 yfinance 整体不可达，其余调用也会各自等到 8s timeout。
+        # 这样每股 yfinance 调用从 5 降到失败时 1（8s timeout），避免 150s 阻塞。
+        quote = self._yf.get_quote(symbol)
+        if not quote:
+            logger.warning(
+                f"yfinance quote failed for {symbol}; skipping other yfinance endpoints"
+            )
+            # 降级：仅拉非 yfinance 维度（finnhub news），其余维度留空由 renderer 降级
+            try:
+                news_items = self._fh.get_company_news(symbol, days=7)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"finnhub news fallback failed for {symbol}: {e}")
+                news_items = []
+            result = HoldingResult(
+                symbol=symbol, market="us", type="stock", name=symbol,
+                news=_extract_news(news_items),
+            )
+            return self._with_ai(result) if with_ai else result
+
+        # quote ok → 季频 fundamentals (缓存) + 其余日频维度并行
+        current = quote.get("price")
         info = self._collect_fundamentals(symbol, "us") or {}
-        # 日频维度(quote/history/news/events/insider/forecast)并行,不缓存
         data = self._parallel({
-            "quote": lambda: self._yf.get_quote(symbol),
             "history": lambda: self._yf.get_history(symbol, period="6mo"),
             "news": lambda: self._fh.get_company_news(symbol, days=7),
             "events": lambda: self._collect_events(symbol, "us"),
             "insider": lambda: self._collect_insider(symbol, "us"),
             "forecast": lambda: self._collect_forecast(symbol, "us"),
         })
-        quote = data.get("quote") or {}
-        current = quote.get("price")
         result = HoldingResult(
             symbol=symbol, market="us", type="stock",
             name=str(info.get("longName") or info.get("shortName") or symbol),
