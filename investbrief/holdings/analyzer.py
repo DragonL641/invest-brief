@@ -371,7 +371,7 @@ class HoldingsAnalyzer:
             logger.warning(
                 f"yfinance quote failed for {symbol}; skipping other yfinance endpoints"
             )
-            # 降级：仅拉非 yfinance 维度（finnhub news），其余维度留空由 renderer 降级
+            # 降级：拉非 yfinance 维度（finnhub rating + news），其余维度留空由 renderer 降级
             try:
                 news_items = self._fh.get_company_news(symbol, days=7)
             except Exception as e:  # noqa: BLE001
@@ -379,6 +379,7 @@ class HoldingsAnalyzer:
                 news_items = []
             result = HoldingResult(
                 symbol=symbol, market="us", type="stock", name=symbol,
+                rating=self._collect_rating(symbol, "us"),  # finnhub 评级(非 yfinance)
                 news=_extract_news(news_items),
             )
             return self._with_ai(result) if with_ai else result
