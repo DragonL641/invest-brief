@@ -91,12 +91,6 @@ def _quality(hist, fund, _val) -> float | None:
     return float(roe * 100 + gm * 50 + fcf * 5 + leverage_term * 30)   # 粗合成,截面 rank 后尺度无关
 
 
-def _industry_prosperity(hist, fund, _val) -> float | None:
-    """占位实现:行业景气代理 = revenue_yoy(真实数据接入在 data.py 增强)。"""
-    ry = fund.get("revenue_yoy")
-    return float(ry * 100) if ry is not None else None
-
-
 def _valuation(hist, _fund, val) -> float | None:
     """估值因子:低估值好(invert 由 engine 截面 rank)。
 
@@ -147,7 +141,7 @@ FACTOR_LABELS: dict[str, str] = {
     "trend_strength": "趋势强度", "momentum_60d_ex5": "动量(60日)",
     "ma20_deviation": "均线位置", "volume_price": "量价配合",
     "low_volatility_20d": "低波动", "growth": "成长", "quality": "质量",
-    "industry_prosperity": "行业景气", "valuation": "估值",
+    "valuation": "估值",
     "momentum_12m_ex1m": "动量(12月)", "moat": "护城河",
     "main_flow": "主力资金",
 }
@@ -161,7 +155,6 @@ FACTOR_REGISTRY: dict[str, Callable] = {
     "low_volatility_20d": _low_volatility_20d,
     "growth": _growth,
     "quality": _quality,
-    "industry_prosperity": _industry_prosperity,
     "valuation": _valuation,
     "momentum_12m_ex1m": _momentum_12m_ex1m,
     "moat": _moat,
@@ -179,7 +172,6 @@ FACTOR_CATEGORY: dict[str, str] = {
     "momentum_12m_ex1m": "technical",
     "growth": "fundamental",
     "quality": "fundamental",
-    "industry_prosperity": "fundamental",
     "valuation": "fundamental",
     "moat": "fundamental",
     "main_flow": "flow",   # 资金面:不参与行业中性化(swing 也关了中性化)

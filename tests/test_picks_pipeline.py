@@ -46,6 +46,13 @@ def _one_row_spot_df():
     return pd.DataFrame([{"代码": "000001", "名称": "X", "成交额": 1.0e9}])
 
 
+def _two_row_spot_df():
+    return pd.DataFrame([
+        {"代码": "000001", "名称": "A", "成交额": 2.0e9},
+        {"代码": "000002", "名称": "B", "成交额": 1.0e9},
+    ])
+
+
 def _valid_history(n=130):
     import numpy as np
     idx = pd.date_range("2024-01-01", periods=n, freq="B")
@@ -99,6 +106,77 @@ def test_safe_build_swallows_exception(monkeypatch):
         raise RuntimeError("boom")
     monkeypatch.setattr(picks, "build_picks_for_profile", _boom)
     assert picks._safe_build("swing", "cn") is None
+
+
+# ---- swing 两阶段 + 并发 ----
+
+def _swing_technical_profile():
+    """swing 纯技术面 profile(无 gate + 无 fundamental 因子)→ needs_fund=False。"""
+    return {"swing": {
+        "universe": {"exclude_st": False},
+        "factors": {"trend_strength": {"weight": 1.0}},
+        "standardize": "rank_percentile",
+        "industry_neutralize": False,
+        "top_n": 1,
+    }}
+
+
+def test_swing_skips_fundamentals_during_scoring(monkeypatch):
+    """swing 两阶段:打分阶段不拉 fund(限流放大器),Top1 选定后只拉 1 次。"""
+    monkeypatch.setattr(picks, "_spot_df", lambda market: _two_row_spot_df())
+    monkeypatch.setattr(picks._data, "fetch_history", lambda s, m, days: _valid_history())
+    fund_calls: list[str] = []
+
+    def _track(symbol, market):
+        fund_calls.append(symbol)
+        return {"roe": 0.20, "gross_margin": 0.40, "fcf_positive": True}
+
+    monkeypatch.setattr(picks._data, "fetch_fundamentals", _track)
+    monkeypatch.setattr(picks, "load_profiles", lambda: _swing_technical_profile())
+    res = picks.build_picks_for_profile("swing", "cn")
+    assert res is not None
+    # swing: 只对 Top1 拉 fund(不全拉)→ 恰好 1 次,不是 2 次
+    assert len(fund_calls) == 1
+    assert fund_calls[0] == res["symbol"]
+
+
+def test_medium_fetches_fundamentals_for_all_candidates(monkeypatch):
+    """medium(有 fundamental 因子)打分阶段对每个候选拉 fund(needs_fund=True)。"""
+    monkeypatch.setattr(picks, "_spot_df", lambda market: _two_row_spot_df())
+    monkeypatch.setattr(picks._data, "fetch_history", lambda s, m, days: _valid_history())
+    fund_calls: list[str] = []
+
+    def _track(symbol, market):
+        fund_calls.append(symbol)
+        return {"roe": 0.20, "gross_margin": 0.40, "fcf_positive": True}
+
+    monkeypatch.setattr(picks._data, "fetch_fundamentals", _track)
+    monkeypatch.setattr(picks, "load_profiles", lambda: _medium_profile_with_roe_gate(0.0))
+    res = picks.build_picks_for_profile("medium", "cn")
+    assert res is not None
+    # medium(needs_fund=True)对每个候选拉 fund → 2 次(全量,因 gate + fundamental 因子)
+    assert len(fund_calls) == 2
+
+
+def test_deep_pull_uses_threadpool_max_workers_2(monkeypatch):
+    """候选深拉用 ThreadPoolExecutor(max_workers=2),对齐 holdings 限流策略。"""
+    assert picks._DEEP_PULL_WORKERS == 2
+    captured: dict = {}
+    real_ex = picks.ThreadPoolExecutor
+
+    class _Spy(real_ex):
+        def __init__(self, max_workers=None, **kw):
+            captured["max_workers"] = max_workers
+            super().__init__(max_workers=max_workers, **kw)
+
+    monkeypatch.setattr(picks, "ThreadPoolExecutor", _Spy)
+    monkeypatch.setattr(picks, "_spot_df", lambda market: _one_row_spot_df())
+    monkeypatch.setattr(picks._data, "fetch_history", lambda s, m, days: _valid_history())
+    monkeypatch.setattr(picks._data, "fetch_fundamentals", lambda s, m: {})
+    monkeypatch.setattr(picks, "load_profiles", lambda: _swing_technical_profile())
+    picks.build_picks_for_profile("swing", "cn")
+    assert captured.get("max_workers") == 2
+
 
 
 def _long_profile_with_profitable_years_gate(min_years):

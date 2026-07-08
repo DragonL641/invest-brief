@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 _cache: FactorCache | None = None
 
 # 日K 历史的进程内缓存(同一次运行内复用,如 _enrich 二次拉取)。
-# 不进 FactorCache:那是 JSON KV,DataFrame 被 json.dumps 挤成 str → 命中时返回空 → price/MA 全空。
+# 进 FactorCache 的 history 存储(TTL=1 天,CSV 编码)负责跨日复用;_hist_mem 只管单次运行。
 _hist_mem: dict[str, "pd.DataFrame"] = {}
 
 
@@ -93,16 +93,60 @@ def fetch_history(symbol: str, market: str, days: int = 250) -> pd.DataFrame:
     """候选股日 K 历史。A股 akshare get_stock_history;美股 yfinance。
 
     返回 DataFrame 列名统一为小写(close/volume/...),与 factors 读取约定一致。
+
+    三级缓存:
+    1. _hist_mem(进程内):同一次运行内复用(_enrich 二次拉取等)。
+    2. FactorCache history(TTL=1 天,CSV 编码):跨日复用 —— 命中则增量补当天,
+       未命中全量拉。daily scheduler 首次拉全量后,当日再跑只补最新 bar。
+    3. 全量拉取:_do_fetch_history(akshare/yfinance,带限流重试)。
     """
     key = f"hist:{market}:{symbol}"
     cached = _hist_mem.get(key)
     if cached is not None and not cached.empty:
         return cached
+    c = cache()
+    if c and c.fresh(key, ttl_days=1):
+        df = c.get_history(key)
+        if isinstance(df, pd.DataFrame) and not df.empty:
+            df = _maybe_append_today(df, symbol, market)
+            _hist_mem[key] = df
+            return df
     df = _do_fetch_history(symbol, market, days)
     df = df if isinstance(df, pd.DataFrame) else pd.DataFrame()
     if not df.empty:
         _hist_mem[key] = df
+        if c:
+            c.set_history(key, df, ttl_days=1)
     return df
+
+
+def _maybe_append_today(df: pd.DataFrame, symbol: str, market: str) -> pd.DataFrame:
+    """跨日缓存命中后:若最新 bar 不是今天,拉近 10 天增量补齐(可能跨非交易日/停牌)。
+
+    韧性:任何失败 → 返回原 df(略旧但可用,因子算 60-252 日窗口,1 日滞后可接受)。
+    命中当天再次运行(df 最新 bar 已是今天)→ 直接返回,零网络调用。
+    """
+    try:
+        if df is None or df.empty:
+            return df
+        idx = pd.to_datetime(df.index)
+        last = idx.max()
+        today = pd.Timestamp.now().normalize()
+        if last >= today:
+            return df   # 当天已更新过
+        recent = _do_fetch_history(symbol, market, days=10)
+        if recent is None or recent.empty:
+            return df
+        recent.index = pd.to_datetime(recent.index)
+        new = recent[recent.index > last]
+        if new.empty:
+            return df   # 非交易日/停牌,无新 bar
+        merged = pd.concat([df, new])
+        merged = merged[~merged.index.duplicated(keep="last")].sort_index()
+        return merged
+    except Exception as e:
+        logger.warning(f"_maybe_append_today {market}:{symbol} failed: {e}")
+        return df
 
 
 def _do_fetch_history(symbol: str, market: str, days: int) -> pd.DataFrame:

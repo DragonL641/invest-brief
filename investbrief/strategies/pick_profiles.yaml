@@ -34,9 +34,8 @@ profiles:
         positive_operating_cashflow: true   # active(CN TODO C 已接入;CN normalize 暂未写入)
     factors:
       growth:              {weight: 0.30}
-      quality:             {weight: 0.25}
-      industry_prosperity: {weight: 0.20}
-      valuation:           {weight: 0.15, invert: true}
+      quality:             {weight: 0.35}   # was 0.25;industry_prosperity 删除后权重还 quality
+      valuation:           {weight: 0.25, invert: true}   # was 0.15;还 valuation
       momentum_12m_ex1m:   {weight: 0.10}
     standardize: rank_percentile
     industry_neutralize: true   # active(US sector via yfinance);CN 降级 no-op(stock_individual_info_em 接口崩)

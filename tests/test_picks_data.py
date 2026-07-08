@@ -106,3 +106,60 @@ def test_fetch_flow_cn_empty_df_returns_none(monkeypatch):
         "investbrief.datasources.akshare.AKShareClient", lambda: _FakeAK())
     monkeypatch.setattr(data, "cache", lambda: None)
     assert data.fetch_flow("600519", "cn", days=5) is None
+
+
+# ---- 跨日历史缓存(FactorCache TTL=1 天) ----
+
+def test_fetch_history_cache_hit_skips_network(monkeypatch, tmp_path):
+    """跨日缓存命中(TTL=1 天,且已含今天 bar)→ 不调 _do_fetch_history。"""
+    import pandas as pd
+    data._hist_mem.clear()
+    data.init_cache(str(tmp_path / "picks.db"))
+    today = pd.Timestamp.now().normalize()
+    cached = pd.DataFrame(
+        {"close": [10.0, 11.0], "volume": [1e6, 2e6]},
+        index=pd.to_datetime(["2024-01-01", today]),
+    )
+    data.cache().set_history("hist:cn:600519", cached, ttl_days=1)
+
+    network_calls: list = []
+    monkeypatch.setattr(data, "_do_fetch_history",
+                        lambda *a, **k: network_calls.append(a) or pd.DataFrame())
+    got = data.fetch_history("600519", "cn", days=250)
+    assert network_calls == []          # 命中缓存,零网络
+    assert len(got) == 2
+    assert float(got["close"].iloc[-1]) == 11.0
+    data._hist_mem.clear()
+
+
+def test_fetch_history_miss_falls_back_to_network(monkeypatch, tmp_path):
+    """缓存未命中(无 fresh 条目)→ 调 _do_fetch_history 全量拉 + 写缓存。"""
+    import pandas as pd
+    data._hist_mem.clear()
+    data.init_cache(str(tmp_path / "picks.db"))
+    fetched = pd.DataFrame(
+        {"close": [10.0, 11.0, 12.0]},
+        index=pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]),
+    )
+    monkeypatch.setattr(data, "_do_fetch_history", lambda s, m, days: fetched)
+    got = data.fetch_history("600519", "cn", days=250)
+    assert len(got) == 3
+    # 写入跨日缓存(后续运行命中)
+    assert data.cache().get_history("hist:cn:600519") is not None
+    data._hist_mem.clear()
+
+
+def test_fetch_history_mem_cache_short_circuits(monkeypatch, tmp_path):
+    """_hist_mem(进程内)优先:命中则不查 FactorCache 也不触网。"""
+    import pandas as pd
+    data.init_cache(str(tmp_path / "picks.db"))
+    data._hist_mem.clear()
+    data._hist_mem["hist:cn:X"] = pd.DataFrame(
+        {"close": [42.0]}, index=pd.to_datetime(["2024-01-01"]))
+    network_calls: list = []
+    monkeypatch.setattr(data, "_do_fetch_history",
+                        lambda *a, **k: network_calls.append(a) or pd.DataFrame())
+    got = data.fetch_history("X", "cn", days=250)
+    assert network_calls == []
+    assert float(got["close"].iloc[0]) == 42.0
+    data._hist_mem.clear()

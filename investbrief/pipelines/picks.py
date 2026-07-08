@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -21,6 +22,9 @@ logger = logging.getLogger(__name__)
 _CACHE_PATH = str(DB_PATH).replace("macro_data.db", "picks_cache.db")
 _PROFILES = ("swing", "medium", "long")
 _MARKETS = ("cn", "us")
+
+# 候选股深拉并发度:对齐 holdings/analyzer.py(2),更高会触发 eastmoney 限流。
+_DEEP_PULL_WORKERS = 2
 
 # akshare stock_us_spot_em 的「代码」列是 "<市场码>.<ticker>" 格式
 # (105=NASDAQ, 106=NYSE, ...),如 "105.AMZN"。yfinance 需要纯 ticker,去掉数字前缀;
@@ -61,44 +65,64 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     max_5d_gain = u.get("max_5d_gain")
     min_listed_days = u.get("min_listed_days")
     min_listed_years = u.get("min_listed_years")
-    cands = []
-    detail = {}  # symbol -> (hist, fund, val) 供 Top1 补齐卡片展示维度
-    for _, row in candidates_df.iterrows():
+    hist_days = _history_days(profile_name)
+    # needs_fund: 基本面 gate 或 任一 fundamental 类因子 → 打分阶段需 fund。
+    # swing 纯技术面(无 gate + 无 fundamental 因子)→ 打分阶段 fund={},Top1 选定后单独拉 fund 给卡片。
+    # main_flow 属 flow 类(从 fund['main_flow_5d'] 读,由 fetch_flow 注入,不依赖 fetch_fundamentals)。
+    needs_fund = bool(gates) or any(
+        _factors.FACTOR_CATEGORY.get(f) == "fundamental" for f in prof["factors"]
+    )
+
+    def _process_candidate(row) -> tuple[dict, tuple] | None:
+        """工作线程:单候选深拉 + gate 校验 + 因子计算 → (cand, (symbol, (hist, fund, val))) | None。"""
         raw_code = str(row.get("代码", row.get("symbol", "")))
         symbol = _clean_us_symbol(raw_code) if market == "us" else raw_code
         if not symbol:
-            continue
+            return None
         try:
-            hist = _data.fetch_history(symbol, market, days=_history_days(profile_name))
-            fund = _data.fetch_fundamentals(symbol, market)  # 即使 swing 也拉(供卡片展示,只是 swing 不用它算因子)
+            hist = _data.fetch_history(symbol, market, days=hist_days)
             if hist is None or hist.empty:
-                continue
+                return None
+            fund = _data.fetch_fundamentals(symbol, market) if needs_fund else {}
             # main_flow 因子(CN only):近5日主力资金流,只在 profile 启用该因子时拉取(限流保护)。
             # 用 spread 构造新 dict 避免污染 fund 的 7 天缓存。
             if "main_flow" in prof["factors"]:
                 fund = {**fund, "main_flow_5d": _data.fetch_flow(symbol, market, days=5)}
             # 深拉阶段校验:基本面 gate(只在数据存在时执行,缺失则跳过该 gate)
             if gates and not _passes_fundamental_gates(fund, gates, symbol, market):
-                continue
+                return None
             # 深拉阶段校验:5 日涨幅上限(swing)
             if max_5d_gain and not _passes_price_gates(hist, max_5d_gain):
-                continue
+                return None
             # 深拉阶段校验:上市时长(TODO A: earliest_report_period 代理)
             if (min_listed_days or min_listed_years) and not _passes_listing_gates(
                     symbol, market, min_listed_days, min_listed_years):
-                continue
+                return None
             val = _valuation_for(row, market) if "valuation" in prof["factors"] else {}
             raw = {}
             for fkey in prof["factors"]:
                 fn = _factors.FACTOR_REGISTRY.get(fkey)
                 raw[fkey] = fn(hist, fund, val) if fn else None
-            cands.append({"symbol": symbol, "name": str(row.get("名称", symbol)),
-                          "market": market, "raw_factors": raw,
-                          "industry": _industry_for(symbol, market)})
-            detail[symbol] = (hist, fund, val)
+            cand = {"symbol": symbol, "name": str(row.get("名称", symbol)),
+                    "market": market, "raw_factors": raw,
+                    "industry": _industry_for(symbol, market)}
+            return cand, (symbol, (hist, fund, val))
         except Exception as e:
-            logger.warning(f"candidate {market}:{symbol} failed: {e}")
-            continue
+            logger.warning(f"candidate {market}:{raw_code} failed: {e}")
+            return None
+
+    cands: list[dict] = []
+    detail: dict[str, tuple] = {}  # symbol -> (hist, fund, val) 供 Top1 补齐卡片展示维度
+    rows = list(candidates_df.iterrows())
+    with ThreadPoolExecutor(max_workers=_DEEP_PULL_WORKERS) as ex:
+        futures = [ex.submit(_process_candidate, row) for _, row in rows]
+        for fut in futures:
+            r = fut.result()
+            if r is None:
+                continue
+            cand, (sym, det) = r
+            cands.append(cand)
+            detail[sym] = det
 
     prof_with_name = {**prof, "_name": profile_name}
     ranked = _engine.rank_picks(cands, prof_with_name, market)
@@ -107,6 +131,11 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     top = ranked[0]
     # 补 price/key_mas/stop + 技术面/基本面/估值(卡片展示用)——必须在渲染前完成
     _h, _f, _v = detail.get(top["symbol"], (None, {}, {}))
+    # swing 两阶段:打分阶段未拉 fund(纯技术面)→ Top1 选定后单独拉 fund 给卡片展示。
+    # medium/long(needs_fund)打分阶段已拉 fund,_f 已含 roe/gm 等,跳过。
+    if not needs_fund and top.get("symbol"):
+        fetched = _data.fetch_fundamentals(top["symbol"], market)
+        _f = {**(_f or {}), **fetched}
     _enrich(top, _h, prof, _f, _v)
     return top
 
@@ -241,7 +270,9 @@ def _candidate_cap(profile_name: str) -> int:
 
 
 def _history_days(profile_name: str) -> int:
-    return {"swing": 180, "medium": 260, "long": 120}.get(profile_name, 180)
+    # long=400:momentum_12m_ex1m 需 252 交易日;CN akshare 400 自然日≈270 交易日,
+    # US yfinance period="400d"(1.3 支持 Nd 格式)。swing 180 / medium 260 不变。
+    return {"swing": 180, "medium": 260, "long": 400}.get(profile_name, 180)
 
 
 def _valuation_for(row, market: str) -> dict:

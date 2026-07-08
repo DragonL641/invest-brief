@@ -41,9 +41,10 @@ def test_low_volatility_returns_positive():
 
 
 def test_fundamental_factors_in_registry():
-    for k in ("growth", "quality", "valuation", "momentum_12m_ex1m",
-              "moat", "industry_prosperity"):
+    for k in ("growth", "quality", "valuation", "momentum_12m_ex1m", "moat"):
         assert k in factors.FACTOR_REGISTRY
+    # industry_prosperity 已删除(与 growth 重复用 revenue_yoy)
+    assert "industry_prosperity" not in factors.FACTOR_REGISTRY
 
 
 def test_growth_uses_fundamentals():
