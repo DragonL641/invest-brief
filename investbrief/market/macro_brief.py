@@ -87,6 +87,19 @@ def serialize_macro_context(us_data: dict, cn_data: dict, news: list,
                 lines.append(
                     f"- {name}: 风险分 {r['total_score']}（{r['state']} / {level}），{r['action']}"
                 )
+                # 高分 indicator 摘要：让 Claude 写"风险与机会"能点出具体极端子指标
+                inds = r.get("indicators") or {}
+                hot = []
+                for k, v in inds.items():
+                    if not isinstance(v, dict):
+                        continue
+                    score = v.get("score")
+                    if isinstance(score, (int, float)) and score >= 8:
+                        hot.append((v.get("name") or k, float(score)))
+                if hot:
+                    hot.sort(key=lambda x: x[1], reverse=True)
+                    hot_str = "；".join(f"{n}({s:.1f})" for n, s in hot[:3])
+                    lines.append(f"  极端指标: {hot_str}")
 
     # Priority 4: regime_data (skip if budget tight)
     if regime_data and _used() + 250 < max_chars:
@@ -98,6 +111,12 @@ def serialize_macro_context(us_data: dict, cn_data: dict, news: list,
                     f"- {name}: {r['quadrant']}（置信度{r.get('confidence', '?')}%，"
                     f"增长{r.get('growth_axis', '?')}/通胀{r.get('inflation_axis', '?')}）"
                 )
+                # 关键数值：让 Claude 看到具体 GDP 同比 / CPI 而非只看象限标签
+                inds = r.get("indicators") or {}
+                kv = ", ".join(f"{k}={v}" for k, v in inds.items()
+                               if isinstance(v, (int, float)))
+                if kv:
+                    lines.append(f"  关键值: {kv}")
 
     result = "\n".join(lines)
     if len(result) > max_chars:

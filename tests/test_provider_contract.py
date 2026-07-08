@@ -49,8 +49,12 @@ def test_us_indices_contract_keys(us_provider):
 
 def test_us_monetary_contract_keys(us_provider):
     mp = us_provider.get_monetary_policy()
-    assert set(mp.keys()) == {"us_10y_yield", "us_5y_yield", "us_13w_yield", "fed_funds_rate"}
+    assert set(mp.keys()) == {"us_10y_yield", "us_5y_yield", "us_13w_yield", "fed_funds_rate",
+                              "cpi_yoy", "gdp_yoy", "m2_yoy", "pmi"}
     assert mp["us_10y_yield"] == 4.3
+    # 宏观指标 key 存在（fixture 无 macro_data → 值为 None，key 必须在）
+    for k in ("cpi_yoy", "gdp_yoy", "m2_yoy", "pmi"):
+        assert k in mp
 
 
 def test_us_asset_performance_includes_gold(us_provider):
@@ -115,9 +119,13 @@ def test_cn_indices_contract_keys(cn_provider):
 def test_cn_monetary_contract_keys(cn_provider):
     mp = cn_provider.get_monetary_policy()
     assert set(mp.keys()) == {"lpr_1y", "lpr_5y", "m2_yoy", "m1_yoy",
-                              "social_financing", "cn_10y_yield"}
+                              "social_financing", "cn_10y_yield",
+                              "cpi_yoy", "gdp_yoy"}
     assert mp["lpr_1y"] == 3.1
     assert mp["cn_10y_yield"] == 2.3
+    # 宏观指标 key 存在（fixture 无 CPI/GDP → 值为 None，key 必须在）
+    for k in ("cpi_yoy", "gdp_yoy"):
+        assert k in mp
 
 
 def test_cn_asset_performance_includes_usdcny(cn_provider):
@@ -216,3 +224,99 @@ def test_cn_monetary_render_formats_to_2dp(cn_provider):
     assert "2.30%" in html
     assert "50000.00亿元" in html
     assert "3.12345" not in html
+
+
+# ==================== B2-1: 宏观指标 CPI/GDP/M2/PMI 渲染契约 ====================
+
+def _us_macro_rows():
+    """生成 US macro_data：CPI(同比%)/PMI(绝对值) 单行 + GDP/M2 月频绝对值 13 期(够算 YoY)。"""
+    rows = [
+        {"indicator": "CPI", "country": "us", "date": "2026-06-01", "value": 3.2},
+        {"indicator": "PMI", "country": "us", "date": "2026-06-01", "value": 52.0},
+    ]
+    # GDP 月频绝对值(万亿USD)：2025-07=30.0 → 2026-07=30.9，YoY=3.0%
+    for i, ym in enumerate([
+        "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
+        "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07",
+    ]):
+        rows.append({"indicator": "GDP", "country": "us", "date": f"{ym}-01",
+                     "value": round(30.0 + i * 0.075, 3)})
+    # M2 月频绝对值(万亿USD)：2025-07=21.0 → 2026-07=22.05，YoY=5.0%
+    for i, ym in enumerate([
+        "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
+        "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07",
+    ]):
+        rows.append({"indicator": "M2", "country": "us", "date": f"{ym}-01",
+                     "value": round(21.0 + i * 0.0875, 3)})
+    return rows
+
+
+def test_us_monetary_reads_macro_indicators():
+    """B2-1 回归：us provider get_monetary_policy 从 macro_data 取 CPI/GDP/M2/PMI（原仅入库不消费）。"""
+    with tempfile.TemporaryDirectory() as d:
+        db_path = str(Path(d) / "t.db")
+        data = USData(db_path=db_path)
+        data.upsert_df("macro_data", pd.DataFrame(_us_macro_rows()))
+        p = USMarketProvider(data=data)
+        mp = p.get_monetary_policy()
+        assert mp["cpi_yoy"] == 3.2          # 源即同比
+        assert mp["pmi"] == 52.0
+        # GDP YoY: (30.9 / 30.0 - 1) * 100 ≈ 3.0
+        assert mp["gdp_yoy"] is not None and abs(mp["gdp_yoy"] - 3.0) < 0.2
+        # M2 YoY: (22.05 / 21.0 - 1) * 100 ≈ 5.0
+        assert mp["m2_yoy"] is not None and abs(mp["m2_yoy"] - 5.0) < 0.2
+        data.close()
+
+
+def test_us_monetary_renders_macro_indicators():
+    """B2-1 回归：_render_monetary_policy 输出含 CPI/GDP/M2/PMI 数值行。"""
+    with tempfile.TemporaryDirectory() as d:
+        db_path = str(Path(d) / "t.db")
+        data = USData(db_path=db_path)
+        data.upsert_df("macro_data", pd.DataFrame(_us_macro_rows()))
+        p = USMarketProvider(data=data)
+        html = p._render_monetary_policy(p.get_monetary_policy(),
+                                         {"color_up": "#e74c3c", "color_down": "#27ae60"})
+        assert "CPI同比" in html and "3.20%" in html
+        assert "GDP同比" in html
+        assert "M2同比" in html
+        assert "制造业PMI" in html and "52.00" in html
+        data.close()
+
+
+def _cn_macro_rows():
+    """生成 CN macro_data：CPI(同比%) 单行 + GDP 季频绝对值 5 期(够算 YoY, period=4)。"""
+    rows = [{"indicator": "CPI", "country": "cn", "date": "2026-06-01", "value": 0.3}]
+    # GDP 季频绝对值：2025-Q2=30.0 → 2026-Q2=31.5，YoY=5.0%
+    for q, val in [("2025-03-31", 29.0), ("2025-06-30", 30.0), ("2025-09-30", 30.5),
+                   ("2025-12-31", 31.0), ("2026-03-31", 31.2), ("2026-06-30", 31.5)]:
+        rows.append({"indicator": "GDP", "country": "cn", "date": q, "value": val})
+    return rows
+
+
+def test_cn_monetary_reads_cpi_gdp():
+    """B2-1 回归：cn provider get_monetary_policy 从 macro_data 取 CPI/GDP（原仅入库不消费）。"""
+    with tempfile.TemporaryDirectory() as d:
+        db_path = str(Path(d) / "t.db")
+        data = CNData(db_path=db_path)
+        data.upsert_df("macro_data", pd.DataFrame(_cn_macro_rows()))
+        p = CNMarketProvider(data=data)
+        mp = p.get_monetary_policy()
+        assert mp["cpi_yoy"] == 0.3
+        # GDP YoY: 2026-06 vs 2025-06 = 31.5/30.0 - 1 = 5.0%
+        assert mp["gdp_yoy"] is not None and abs(mp["gdp_yoy"] - 5.0) < 0.2
+        data.close()
+
+
+def test_cn_monetary_renders_cpi_gdp():
+    """B2-1 回归：_render_monetary_policy 输出含 CPI/GDP 数值行。"""
+    with tempfile.TemporaryDirectory() as d:
+        db_path = str(Path(d) / "t.db")
+        data = CNData(db_path=db_path)
+        data.upsert_df("macro_data", pd.DataFrame(_cn_macro_rows()))
+        p = CNMarketProvider(data=data)
+        html = p._render_monetary_policy(p.get_monetary_policy(),
+                                         {"color_up": "#e74c3c", "color_down": "#27ae60"})
+        assert "CPI同比" in html and "0.30%" in html
+        assert "GDP同比" in html
+        data.close()

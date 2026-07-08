@@ -201,6 +201,23 @@ class BaseData(ABC):
             return None
         return float(df.iloc[0]["value"])
 
+    def latest_macro_yoy(self, indicator: str, country: str, period: int) -> float | None:
+        """绝对值宏观序列 → 同比(%)。period=一年期数(月频 12 / 季频 4)。
+
+        取最近 period+1 期，latest vs 一年前同期。用于 GDP/M2 这类存绝对值的指标；
+        CPI/LPR 等已同比的指标直接用 latest_macro。数据不足/除零 → None。
+        """
+        sql = ("SELECT value FROM macro_data WHERE indicator = ? AND country = ? "
+               "ORDER BY date DESC LIMIT ?")
+        df = pd.read_sql_query(sql, self.conn, params=(indicator, country, period + 1))
+        if len(df) <= period:
+            return None
+        latest = df.iloc[0]["value"]
+        year_ago = df.iloc[period]["value"]
+        if pd.isna(latest) or pd.isna(year_ago) or year_ago == 0:
+            return None
+        return round((float(latest) / float(year_ago) - 1) * 100, 3)
+
     def _latest_data_date(self, table_name: str) -> str | None:
         """Max date string (YYYY-MM-DD) in table, or None if empty."""
         self._validate_table(table_name)

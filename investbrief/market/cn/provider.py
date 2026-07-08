@@ -105,6 +105,9 @@ class CNMarketProvider(MarketProvider):
             "m1_yoy": self.data.latest_macro("M1_YOY", "cn"),
             "social_financing": self.data.latest_macro("SOCIAL_FIN", "cn"),
             "cn_10y_yield": self.data.latest_macro("10Y_TREASURY", "cn"),
+            # 宏观指标（已在 macro_data 采集，喂给 Claude 写"宏观环境"，原仅入库 provider 不取）
+            "cpi_yoy": self.data.latest_macro("CPI", "cn"),          # 源即同比 %
+            "gdp_yoy": self.data.latest_macro_yoy("GDP", "cn", 4),   # 绝对值 → 同比(季频)
         }
 
     def get_asset_performance(self) -> list[dict[str, Any]]:
@@ -169,7 +172,7 @@ class CNMarketProvider(MarketProvider):
     # ==================== Render Helpers ====================
 
     def _render_monetary_policy(self, monetary: dict, config: dict) -> str:
-        """③ 货币政策与利率：LPR / M2 / M1 / 社融 / 中国10Y国债。"""
+        """③ 货币政策与利率：LPR / M2 / M1 / 社融 / 中国10Y国债 / CPI / GDP。"""
         if not monetary:
             return ""
         pairs = [
@@ -179,6 +182,8 @@ class CNMarketProvider(MarketProvider):
             ("M1同比", monetary.get("m1_yoy"), "%"),
             ("社融增量", monetary.get("social_financing"), "亿元"),
             ("中国10Y国债", monetary.get("cn_10y_yield"), "%"),
+            ("CPI同比", monetary.get("cpi_yoy"), "%"),
+            ("GDP同比", monetary.get("gdp_yoy"), "%"),
         ]
         rows = []
         for label, val, suffix in pairs:

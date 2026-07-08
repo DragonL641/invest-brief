@@ -108,6 +108,11 @@ class USMarketProvider(MarketProvider):
         result: dict[str, Any] = {
             "us_10y_yield": None, "us_5y_yield": None,
             "us_13w_yield": None, "fed_funds_rate": FED_FUNDS_TARGET,
+            # 宏观指标（已在 macro_data 采集，喂给 Claude 写"宏观环境"，原仅入库 provider 不取）
+            "cpi_yoy": self.data.latest_macro("CPI", "us"),          # 源即同比 %
+            "gdp_yoy": self.data.latest_macro_yoy("GDP", "us", 12),  # 绝对值(万亿USD) → 同比(月频)
+            "m2_yoy": self.data.latest_macro_yoy("M2", "us", 12),    # 绝对值(万亿USD) → 同比
+            "pmi": self.data.latest_macro("PMI", "us"),
         }
         for key, code in (("us_10y_yield", "^TNX"), ("us_5y_yield", "^FVX"), ("us_13w_yield", "^IRX")):
             point, _, _ = self._bar_point_change(code)
@@ -168,7 +173,7 @@ class USMarketProvider(MarketProvider):
     # ==================== Render Helpers ====================
 
     def _render_monetary_policy(self, monetary: dict, config: dict) -> str:
-        """③ 货币政策与利率：美债收益率 + 联邦基金目标利率。"""
+        """③ 货币政策与利率：美债收益率 + 联邦基金目标利率 + CPI/GDP/M2/PMI。"""
         if not monetary:
             return ""
         pairs = [
@@ -176,6 +181,10 @@ class USMarketProvider(MarketProvider):
             ("美债5Y", monetary.get("us_5y_yield"), "%"),
             ("美债13周", monetary.get("us_13w_yield"), "%"),
             ("联邦基金目标", monetary.get("fed_funds_rate"), ""),
+            ("CPI同比", monetary.get("cpi_yoy"), "%"),
+            ("GDP同比", monetary.get("gdp_yoy"), "%"),
+            ("M2同比", monetary.get("m2_yoy"), "%"),
+            ("制造业PMI", monetary.get("pmi"), ""),
         ]
         rows = []
         for label, val, suffix in pairs:
