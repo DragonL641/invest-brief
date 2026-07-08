@@ -39,21 +39,64 @@ INCLUDE_DOMAINS: list[str] = [
 ]
 
 # Designated sell-side firms (reputable, frequent market-strategy commentary).
-# Each: (canonical, [title-match name variants], Tavily search subject).
-INSTITUTIONS: list[tuple[str, list[str], str]] = [
-    ("JPMorgan", ["JPMorgan", "J.P. Morgan", "摩根大通"], "JPMorgan market outlook strategy stocks"),
-    ("Morgan Stanley", ["Morgan Stanley", "摩根士丹利"], "Morgan Stanley market outlook strategy stocks"),
-    ("Goldman Sachs", ["Goldman Sachs", "高盛"], "Goldman Sachs market outlook strategy stocks"),
-    ("Citi", ["Citi", "Citigroup", "花旗"], "Citi market outlook strategy stocks"),
-    ("Bank of America", ["Bank of America", "BofA", "美国银行"], "Bank of America market strategy stocks"),
-    ("UBS", ["UBS", "瑞银"], "UBS market outlook strategy stocks"),
-    ("Barclays", ["Barclays", "巴克莱"], "Barclays market outlook strategy stocks"),
-    ("Jefferies", ["Jefferies"], "Jefferies market outlook strategy stocks"),
-    ("Wells Fargo", ["Wells Fargo", "富国"], "Wells Fargo market outlook strategy stocks"),
-    ("BMO Capital", ["BMO Capital", "BMO"], "BMO Capital Markets market outlook stocks"),
-    ("Evercore ISI", ["Evercore"], "Evercore ISI market outlook strategy stocks"),
-    ("Oppenheimer", ["Oppenheimer"], "Oppenheimer market outlook strategy stocks"),
-    ("Yardeni Research", ["Yardeni"], "Yardeni Research market outlook stocks"),
+# Each: (canonical, [title-match name variants], [Tavily search subjects]).
+# subjects is a list — typically [US-oriented query, CN-oriented query] — so each
+# firm's commentary on BOTH markets is surfaced (previously only US views were
+# fetched because the single subject was US-skewed). CN query mixes EN+CN keywords
+# (China / A-share / 中国 / 股市) to catch the firm's China outlook articles.
+INSTITUTIONS: list[tuple[str, list[str], list[str]]] = [
+    ("JPMorgan", ["JPMorgan", "J.P. Morgan", "摩根大通"], [
+        "JPMorgan market outlook strategy stocks",
+        "JPMorgan China A-share outlook 中国 股市",
+    ]),
+    ("Morgan Stanley", ["Morgan Stanley", "摩根士丹利"], [
+        "Morgan Stanley market outlook strategy stocks",
+        "Morgan Stanley China A-share outlook 中国 股市",
+    ]),
+    ("Goldman Sachs", ["Goldman Sachs", "高盛"], [
+        "Goldman Sachs market outlook strategy stocks",
+        "Goldman Sachs China A-share outlook 中国 股市",
+    ]),
+    ("Citi", ["Citi", "Citigroup", "花旗"], [
+        "Citi market outlook strategy stocks",
+        "Citi China A-share outlook 中国 股市",
+    ]),
+    ("Bank of America", ["Bank of America", "BofA", "美国银行"], [
+        "Bank of America market strategy stocks",
+        "Bank of America China A-share outlook 中国 股市",
+    ]),
+    ("UBS", ["UBS", "瑞银"], [
+        "UBS market outlook strategy stocks",
+        "UBS China A-share outlook 中国 股市",
+    ]),
+    ("Barclays", ["Barclays", "巴克莱"], [
+        "Barclays market outlook strategy stocks",
+        "Barclays China A-share outlook 中国 股市",
+    ]),
+    ("Jefferies", ["Jefferies"], [
+        "Jefferies market outlook strategy stocks",
+        "Jefferies China A-share outlook 中国 股市",
+    ]),
+    ("Wells Fargo", ["Wells Fargo", "富国"], [
+        "Wells Fargo market outlook strategy stocks",
+        "Wells Fargo China A-share outlook 中国 股市",
+    ]),
+    ("BMO Capital", ["BMO Capital", "BMO"], [
+        "BMO Capital Markets market outlook stocks",
+        "BMO Capital China A-share outlook 中国 股市",
+    ]),
+    ("Evercore ISI", ["Evercore"], [
+        "Evercore ISI market outlook strategy stocks",
+        "Evercore ISI China A-share outlook 中国 股市",
+    ]),
+    ("Oppenheimer", ["Oppenheimer"], [
+        "Oppenheimer market outlook strategy stocks",
+        "Oppenheimer China A-share outlook 中国 股市",
+    ]),
+    ("Yardeni Research", ["Yardeni"], [
+        "Yardeni Research market outlook stocks",
+        "Yardeni Research China A-share outlook 中国 股市",
+    ]),
 ]
 
 # Market tagging from title + content. Items matching none -> "全球其他".
@@ -61,7 +104,8 @@ MARKET_KEYWORDS: dict[str, list[str]] = {
     "us": ["s&p 500", "s&p", "nasdaq", "dow jones", "dow jones", "us stock",
            "us equit", "美股", "标普", "纳指", "纳斯达克", "道指", "美国股市"],
     "cn": ["a-share", "a股", "上证", "沪深300", "沪深", "深证", "创业板", "科创板",
-           "中国股市", "china stock", "china equit", "csi 300", "csi300"],
+           "中国股市", "中国", "china stock", "china equit", "china", "chinese",
+           "csi 300", "csi300", "hong kong", "港股", "恒生", "hang seng", "恒生科技"],
     "kr": ["kospi", "kosdaq", "korea stock", "korean stock", "korea equit",
            "韩股", "韩国股市"],
 }
@@ -177,16 +221,20 @@ def fetch_research_views(*, api_key: str | None = None) -> list[dict]:
     by_url: dict[str, dict] = {}
     session = requests.Session()
     try:
-        for canonical, _aliases, subject in INSTITUTIONS:
-            try:
-                results = _default_search(subject, api_key=api_key, session=session)
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"research-views: {canonical} failed: {e}")
-                continue
-            for r in results:
-                url = r.get("url", "")
-                if url and url not in by_url:
-                    by_url[url] = r
+        for canonical, _aliases, subjects in INSTITUTIONS:
+            # Each firm has multiple subjects (US-oriented + CN-oriented) so the
+            # firm's views on BOTH markets are surfaced. Per-subject failure is
+            # logged + skipped; one bad query never blocks the whole firm.
+            for subject in subjects:
+                try:
+                    results = _default_search(subject, api_key=api_key, session=session)
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"research-views: {canonical} [{subject}] failed: {e}")
+                    continue
+                for r in results:
+                    url = r.get("url", "")
+                    if url and url not in by_url:
+                        by_url[url] = r
     finally:
         session.close()
 
