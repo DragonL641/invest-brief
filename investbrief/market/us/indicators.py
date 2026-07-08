@@ -15,7 +15,9 @@
 import logging
 
 from investbrief.core.scoring import score_by_percentile, normalize_score
-from investbrief.core.indicators import score_with_config, TechnicalIndicator
+from investbrief.core.indicators import (
+    score_with_config, TechnicalIndicator, percentile_score_from_series,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -185,10 +187,10 @@ class UsLiquidityIndicator:
 
 
 class UsSentimentIndicator:
-    """US 情绪: vix。
+    """US 情绪: vix / market_breadth。
 
-    方法体逐字搬迁自 risk/indicators/sentiment.py, 仅适配取数与打分依赖。
-    _market_breadth 不搬(calculate 从未调用, 死代码, 丢弃)。
+    _vix 方法体逐字搬迁自 risk/indicators/sentiment.py, 仅适配取数与打分依赖。
+    _market_breadth 新增: 上涨家数占比的历史分位(invert: 低广度=高风险)。
     """
 
     def __init__(self, config: dict):
@@ -198,7 +200,15 @@ class UsSentimentIndicator:
     def calculate(self, data_source, date: str | None = None) -> dict:
         results = {}
         results["vix"] = self._vix(data_source, date)
+        results["market_breadth"] = self._market_breadth(data_source, date)
         return results
+
+    def _market_breadth(self, data_source, date: str | None = None) -> dict:
+        """上涨家数占比(0-1)的近10年分位; invert: 低广度=高风险(指数高位+广度收缩=顶部前兆)."""
+        return percentile_score_from_series(
+            data_source, "sentiment_data", "market_breadth", "market='us'",
+            date=date, invert=True, round_value=4,
+        )
 
     def _vix(self, data_source, date: str | None = None) -> dict:
         """VIX收盘值的近10年分位. 高位=市场恐慌(模型计为高风险, 与_score同向).

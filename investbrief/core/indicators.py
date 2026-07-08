@@ -54,6 +54,80 @@ def score_with_config(value, name: str, market: str, config: dict):
     return normalize_score(value, low, threshold)
 
 
+def percentile_score_from_series(
+    data_source,
+    table: str,
+    column: str,
+    where_clause: str,
+    date: str | None = None,
+    invert: bool = False,
+    min_samples: int = 100,
+    lookback_years: int = 10,
+    round_value: int = 4,
+) -> dict:
+    """通用分位打分: 取 (table.column, where_clause) 序列的"当前值在近 N 年分位"。
+
+    用于 sentiment_data 列(market_breadth / pledge_ratio / north_flow)和
+    macro_data 单列(REAL_YIELD_10Y)——只要表有 date 列、where_clause 能选出唯一序列即可。
+
+    当前值取 latest row(NULL-aware: 若 latest 行该列为 NULL -> value=None -> 退出加权,
+    由 models.py:79 的现有机制自动处理)。这样 north_flow 在 2024-08 停发后的最新行
+    (north_flow=NULL)自动退出加权, 无需特判。
+
+    where_clause 由调用方硬编码(如 "market='cn'" / "indicator='REAL_YIELD_10Y' AND country='us'"),
+    不接受外部输入——避免 SQL 注入。
+
+    返回 dict 与其他 indicator 一致: {score, value, percentile, scoring}。
+    """
+    from datetime import datetime, timedelta
+    import numpy as np
+    from investbrief.core.scoring import score_by_percentile
+
+    neutral = {"score": 5.0, "value": None, "percentile": None}
+    try:
+        ref = date or datetime.now().strftime('%Y-%m-%d')
+        start = (datetime.strptime(ref, '%Y-%m-%d') - timedelta(days=365 * lookback_years)).strftime('%Y-%m-%d')
+
+        # Step 1: latest value (NULL-aware — exits weighting when latest row's cell is NULL)
+        latest_sql = f"SELECT {column} AS v FROM {table} WHERE {where_clause}"
+        if date:
+            latest_df = data_source.query(
+                latest_sql + " AND date <= ? ORDER BY date DESC LIMIT 1", (date,),
+            )
+        else:
+            latest_df = data_source.query(latest_sql + " ORDER BY date DESC LIMIT 1")
+        if latest_df.empty:
+            return neutral
+        cur_raw = latest_df.iloc[0]["v"]
+        if cur_raw is None or pd.isna(cur_raw):
+            return neutral  # 停发/缺数 -> 退出加权
+        cur = float(cur_raw)
+
+        # Step 2: 历史样本(滤掉 NULL 行)
+        hist_sql = (f"SELECT {column} AS v FROM {table} WHERE {where_clause} "
+                    f"AND {column} IS NOT NULL AND date >= ?")
+        if date:
+            hist = data_source.query(hist_sql + " AND date <= ? ORDER BY date", (start, date))
+        else:
+            hist = data_source.query(hist_sql + " ORDER BY date", (start,))
+        if hist.empty or len(hist) < min_samples:
+            return neutral
+        vals = hist["v"].astype(float).tolist()
+        score = score_by_percentile(cur, vals, invert=invert, min_samples=min_samples)
+        if score is None:
+            return neutral
+        pct = float((np.array(vals) < cur).mean() * 100)
+        return {
+            "score": score,
+            "value": round(cur, round_value),
+            "percentile": round(pct, 0),
+            "scoring": f"近{lookback_years}年分位({len(vals)}点)",
+        }
+    except Exception as e:
+        logger.error(f"percentile_score_from_series({table}.{column}) failed: {e}")
+        return neutral
+
+
 class TechnicalIndicator:
     """cn/us 共享的技术指标(ma50_deviation, volume_shrinkage)。
 

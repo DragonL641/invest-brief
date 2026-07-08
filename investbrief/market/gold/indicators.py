@@ -25,7 +25,9 @@ from investbrief.data.gold_data import (
     GOLD_PRICE_HIST, WORLD_GDP_HIST,
     GOLD_STOCK_2024, TONNES_TO_OZ,
 )
-from investbrief.core.indicators import get_index_series, score_with_config
+from investbrief.core.indicators import (
+    get_index_series, score_with_config, percentile_score_from_series,
+)
 
 import logging
 
@@ -48,7 +50,23 @@ class GoldIndicator:
             "gold_gdp_ratio": self._gold_gdp_ratio(data_source, date),
             "gold_real_price": self._real_price(data_source, date),
             "gold_ma200_deviation": self._ma200_deviation(data_source, date),
+            "real_yield": self._real_yield(data_source, date),
         }
+
+    # ---------- indicator 4: 10Y 实际利率 (TIPS) ----------
+
+    def _real_yield(self, data_source, date=None):
+        """10Y TIPS 实际利率(macro_data.REAL_YIELD_10Y / country='us')的近10年分位。
+
+        金融逻辑: 实际利率是金价的核心负相关驱动(低实际利率 -> 持金机会成本低 -> 利多金价)。
+        对 gold risk 视角: 实际利率处于历史极低分位 = 金价支撑强但可能已透支 = 风险累积,
+        故 invert=True(低实际利率 -> 高风险分)。
+        """
+        return percentile_score_from_series(
+            data_source, "macro_data", "value",
+            "indicator='REAL_YIELD_10Y' AND country='us'",
+            date=date, invert=True, round_value=3,
+        )
 
     # ---------- helpers ----------
 

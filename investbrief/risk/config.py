@@ -51,19 +51,19 @@ FIVE_DIMENSIONS = {
         "gold": ["gold_ma200_deviation"],
     },
     "流动性风险": {
-        "cn": ["margin_growth", "margin_level"],
+        "cn": ["margin_growth", "margin_level", "north_flow"],
         "us": ["credit_spread"],
         "gold": [],
     },
     "情绪面风险": {
-        "cn": [],
-        "us": ["vix"],
+        "cn": ["market_breadth", "pledge_ratio"],
+        "us": ["vix", "market_breadth"],
         "gold": [],
     },
     "宏观基本面风险": {
         "cn": [],
         "us": ["yield_curve_inversion"],
-        "gold": [],
+        "gold": ["real_yield"],
     },
 }
 

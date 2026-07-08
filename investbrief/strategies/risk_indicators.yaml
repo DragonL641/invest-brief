@@ -75,6 +75,32 @@ cn:
     scale: 1
     unit: "亿"
     explain: "高=杠杆仓位重"
+  north_flow:
+    name: 北向资金
+    weight: 0.08
+    category: liquidity
+    invert: true
+    description: "北向资金净流入(亿)近10年分位, 外资流向信号"
+    scale: 1
+    unit: "亿"
+    explain: "大流出=外资撤离; 2024-08 后停发, 仅历史分位(停发后最新行 NULL -> 退出加权)"
+  market_breadth:
+    name: 市场宽度
+    weight: 0.10
+    category: sentiment
+    invert: true
+    description: "上涨家数占比(0-1)近10年分位, 低广度+指数高位=顶部前兆"
+    scale: 100
+    unit: "%"
+    explain: "低=广度收缩=顶部前兆"
+  pledge_ratio:
+    name: 质押比例
+    weight: 0.08
+    category: sentiment
+    description: "A股质押比例%(全市场)近10年分位"
+    scale: 1
+    unit: "%"
+    explain: "高质押+下跌=强平连锁尾部风险"
 
 us:
   index_pe:
@@ -128,6 +154,15 @@ us:
     scale: 1
     unit: ""
     explain: "高=市场恐慌"
+  market_breadth:
+    name: 市场宽度
+    weight: 0.10
+    category: sentiment
+    invert: true
+    description: "上涨家数占比(0-1)近10年分位, 低广度+指数高位=顶部前兆"
+    scale: 100
+    unit: "%"
+    explain: "低=广度收缩=顶部前兆"
 
 gold:
   gold_gdp_ratio:
@@ -160,3 +195,12 @@ gold:
     scale: 100
     unit: "%"
     explain: "高=超买"
+  real_yield:
+    name: 实际利率
+    weight: 0.15
+    category: macro
+    invert: true
+    description: "10Y TIPS实际利率(macro_data.REAL_YIELD_10Y/us)近10年分位, 金价核心负相关驱动"
+    scale: 1
+    unit: "%"
+    explain: "极低=金价透支风险(低实际利率=持金机会成本低, 利多金价但可能已透支)"
