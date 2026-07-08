@@ -218,13 +218,12 @@ class CnLiquidityIndicator:
 
 
 class CnSentimentIndicator:
-    """CN 情绪: market_breadth / pledge_ratio。
+    """CN 情绪: market_breadth。
 
     market_breadth: 上涨家数占比(0-1)的近10年分位; invert=True(低广度=高风险,
         指数高位 + 广度收缩 = 顶部前兆)。
-    pledge_ratio: A股质押比例%的近10年分位; 正向(高质押 + 下跌 = 强平连锁尾部风险)。
 
-    两者最新值 NULL -> value None -> 退出加权(见 models.py:79)。
+    最新值 NULL -> value None -> 退出加权(见 models.py:79)。
     """
 
     def __init__(self, config: dict):
@@ -234,19 +233,12 @@ class CnSentimentIndicator:
     def calculate(self, data_source, date: str | None = None) -> dict:
         results = {}
         results["market_breadth"] = self._market_breadth(data_source, date)
-        results["pledge_ratio"] = self._pledge_ratio(data_source, date)
         return results
 
     def _market_breadth(self, data_source, date: str | None = None) -> dict:
         return percentile_score_from_series(
             data_source, "sentiment_data", "market_breadth", "market='cn'",
             date=date, invert=True, round_value=4,
-        )
-
-    def _pledge_ratio(self, data_source, date: str | None = None) -> dict:
-        return percentile_score_from_series(
-            data_source, "sentiment_data", "pledge_ratio", "market='cn'",
-            date=date, invert=False, round_value=4,
         )
 
 

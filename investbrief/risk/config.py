@@ -56,7 +56,7 @@ FIVE_DIMENSIONS = {
         "gold": [],
     },
     "情绪面风险": {
-        "cn": ["market_breadth", "pledge_ratio"],
+        "cn": ["market_breadth"],
         "us": ["vix", "market_breadth"],
         "gold": [],
     },

@@ -68,7 +68,7 @@ def percentile_score_from_series(
 ) -> dict:
     """通用分位打分: 取 (table.column, where_clause) 序列的"当前值在近 N 年分位"。
 
-    用于 sentiment_data 列(market_breadth / pledge_ratio)和
+    用于 sentiment_data 列(market_breadth)和
     macro_data 单列(REAL_YIELD_10Y)——只要表有 date 列、where_clause 能选出唯一序列即可。
 
     当前值取 latest row(NULL-aware: 若 latest 行该列为 NULL -> value=None -> 退出加权,

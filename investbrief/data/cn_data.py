@@ -236,11 +236,10 @@ class CNData(BaseData):
             logger.error(f"Failed to update USDCNY: {e}")
 
     def update_sentiment(self):
-        """Fetch margin balance, accounts, market cap, PE, pledge."""
+        """Fetch margin balance, accounts, market cap, PE."""
         self._update_margin()
         self._update_market_cap_pe()
         self._update_index_pes()
-        self._update_pledge_ratio()
         self._update_market_breadth()
 
     def _update_margin(self):
@@ -373,26 +372,6 @@ class CNData(BaseData):
         except Exception as e:
             logger.warning(f"Failed to get current market cap: {e}")
             return None
-
-    def _update_pledge_ratio(self):
-        """Fetch market-wide average pledge ratio. API only returns latest snapshot."""
-        try:
-            df = self._retry_api(lambda: ak.stock_gpzy_pledge_ratio_em())
-            if df is None or df.empty:
-                return
-
-            # API returns single-date snapshot; take mean across all stocks
-            ratio = df["质押比例"].mean()
-            if isinstance(ratio, str):
-                ratio = float(ratio.replace("%", ""))
-            if pd.notna(ratio):
-                # Use today's date since the snapshot date may be stale
-                today = datetime.now().strftime("%Y-%m-%d")
-                self.merge_sentiment_row("cn", today, pledge_ratio=float(ratio))
-                self.set_update_date("sentiment_pledge_cn", today)
-                logger.info(f"Updated pledge ratio: {ratio:.4f}")
-        except Exception as e:
-            logger.error(f"Failed to update pledge ratio: {e}")
 
     def _update_market_breadth(self):
         """Calculate market breadth (up/total ratio) from all A-share stocks."""

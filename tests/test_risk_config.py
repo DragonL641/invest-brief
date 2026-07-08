@@ -14,18 +14,19 @@ from investbrief.core.scoring import (
 
 
 class TestConfig:
-    # NOTE: weights intentionally do NOT sum to 1.0. The 3 newer indicators
-    # (market_breadth / pledge_ratio / real_yield) were added on top
+    # NOTE: weights intentionally do NOT sum to 1.0. The newer indicators
+    # (market_breadth / real_yield) were added on top
     # of the existing weights without reallocation (per task spec: "不重分配估值权重"),
     # because risk/models.py:calculate_score auto-normalizes via weighted_sum/total_weight
     # — only relative proportions matter, not the absolute total.
     # broad_erp merge (hsh300_erp+zz500_erp 0.30+0.24 -> broad_erp 0.35) cut CN totals
-    # by 0.19. north_flow removal (2024-08 停发) cut a further 0.08:
-    # 1.26 -> 1.07 -> 0.99 (CN_TOTAL), 1.17 -> 0.98 -> 0.90 (CN_SPECIFIC).
-    CN_TOTAL = 0.99  # was 1.07 before north_flow removal
+    # by 0.19. north_flow removal (2024-08 停发) cut a further 0.08.
+    # pledge_ratio removal (margin 已覆盖杠杆) cut a further 0.08:
+    # 1.26 -> 1.07 -> 0.99 -> 0.91 (CN_TOTAL), 1.17 -> 0.98 -> 0.90 -> 0.82 (CN_SPECIFIC).
+    CN_TOTAL = 0.91  # was 0.99 before pledge_ratio removal
     US_TOTAL = 1.10  # was 1.00 before B1 added market_breadth (+0.10)
     COMMON_TOTAL = 0.09
-    CN_SPECIFIC_TOTAL = 0.90  # was 0.98 before north_flow removal
+    CN_SPECIFIC_TOTAL = 0.82  # was 0.90 before pledge_ratio removal
     US_SPECIFIC_TOTAL = 1.01  # was 0.91
 
     def test_cn_weights_documented(self):
@@ -56,7 +57,7 @@ class TestConfig:
         assert MARKET_STATE_MAP[-1][1] == 100
 
     def test_all_thresholds_are_numeric(self):
-        # 纯分位指标(market_breadth/pledge_ratio/real_yield)无固定阈值,
+        # 纯分位指标(market_breadth/real_yield)无固定阈值,
         # 由 percentile_score_from_series 算分; 这里只校验声明了 thresholds 的指标。
         for indicators in [CN_ALL_INDICATORS, US_ALL_INDICATORS]:
             for key, ind in indicators.items():
@@ -138,7 +139,7 @@ def test_score_to_risk_level_out_of_range():
 
 
 class TestPercentileScoreFromSeries:
-    """percentile_score_from_series 是 market_breadth/pledge_ratio/real_yield
+    """percentile_score_from_series 是 market_breadth/real_yield
     共用的分位打分 helper。核心契约: latest 行该列为 NULL -> value None -> 退出加权
     (数据源中断/停发后的优雅降级关键)。"""
 
@@ -146,11 +147,11 @@ class TestPercentileScoreFromSeries:
         from investbrief.data.cn_data import CNData
         db = CNData(db_path=str(tmp_path / "t.db"))
         if sentiment_rows:
-            for market, date, breadth, pledge in sentiment_rows:
+            for market, date, breadth in sentiment_rows:
                 db.conn.execute(
                     "INSERT OR REPLACE INTO sentiment_data "
-                    "(market, date, market_breadth, pledge_ratio) VALUES (?,?,?,?)",
-                    (market, date, breadth, pledge),
+                    "(market, date, market_breadth) VALUES (?,?,?)",
+                    (market, date, breadth),
                 )
         if macro_rows:
             for indicator, country, date, value in macro_rows:
@@ -166,20 +167,20 @@ class TestPercentileScoreFromSeries:
         from datetime import date, timedelta
         base = date(2020, 1, 1)
         return [
-            ("cn", (base + timedelta(days=i)).isoformat(), start_value, None)
+            ("cn", (base + timedelta(days=i)).isoformat(), start_value)
             for i in range(n)
         ]
 
     def test_exits_weighting_when_latest_is_null(self, tmp_path):
         """latest 行该列为 NULL -> value None (退出加权, 见 models.py:79)。
 
-        通用契约: 任一 percentile 指标(market_breadth / pledge_ratio / real_yield)
+        通用契约: 任一 percentile 指标(market_breadth / real_yield)
         在数据源中断后的最新行为 NULL 时优雅退出加权, 不影响当日分数。
         """
         from investbrief.core.indicators import percentile_score_from_series
         rows = self._many_history_rows(150)  # 足够多历史, 全非 NULL
         # 追加一个 latest 行, market_breadth=NULL (模拟数据中断)
-        rows.append(("cn", "2026-07-08", None, None))
+        rows.append(("cn", "2026-07-08", None))
         ds = self._data_source(tmp_path, sentiment_rows=rows)
         try:
             r = percentile_score_from_series(
@@ -209,7 +210,7 @@ class TestPercentileScoreFromSeries:
         from investbrief.core.indicators import percentile_score_from_series
         # 150 行历史, 全 = 0.5; 最新行 = 0.9 (高分位 -> 高 score, 不 invert)
         rows = self._many_history_rows(150, start_value=0.5)
-        rows.append(("cn", "2026-07-08", 0.9, None))
+        rows.append(("cn", "2026-07-08", 0.9))
         ds = self._data_source(tmp_path, sentiment_rows=rows)
         try:
             r = percentile_score_from_series(
@@ -225,7 +226,7 @@ class TestPercentileScoreFromSeries:
         """invert=True: 高分位 -> 低 score (e.g. 高 market_breadth = 低风险)."""
         from investbrief.core.indicators import percentile_score_from_series
         rows = self._many_history_rows(150, start_value=0.5)
-        rows.append(("cn", "2026-07-08", 0.9, None))  # 高分位
+        rows.append(("cn", "2026-07-08", 0.9))  # 高分位
         ds = self._data_source(tmp_path, sentiment_rows=rows)
         try:
             r_invert = percentile_score_from_series(

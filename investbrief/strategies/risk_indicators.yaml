@@ -73,14 +73,6 @@ cn:
     scale: 100
     unit: "%"
     explain: "低=广度收缩=顶部前兆"
-  pledge_ratio:
-    name: 质押比例
-    weight: 0.08
-    category: sentiment
-    description: "A股质押比例%(全市场)近10年分位"
-    scale: 1
-    unit: "%"
-    explain: "高质押+下跌=强平连锁尾部风险"
 
 us:
   index_pe:

@@ -70,7 +70,7 @@ class BaseData(ABC):
                 market TEXT, date TEXT,
                 margin_balance REAL, north_flow REAL,  -- deprecated: 沪深交易所 2024-08-19 起停发, 不再写入/读取; 列保留避免迁移
                 new_accounts REAL,
-                total_market_cap REAL, pe_ratio REAL, pledge_ratio REAL,
+                total_market_cap REAL, pe_ratio REAL, pledge_ratio REAL,  -- deprecated: margin covers leverage; column kept to avoid DB migration
                 vix REAL, credit_spread REAL, put_call_ratio REAL,
                 market_breadth REAL,
                 PRIMARY KEY (market, date)
