@@ -48,13 +48,21 @@ def _format_holding(r: HoldingResult) -> str:
         lines.append(f"  主力资金: {r.flow.get('main_net')}")
     if r.fundamentals:
         f = r.fundamentals
-        lines.append(f"  基本面: PE={f.get('pe')} ROE={f.get('roe')} 营收增长={f.get('revenue_growth')}")
+        fund_parts = [f"PE={f.get('pe')}", f"ROE={f.get('roe')}", f"营收增长={f.get('revenue_growth')}"]
+        if f.get("gross_margin") is not None:
+            fund_parts.append(f"毛利率={f.get('gross_margin')}")
+        if f.get("net_margin") is not None:
+            fund_parts.append(f"净利率={f.get('net_margin')}")
+        if f.get("debt_ratio") is not None:
+            fund_parts.append(f"负债率={f.get('debt_ratio')}")
+        lines.append(f"  基本面: {' '.join(fund_parts)}")
     if r.technicals:
         t = r.technicals
         lines.append(
             f"  技术面: 均线={t.get('ma_alignment')} RSI={t.get('rsi')} "
             f"MACD={t.get('macd_cross')} 量比={t.get('volume_ratio')} "
-            f"5日={t.get('return_5d')}% 20日={t.get('return_20d')}% 60日={t.get('return_60d')}% "
+            f"5日={t.get('return_5d')}% 10日={t.get('return_10d')}% 20日={t.get('return_20d')}% "
+            f"60日={t.get('return_60d')}% 区间位置={t.get('position_60d')} "
             f"布林位置={t.get('boll_position')} 60日新高={t.get('new_high_60d')}"
         )
     if r.insider and r.insider.get("direction") and r.insider.get("direction") != "flat":

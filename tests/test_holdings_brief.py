@@ -52,6 +52,52 @@ def test_format_holding_includes_key_dimensions():
     assert "ai_conclusion" not in text
 
 
+def test_format_holding_includes_extended_fundamentals():
+    """C4: 基本面补 gross_margin / net_margin / debt_ratio(存在时输出)。"""
+    r = HoldingResult(
+        symbol="600519", market="cn", type="stock", name="贵州茅台",
+        fundamentals={
+            "pe": 30.0, "roe": 30.0, "revenue_growth": 15.0,
+            "gross_margin": 91.0, "net_margin": 50.0, "debt_ratio": 25.0,
+        },
+        technicals={"ma_alignment": "bullish"},
+    )
+    text = _format_holding(r)
+    assert "毛利率" in text and "91.0" in text
+    assert "净利率" in text and "50.0" in text
+    assert "负债率" in text and "25.0" in text
+
+
+def test_format_holding_omits_missing_extended_fundamentals():
+    """C4: gross_margin/net_margin/debt_ratio 缺失时不输出(优雅降级)。"""
+    r = HoldingResult(
+        symbol="AAPL", market="us", type="stock", name="Apple",
+        fundamentals={"pe": 30.0, "roe": 100.0, "revenue_growth": 10.0},
+        technicals={"ma_alignment": "bullish"},
+    )
+    text = _format_holding(r)
+    assert "毛利率" not in text
+    assert "净利率" not in text
+    assert "负债率" not in text
+
+
+def test_format_holding_includes_position_60d_and_return_10d():
+    """C4: 技术面补 position_60d(60日区间位置) + return_10d 进 AI prompt 上下文。"""
+    r = HoldingResult(
+        symbol="601138", market="cn", type="stock", name="工业富联",
+        technicals={
+            "ma_alignment": "bullish", "rsi": 55, "macd_cross": "golden",
+            "volume_ratio": 1.2, "return_5d": 3.0, "return_10d": 5.5,
+            "return_20d": 8.0, "return_60d": 12.3, "position_60d": 0.85,
+            "boll_position": 0.7, "new_high_60d": True,
+        },
+    )
+    text = _format_holding(r)
+    assert "区间位置" in text
+    assert "0.85" in text
+    assert "10日" in text and "5.5" in text
+
+
 def test_fallback_bullish():
     r = HoldingResult(symbol="601138", market="cn", type="stock",
                       rating={"distribution": {"buy": 5, "outperform": 2, "sell": 1}},

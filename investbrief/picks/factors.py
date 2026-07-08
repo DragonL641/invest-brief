@@ -85,7 +85,10 @@ def _quality(hist, fund, _val) -> float | None:
     if roe is None:
         return None
     gm = gm or 0.0
-    return float(roe * 100 + gm * 50 + fcf * 5)   # 粗合成,截面 rank 后尺度无关
+    # 低杠杆加成：debt_ratio 小=质量好。缺失走 0.5 中性（同 _moat 的 capex 模式）。
+    debt = fund.get("debt_ratio")
+    leverage_term = (1 - debt) if debt is not None else 0.5
+    return float(roe * 100 + gm * 50 + fcf * 5 + leverage_term * 30)   # 粗合成,截面 rank 后尺度无关
 
 
 def _industry_prosperity(hist, fund, _val) -> float | None:
@@ -130,6 +133,15 @@ def _moat(hist, fund, _val) -> float | None:
     return float(gm * 100 + capex_term * 30)
 
 
+def _main_flow(hist, fund, _val) -> float | None:
+    """主力资金近5日净流入占比均值(%)。正值=净流入(偏多)。CN only(US → None)。
+
+    数据由 pipelines/picks.py:_enrich 从 data.fetch_flow 注入 fund['main_flow_5d']。
+    用 main_pct(净流入/成交额占比)做截面可比的归一化,避免大盘股绝对额碾压。
+    """
+    return fund.get("main_flow_5d")
+
+
 FACTOR_LABELS: dict[str, str] = {
     # 因子英文 key → 中文展示名(engine.triggers / renderer 共用)
     "trend_strength": "趋势强度", "momentum_60d_ex5": "动量(60日)",
@@ -137,6 +149,7 @@ FACTOR_LABELS: dict[str, str] = {
     "low_volatility_20d": "低波动", "growth": "成长", "quality": "质量",
     "industry_prosperity": "行业景气", "valuation": "估值",
     "momentum_12m_ex1m": "动量(12月)", "moat": "护城河",
+    "main_flow": "主力资金",
 }
 
 
@@ -152,6 +165,7 @@ FACTOR_REGISTRY: dict[str, Callable] = {
     "valuation": _valuation,
     "momentum_12m_ex1m": _momentum_12m_ex1m,
     "moat": _moat,
+    "main_flow": _main_flow,
 }
 
 
@@ -168,4 +182,5 @@ FACTOR_CATEGORY: dict[str, str] = {
     "industry_prosperity": "fundamental",
     "valuation": "fundamental",
     "moat": "fundamental",
+    "main_flow": "flow",   # 资金面:不参与行业中性化(swing 也关了中性化)
 }

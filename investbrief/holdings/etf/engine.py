@@ -85,16 +85,19 @@ class RuleEngine:
         return results
 
     def dimension_summary(self, results: list[RuleResult]) -> dict[str, dict]:
-        """按维度汇总匹配结果。"""
+        """按维度汇总匹配结果(加权:每条规则累加其 weight,而非计数)。
+
+        weight 来自 etf_rules.yaml(0.3~1.2),使金叉(1.2)与 5d涨跌(0.5)不再等价。
+        """
         summary: dict[str, dict] = {}
         for r in results:
             if not r.matched:
                 continue
             dim = r.dimension
             if dim not in summary:
-                summary[dim] = {"bullish": 0, "bearish": 0, "warning": 0, "neutral": 0}
+                summary[dim] = {"bullish": 0.0, "bearish": 0.0, "warning": 0.0, "neutral": 0.0}
             if r.signal in summary[dim]:
-                summary[dim][r.signal] += 1
+                summary[dim][r.signal] += r.weight
         return summary
 
 

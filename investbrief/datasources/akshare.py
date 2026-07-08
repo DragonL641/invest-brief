@@ -766,6 +766,22 @@ class AKShareClient:
             logger.warning(f"AKShare get_stock_fund_flow failed for {symbol}: {e}")
             return None
 
+    def get_stock_fund_flow_history(self, symbol: str, days: int = 5) -> "pd.DataFrame | None":
+        """获取个股近 N 日主力资金流向全量帧(picks 资金流因子用)。
+
+        与 get_stock_fund_flow 同源(stock_individual_fund_flow),但返回最后 N 行 DataFrame
+        而非单日 dict,供调用方计算多日均值。失败返回 None。
+        """
+        try:
+            market = "sh" if symbol.startswith("6") else "sz"
+            df = ak.stock_individual_fund_flow(stock=symbol, market=market)
+            if df is None or df.empty:
+                return None
+            return df.tail(days).reset_index(drop=True)
+        except Exception as e:
+            logger.warning(f"AKShare get_stock_fund_flow_history failed for {symbol}: {e}")
+            return None
+
     def get_sector_performance(self, sector_names: list[str]) -> list[dict[str, Any]]:
         """获取指定行业板块的涨跌幅表现。"""
         try:

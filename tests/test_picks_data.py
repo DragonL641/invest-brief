@@ -66,3 +66,43 @@ def test_cn_amount_to_float_parses_suffixes():
     assert math.isnan(data._cn_amount_to_float("-"))
     assert math.isnan(data._cn_amount_to_float(""))
     assert math.isnan(data._cn_amount_to_float(None))
+
+
+# ---- C3: 主力资金流因子数据层 ----
+
+def test_fetch_flow_us_returns_none():
+    """C3: US 无等价免费源,直接返回 None(不触网)。"""
+    assert data.fetch_flow("AAPL", "us", days=5) is None
+
+
+def test_fetch_flow_cn_averages_main_pct(monkeypatch):
+    """C3: CN 用 akshare 近 N 日「主力净流入-净占比」均值。"""
+    import pandas as pd
+    fake_df = pd.DataFrame({
+        "日期": ["2026-07-01", "2026-07-02", "2026-07-03"],
+        "主力净流入-净占比": [10.0, -5.0, 8.0],
+    })
+
+    class _FakeAK:
+        def get_stock_fund_flow_history(self, symbol, days=5):
+            return fake_df
+
+    monkeypatch.setattr(
+        "investbrief.datasources.akshare.AKShareClient", lambda: _FakeAK())
+    # 跳过缓存(测试环境无 init_cache)
+    monkeypatch.setattr(data, "cache", lambda: None)
+
+    v = data.fetch_flow("600519", "cn", days=3)
+    assert v is not None
+    assert abs(v - (10.0 - 5.0 + 8.0) / 3) < 0.01
+
+
+def test_fetch_flow_cn_empty_df_returns_none(monkeypatch):
+    class _FakeAK:
+        def get_stock_fund_flow_history(self, symbol, days=5):
+            return None
+
+    monkeypatch.setattr(
+        "investbrief.datasources.akshare.AKShareClient", lambda: _FakeAK())
+    monkeypatch.setattr(data, "cache", lambda: None)
+    assert data.fetch_flow("600519", "cn", days=5) is None

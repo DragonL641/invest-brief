@@ -166,16 +166,16 @@ IOPV: {spot.get('iopv')}  溢价率: {spot.get('premium_rate')}%
         return text if text else self._fallback_conclusion(dim_summary)
 
     def _fallback_conclusion(self, dim_summary: dict) -> str:
-        """AI 不可用时的 fallback 结论。"""
+        """AI 不可用时的 fallback 结论(基于加权和)。"""
         if not dim_summary:
             return "数据不足，无法生成结论。"
         total_bullish = sum(d.get("bullish", 0) for d in dim_summary.values())
         total_bearish = sum(d.get("bearish", 0) for d in dim_summary.values())
         total_warning = sum(d.get("warning", 0) for d in dim_summary.values())
         if total_bearish > total_bullish:
-            return f"偏空。{total_bearish}项偏空信号 vs {total_bullish}项偏多信号，建议观望。"
+            return f"偏空。偏空分 {total_bearish:.1f} vs 偏多分 {total_bullish:.1f}，建议观望。"
         if total_bullish > total_bearish + 1:
-            return f"偏多。{total_bullish}项偏多信号 vs {total_bearish}项偏空信号，趋势向好。"
+            return f"偏多。偏多分 {total_bullish:.1f} vs 偏空分 {total_bearish:.1f}，趋势向好。"
         if total_warning > 0:
-            return f"中性偏谨慎。有{total_warning}项警告信号，注意风险。"
-        return f"中性。偏多{total_bullish}项，偏空{total_bearish}项，多空均衡。"
+            return f"中性偏谨慎。警告分 {total_warning:.1f}，注意风险。"
+        return f"中性。偏多分 {total_bullish:.1f}，偏空分 {total_bearish:.1f}，多空均衡。"

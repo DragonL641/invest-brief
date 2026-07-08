@@ -73,6 +73,10 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
             fund = _data.fetch_fundamentals(symbol, market)  # 即使 swing 也拉(供卡片展示,只是 swing 不用它算因子)
             if hist is None or hist.empty:
                 continue
+            # main_flow 因子(CN only):近5日主力资金流,只在 profile 启用该因子时拉取(限流保护)。
+            # 用 spread 构造新 dict 避免污染 fund 的 7 天缓存。
+            if "main_flow" in prof["factors"]:
+                fund = {**fund, "main_flow_5d": _data.fetch_flow(symbol, market, days=5)}
             # 深拉阶段校验:基本面 gate(只在数据存在时执行,缺失则跳过该 gate)
             if gates and not _passes_fundamental_gates(fund, gates, symbol, market):
                 continue

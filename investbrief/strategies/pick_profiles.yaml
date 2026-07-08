@@ -11,11 +11,12 @@ profiles:
       trend_60d_positive: true
       max_5d_gain: 0.30            # 深拉阶段(③)用历史 close 校验(active)
     factors:
-      trend_strength:     {weight: 0.30}
-      momentum_60d_ex5:   {weight: 0.25}
+      trend_strength:     {weight: 0.25}
+      momentum_60d_ex5:   {weight: 0.20}
       ma20_deviation:     {weight: 0.20, invert: true}
       volume_price:       {weight: 0.15}
       low_volatility_20d: {weight: 0.10, invert: true}
+      main_flow:          {weight: 0.10}   # CN only(US → None,因子降级);近5日主力净流入占比
     standardize: rank_percentile
     industry_neutralize: false
     top_n: 1

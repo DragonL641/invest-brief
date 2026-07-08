@@ -195,6 +195,41 @@ def _normalize_us_fund(info: dict) -> dict:
     }
 
 
+# ---- 主力资金流(CN only;US 无等价免费源) ----
+
+def fetch_flow(symbol: str, market: str, days: int = 5) -> float | None:
+    """近 N 日主力净流入占比均值(%)。正值=净流入(偏多)。
+
+    CN: akshare stock_individual_fund_flow 取最后 N 日「主力净流入-净占比」均值。
+        用 main_pct(净流入/成交额占比)而非绝对额,做截面可比归一化,避免大盘股绝对值碾压。
+    US: 无等价免费源 → None(因子降级,engine 截面 rank 自动跳过)。
+    cached ttl_days=1(日频变化);失败返回 None,不阻塞。
+    """
+    if market != "cn":
+        return None
+    key = f"flow:{market}:{symbol}:{days}"
+    c = cache()
+    if c and c.fresh(key, ttl_days=1):
+        cached = c.get(key)
+        if cached is not None:
+            return cached
+    try:
+        from investbrief.datasources.akshare import AKShareClient
+        df = AKShareClient().get_stock_fund_flow_history(symbol, days=days)
+        if df is None or df.empty or "主力净流入-净占比" not in df.columns:
+            return None
+        vals = pd.to_numeric(df["主力净流入-净占比"], errors="coerce").dropna()
+        if vals.empty:
+            return None
+        avg = float(vals.mean())
+        if c:
+            c.set(key, avg, ttl_days=1)
+        return avg
+    except Exception as e:
+        logger.warning(f"fetch_flow {market}:{symbol} failed: {e}")
+        return None
+
+
 # ---- 多期财报(TODO B profitable_years / TODO A earliest_period) ----
 
 def count_profitable_years(net_income_by_year: dict) -> int:

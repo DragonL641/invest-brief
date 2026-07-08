@@ -63,3 +63,47 @@ def test_quality_combines_roe_margin_fcf():
     fund = {"roe": 0.20, "gross_margin": 0.40, "fcf_positive": True}
     v = factors.FACTOR_REGISTRY["quality"](_uptrend_hist(130), fund, {})
     assert v is not None and v > 0
+
+
+def test_quality_consumes_debt_ratio_low_leverage_bonus():
+    """C2: debt_ratio 接入 quality 因子。低杠杆(0.1)应比高杠杆(0.8)得分高。"""
+    base = {"roe": 0.20, "gross_margin": 0.40, "fcf_positive": True}
+    v_low_debt = factors.FACTOR_REGISTRY["quality"](
+        _uptrend_hist(130), {**base, "debt_ratio": 0.1}, {})
+    v_high_debt = factors.FACTOR_REGISTRY["quality"](
+        _uptrend_hist(130), {**base, "debt_ratio": 0.8}, {})
+    assert v_low_debt is not None and v_high_debt is not None
+    assert v_low_debt > v_high_debt
+    # 差值应约等于 (1-0.1 - (1-0.8)) * 30 = 0.7 * 30 = 21
+    assert abs((v_low_debt - v_high_debt) - 21.0) < 0.01
+
+
+def test_quality_missing_debt_ratio_uses_neutral():
+    """C2: debt_ratio 缺失走 0.5 中性,介于低杠杆(0.1)与高杠杆(0.8)之间。"""
+    base = {"roe": 0.20, "gross_margin": 0.40, "fcf_positive": True}
+    v_missing = factors.FACTOR_REGISTRY["quality"](
+        _uptrend_hist(130), base, {})
+    v_low = factors.FACTOR_REGISTRY["quality"](
+        _uptrend_hist(130), {**base, "debt_ratio": 0.1}, {})
+    v_high = factors.FACTOR_REGISTRY["quality"](
+        _uptrend_hist(130), {**base, "debt_ratio": 0.8}, {})
+    assert v_high < v_missing < v_low
+
+
+def test_main_flow_factor_reads_from_fund():
+    """C3: main_flow 因子从 fund['main_flow_5d'] 读取(由 pipeline 注入)。"""
+    fund = {"main_flow_5d": 5.5}
+    v = factors.FACTOR_REGISTRY["main_flow"](_uptrend_hist(130), fund, {})
+    assert v == 5.5
+
+
+def test_main_flow_factor_none_when_missing():
+    fund = {}
+    assert factors.FACTOR_REGISTRY["main_flow"](_uptrend_hist(130), fund, {}) is None
+
+
+def test_main_flow_in_registry_and_labels():
+    assert "main_flow" in factors.FACTOR_REGISTRY
+    assert factors.FACTOR_LABELS["main_flow"] == "主力资金"
+    # flow 类别:不参与行业中性化
+    assert factors.FACTOR_CATEGORY["main_flow"] == "flow"
