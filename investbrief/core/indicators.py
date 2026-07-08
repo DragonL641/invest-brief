@@ -68,12 +68,11 @@ def percentile_score_from_series(
 ) -> dict:
     """通用分位打分: 取 (table.column, where_clause) 序列的"当前值在近 N 年分位"。
 
-    用于 sentiment_data 列(market_breadth / pledge_ratio / north_flow)和
+    用于 sentiment_data 列(market_breadth / pledge_ratio)和
     macro_data 单列(REAL_YIELD_10Y)——只要表有 date 列、where_clause 能选出唯一序列即可。
 
     当前值取 latest row(NULL-aware: 若 latest 行该列为 NULL -> value=None -> 退出加权,
-    由 models.py:79 的现有机制自动处理)。这样 north_flow 在 2024-08 停发后的最新行
-    (north_flow=NULL)自动退出加权, 无需特判。
+    由 models.py:79 的现有机制自动处理)。
 
     where_clause 由调用方硬编码(如 "market='cn'" / "indicator='REAL_YIELD_10Y' AND country='us'"),
     不接受外部输入——避免 SQL 注入。

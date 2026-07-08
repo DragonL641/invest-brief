@@ -134,19 +134,7 @@ class CnLiquidityIndicator:
         results = {}
         results["margin_growth"] = self._margin_growth(data_source, date)
         results["margin_level"] = self._margin_level(data_source, date)
-        results["north_flow"] = self._north_flow(data_source, date)
         return results
-
-    def _north_flow(self, data_source, date: str | None = None) -> dict:
-        """北向资金净流入(亿)的近10年分位. invert: 大流出=高风险(外资撤离信号).
-
-        数据 2024-08-16 起停发, 之后最新行 north_flow=NULL -> value None -> 退出加权
-        (不影响当日分数); 历史回测窗口内(<=2024-08-16)正常生效。
-        """
-        return percentile_score_from_series(
-            data_source, "sentiment_data", "north_flow", "market='cn'",
-            date=date, invert=True, round_value=2,
-        )
 
     def _margin_growth(self, data_source, date: str | None = None) -> dict:
         """4周(20交易日)融资余额增速 = 杠杆加速度. 高增速=亢奋加杠杆=高风险.

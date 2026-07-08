@@ -64,15 +64,6 @@ cn:
     scale: 1
     unit: "亿"
     explain: "高=杠杆仓位重"
-  north_flow:
-    name: 北向资金
-    weight: 0.08
-    category: liquidity
-    invert: true
-    description: "北向资金净流入(亿)近10年分位, 外资流向信号"
-    scale: 1
-    unit: "亿"
-    explain: "大流出=外资撤离; 2024-08 后停发, 仅历史分位(停发后最新行 NULL -> 退出加权)"
   market_breadth:
     name: 市场宽度
     weight: 0.10

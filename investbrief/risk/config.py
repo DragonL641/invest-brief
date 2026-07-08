@@ -51,7 +51,7 @@ FIVE_DIMENSIONS = {
         "gold": ["gold_ma200_deviation"],
     },
     "流动性风险": {
-        "cn": ["margin_growth", "margin_level", "north_flow"],
+        "cn": ["margin_growth", "margin_level"],
         "us": ["credit_spread"],
         "gold": [],
     },

@@ -68,7 +68,8 @@ class BaseData(ABC):
             );
             CREATE TABLE IF NOT EXISTS sentiment_data (
                 market TEXT, date TEXT,
-                margin_balance REAL, north_flow REAL, new_accounts REAL,
+                margin_balance REAL, north_flow REAL,  -- deprecated: 沪深交易所 2024-08-19 起停发, 不再写入/读取; 列保留避免迁移
+                new_accounts REAL,
                 total_market_cap REAL, pe_ratio REAL, pledge_ratio REAL,
                 vix REAL, credit_spread REAL, put_call_ratio REAL,
                 market_breadth REAL,
