@@ -137,8 +137,10 @@ def _build_detail(rule: dict, data: dict) -> str:
             return f"PE百分位 {data.get('pe_percentile')}%，高估"
         if "pe_fair" in rid:
             return f"PE百分位 {data.get('pe_percentile')}%，合理"
-        if "volume_amplified" in rid:
-            return f"量比 {data.get('volume_ratio')}，放量"
+        if rid.startswith("volume_amplified_up"):
+            return f"量比 {data.get('volume_ratio')}，放量上涨"
+        if rid.startswith("volume_amplified_down"):
+            return f"量比 {data.get('volume_ratio')}，放量下跌"
         if "volume_shrunk" in rid:
             return f"量比 {data.get('volume_ratio')}，缩量"
     except Exception:

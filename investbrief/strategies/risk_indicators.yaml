@@ -23,28 +23,17 @@ common:
     explain: "上涨中缩量=见顶信号"
 
 cn:
-  hsh300_erp:
-    name: 沪深300 ERP
-    weight: 0.30
+  broad_erp:
+    name: 宽基 ERP
+    weight: 0.35
     category: valuation
-    thresholds: {cn: 2.0}
-    low_thresholds: {cn: 5.0}
+    thresholds: {cn: 1.5}
+    low_thresholds: {cn: 4.0}
     invert: true
-    description: "(1/沪深300PE) - 10Y国债, 高=股便宜=低风险"
+    description: "沪深300+中证500 等权 PE 合并的 ERP(1/等权PE − 10Y国债), 高=股便宜=低风险"
     scale: 1
     unit: "%"
-    explain: "高=股便宜=低风险"
-  zz500_erp:
-    name: 中证500 ERP
-    weight: 0.24
-    category: valuation
-    thresholds: {cn: 0.5}
-    low_thresholds: {cn: 3.0}
-    invert: true
-    description: "(1/中证500PE) - 10Y国债, 中小盘成长ERP"
-    scale: 1
-    unit: "%"
-    explain: "高=中小盘便宜=低风险"
+    explain: "沪深300+中证500 等权 PE 合并的 ERP; 消除两指标重叠"
   structural_divergence:
     name: "结构分化(等权/加权PE)"
     weight: 0.18

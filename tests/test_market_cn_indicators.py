@@ -9,7 +9,7 @@ def test_cn_indicators_factory_returns_list():
     data = CNData()
     try:
         inds = cn_indicators(data, config={
-            "hsh300_erp": {}, "zz500_erp": {}, "structural_divergence": {}, "index_pe": {},
+            "broad_erp": {}, "structural_divergence": {}, "index_pe": {},
             "ma50_deviation": {"thresholds": {"cn": 20}, "low_thresholds": {"cn": 0}},
             "volume_shrinkage": {"thresholds": {"cn": 0.7}},
             "margin_growth": {}, "margin_level": {},

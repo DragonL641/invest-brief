@@ -41,7 +41,7 @@ GOLD_ALL_INDICATORS = load_indicators("gold")
 # === Five Dimensions for Radar Chart ===
 FIVE_DIMENSIONS = {
     "估值风险": {
-        "cn": ["hsh300_erp", "zz500_erp", "structural_divergence"],
+        "cn": ["broad_erp", "structural_divergence"],
         "us": ["index_pe", "sp500_erp"],
         "gold": ["gold_gdp_ratio", "gold_real_price"],
     },

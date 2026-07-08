@@ -19,10 +19,12 @@ class TestConfig:
     # of the existing weights without reallocation (per task spec: "不重分配估值权重"),
     # because risk/models.py:calculate_score auto-normalizes via weighted_sum/total_weight
     # — only relative proportions matter, not the absolute total.
-    CN_TOTAL = 1.26  # was 1.00 before B1/B2/B3 added market_breadth+pledge+north (+0.26)
+    # broad_erp merge (hsh300_erp+zz500_erp 0.30+0.24 -> broad_erp 0.35) cut CN totals
+    # by 0.19: 1.26 -> 1.07 (CN_TOTAL), 1.17 -> 0.98 (CN_SPECIFIC).
+    CN_TOTAL = 1.07  # was 1.26 before broad_erp merge
     US_TOTAL = 1.10  # was 1.00 before B1 added market_breadth (+0.10)
     COMMON_TOTAL = 0.09
-    CN_SPECIFIC_TOTAL = 1.17  # was 0.91
+    CN_SPECIFIC_TOTAL = 0.98  # was 1.17 before broad_erp merge
     US_SPECIFIC_TOTAL = 1.01  # was 0.91
 
     def test_cn_weights_documented(self):

@@ -79,3 +79,36 @@ def test_dimension_summary_float_init():
     results = [_rr("技术面", "bullish", 0.8)]
     summary = engine.dimension_summary(results)
     assert isinstance(summary["技术面"]["bullish"], float)
+
+
+def test_volume_amplified_split_by_direction():
+    """放量规则按涨跌拆分: 放量+涨= bullish; 放量+跌= bearish; 旧 volume_amplified 已删除。"""
+    engine = RuleEngine()
+    rule_ids = {r["id"] for r in engine.rules}
+    assert "volume_amplified" not in rule_ids
+    assert "volume_amplified_up" in rule_ids
+    assert "volume_amplified_down" in rule_ids
+
+    # 放量上涨 -> up 规则匹配, down 不匹配
+    up_results = engine.evaluate({"volume_ratio": 2.0, "return_5d": 3.0})
+    up_match = {r.rule_id: r.matched for r in up_results
+                if r.rule_id in ("volume_amplified_up", "volume_amplified_down")}
+    assert up_match["volume_amplified_up"] is True
+    assert up_match["volume_amplified_down"] is False
+
+    # 放量下跌 -> down 规则匹配, up 不匹配
+    down_results = engine.evaluate({"volume_ratio": 2.0, "return_5d": -3.0})
+    down_match = {r.rule_id: r.matched for r in down_results
+                  if r.rule_id in ("volume_amplified_up", "volume_amplified_down")}
+    assert down_match["volume_amplified_down"] is True
+    assert down_match["volume_amplified_up"] is False
+
+
+def test_volume_amplified_no_match_when_flat():
+    """放量但 5日持平(return_5d=0): 两条规则都不匹配(0 既非 >0 也非 <0)。"""
+    engine = RuleEngine()
+    results = engine.evaluate({"volume_ratio": 2.0, "return_5d": 0.0})
+    match = {r.rule_id: r.matched for r in results
+             if r.rule_id in ("volume_amplified_up", "volume_amplified_down")}
+    assert match["volume_amplified_up"] is False
+    assert match["volume_amplified_down"] is False

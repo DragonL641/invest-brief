@@ -112,14 +112,22 @@ rules:
     condition: "return_20d is not None and return_20d < -3"
     signal: bearish
     weight: 0.7
-  - id: volume_amplified
+  - id: volume_amplified_up
     enabled: true
     dimension: 趋势面
-    name: 放量
-    description: "成交量超过20日均值1.5倍，市场参与度提升"
-    condition: "volume_ratio is not None and volume_ratio > 1.5"
+    name: 放量上涨
+    description: "成交量超20日均值1.5倍且近5日上涨，资金入场推动上行"
+    condition: "volume_ratio is not None and volume_ratio > 1.5 and return_5d is not None and return_5d > 0"
     signal: bullish
-    weight: 0.5
+    weight: 0.6
+  - id: volume_amplified_down
+    enabled: true
+    dimension: 趋势面
+    name: 放量下跌
+    description: "成交量超20日均值1.5倍且近5日下跌，抛压释放注意下行风险"
+    condition: "volume_ratio is not None and volume_ratio > 1.5 and return_5d is not None and return_5d < 0"
+    signal: bearish
+    weight: 0.8
   - id: volume_shrunk
     enabled: true
     dimension: 趋势面

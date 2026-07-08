@@ -21,11 +21,11 @@ logger = logging.getLogger(__name__)
 
 
 class CnValuationIndicator:
-    """CN 估值: hsh300_erp / zz500_erp / structural_divergence。
+    """CN 估值: broad_erp / structural_divergence。
 
-    _erp_for_index / _structural_divergence 方法体逐字搬迁自
-    risk/indicators/valuation.py, 仅适配取数与打分依赖。
-    _buffett_cn / _pe_cn 不搬(calculate 从未调用, 死代码, 丢弃)。
+    _broad_erp / _structural_divergence 方法体基于 risk/indicators/valuation.py
+    改写: 两指数 PE 高度同步, 分别算 hsh300_erp/zz500_erp 会令估值维度
+    权重叠加(原 0.30+0.24=0.54); 改为沪深300+中证500 等权 PE 合并的单一 ERP。
     """
 
     def __init__(self, config: dict):
@@ -34,33 +34,40 @@ class CnValuationIndicator:
 
     def calculate(self, data_source, date: str | None = None) -> dict:
         results = {}
-        results["hsh300_erp"] = self._erp_for_index(data_source, "HSH300_PE", date)
-        results["zz500_erp"] = self._erp_for_index(data_source, "ZZ500_PE", date)
+        results["broad_erp"] = self._broad_erp(data_source, date)
         results["structural_divergence"] = self._structural_divergence(data_source, date)
         return results
 
-    def _erp_for_index(self, data_source, pe_indicator: str, date: str | None = None) -> dict:
-        """ERP = (1/PE) - 10Y国债收益率(差值法). 高ERP=股便宜=低风险(invert分位).
+    def _broad_erp(self, data_source, date: str | None = None) -> dict:
+        """宽基 ERP = (1/等权PE) - 10Y国债收益率(差值法). 高ERP=股便宜=低风险(invert分位).
 
-        用沪深300/中证500的PE与国债同期配对, 算每日ERP的历史分位。
+        取沪深300+中证500 PE 按日期对齐后等权平均, 与 10Y 国债同期配对,
+        算每日宽基 ERP 的 10 年分位; 消除两指数 PE 高度同步导致的权重叠加。
         """
         try:
             from datetime import datetime, timedelta
             ref = date or datetime.now().strftime('%Y-%m-%d')
             start_10y = (datetime.strptime(ref, '%Y-%m-%d') - timedelta(days=3650)).strftime('%Y-%m-%d')
-            pe_sql = (f"SELECT date, value AS pe FROM macro_data WHERE indicator='{pe_indicator}' "
+            hsh_sql = (f"SELECT date, value AS hsh_pe FROM macro_data WHERE indicator='HSH300_PE' "
+                       f"AND country='cn' AND value IS NOT NULL AND date >= '{start_10y}'")
+            zz_sql = (f"SELECT date, value AS zz_pe FROM macro_data WHERE indicator='ZZ500_PE' "
                       f"AND country='cn' AND value IS NOT NULL AND date >= '{start_10y}'")
             bsql = (f"SELECT date, value AS bond FROM macro_data WHERE indicator='10Y_TREASURY' "
                     f"AND country='cn' AND value IS NOT NULL AND date >= '{start_10y}'")
             if date:
-                pe_sql += f" AND date <= '{date}'"
+                hsh_sql += f" AND date <= '{date}'"
+                zz_sql += f" AND date <= '{date}'"
                 bsql += f" AND date <= '{date}'"
-            pe_df = data_source.query(pe_sql + " ORDER BY date")
+            hsh_df = data_source.query(hsh_sql + " ORDER BY date")
+            zz_df = data_source.query(zz_sql + " ORDER BY date")
             bond_df = data_source.query(bsql + " ORDER BY date")
-            if pe_df.empty or bond_df.empty:
+            if hsh_df.empty or zz_df.empty or bond_df.empty:
                 return {"score": 5.0, "value": None, "percentile": None}
-            m = pe_df.merge(bond_df, on="date").dropna()
-            sample = (1.0 / m["pe"] - m["bond"] / 100.0).tolist()
+            # 三序列按 date 对齐: 先合并两 PE 算等权, 再对齐 bond
+            pe = hsh_df.merge(zz_df, on="date").dropna()
+            pe["broad_pe"] = (pe["hsh_pe"] + pe["zz_pe"]) / 2.0
+            m = pe.merge(bond_df, on="date").dropna()
+            sample = (1.0 / m["broad_pe"] - m["bond"] / 100.0).tolist()
             if len(sample) < 100:
                 return {"score": 5.0, "value": None, "percentile": None}
             cur = sample[-1]
@@ -74,7 +81,7 @@ class CnValuationIndicator:
             pct = float((np.array(sample) < cur).mean() * 100)  # ERP实际分位(高=便宜)
             return {"score": score, "value": round(cur * 100, 2), "percentile": round(pct, 0), "scoring": scoring}
         except Exception as e:
-            logger.error(f"Failed ERP for {pe_indicator}: {e}")
+            logger.error(f"Failed broad ERP: {e}")
             return {"score": 5.0, "value": None, "percentile": None}
 
     def _structural_divergence(self, data_source, date: str | None = None) -> dict:
