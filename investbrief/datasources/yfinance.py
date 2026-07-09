@@ -260,6 +260,28 @@ class YFinanceClient:
             logger.warning(f"yfinance info error ({symbol}): {e}")
             return None
 
+    def get_financials(self, symbol: str) -> Any | None:
+        """yfinance Ticker.financials（年度，DataFrame）。经节流+退避。"""
+        if not self.enabled:
+            return None
+        try:
+            def _op():
+                self._throttle()
+                df = self._ticker(symbol).financials
+                if df is None or df.empty:
+                    return None
+                return df
+            return self._call_with_retry(_op, label=f"financials({symbol})")
+        except Exception as e:
+            logger.warning(f"yfinance financials error ({symbol}): {e}")
+            return None
+
+    def get_sector(self, symbol: str) -> str | None:
+        """yfinance info['sector']。经节流（复用 get_info，无退避）。"""
+        info = self.get_info(symbol) or {}
+        s = info.get("sector")
+        return str(s) if s else None
+
     def get_earnings_estimate(self, symbol: str) -> dict[str, Any] | None:
         """Get EPS estimates for current/next quarter/year."""
         if not self.enabled:

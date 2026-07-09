@@ -373,13 +373,10 @@ def _cn_net_income_by_year(symbol: str) -> dict[str, float]:
 
 
 def _us_net_income_by_year(symbol: str) -> dict[str, float]:
-    """从 yfinance financials 取 Net Income(列是年度,通常 ~4 年)。"""
+    """从 yfinance financials 取 Net Income(列是年度,通常 ~4 年)。经 YFinanceClient 共享节流。"""
     from investbrief.datasources.yfinance import YFinanceClient
-    client = YFinanceClient()
-    # YFinanceClient 未暴露 financials,直接走 yfinance API(与 _normalize_us_fund 走 .info 对称)
-    import yfinance as yf
-    fin = yf.Ticker(symbol).financials
-    if _df_empty(fin) or "Net Income" not in fin.index:
+    fin = YFinanceClient().get_financials(symbol)
+    if fin is None or _df_empty(fin) or "Net Income" not in fin.index:
         return {}
     row = fin.loc["Net Income"]
     out: dict[str, float] = {}
@@ -392,8 +389,6 @@ def _us_net_income_by_year(symbol: str) -> dict[str, float]:
             out[year] = float(val)
         except (TypeError, ValueError):
             continue
-    # 抑制未使用的 import 警告(保留 client 引用以表明该模块的归属)
-    _ = client
     return out
 
 
@@ -429,9 +424,9 @@ def fetch_earliest_report_period(symbol: str, market: str) -> str | None:
                 c.set(key, first, ttl_days=90)
             return first or None
         # US
-        import yfinance as yf
-        fin = yf.Ticker(symbol).financials
-        if _df_empty(fin):
+        from investbrief.datasources.yfinance import YFinanceClient
+        fin = YFinanceClient().get_financials(symbol)
+        if fin is None or _df_empty(fin):
             return None
         earliest_col = min(fin.columns)
         # yfinance 列是 Timestamp → ISO 字符串
@@ -463,9 +458,8 @@ def fetch_industry(symbol: str, market: str) -> str | None:
     try:
         if market != "us":
             return None
-        import yfinance as yf
-        info = yf.Ticker(symbol).info or {}
-        sector = info.get("sector")
+        from investbrief.datasources.yfinance import YFinanceClient
+        sector = YFinanceClient().get_sector(symbol)
         if sector:
             if c:
                 c.set(key, sector, ttl_days=30)
