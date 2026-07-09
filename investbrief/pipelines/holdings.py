@@ -86,22 +86,32 @@ def run_holdings_report(args):
         return
 
     # Send per recipient (one SMTP connection for all)
+    from investbrief.core.mail_cache import make_key, get_cache, set_cache
     from investbrief.mail.sender import EmailSender
     sender = EmailSender(str(CONFIG_FILE))
     messages = []
     last_html = ""
+    today = now.strftime("%Y-%m-%d")
     for r in recipients:
         try:
             email, name = r["email"], r.get("name", r["email"])
             language = r.get("language", "zh-CN")
             sub = _subset(r)
-            summary_html = "<p>（已跳过 AI 研判）</p>" if skip_summary else generate_holdings_brief(sub)
-            report_data = {
-                "data_time": data_time,
-                "holdings_summary": summary_html,
-                "holdings_sections": render_holdings_section(sub),
-            }
-            html = render_holdings_template("email_holdings.j2", report_data, language)
+            # per-recipient 缓存：key 含 email + 持仓指纹（r["holdings"] 原始 dict）
+            cache_key = make_key("holdings", today, email, r["holdings"])
+            cached = None if getattr(args, "force", False) else get_cache(cache_key)
+            if cached:
+                logger.info(f"Holdings cache hit ({cache_key}), using cached HTML")
+                html = cached
+            else:
+                summary_html = "<p>（已跳过 AI 研判）</p>" if skip_summary else generate_holdings_brief(sub)
+                report_data = {
+                    "data_time": data_time,
+                    "holdings_summary": summary_html,
+                    "holdings_sections": render_holdings_section(sub),
+                }
+                html = render_holdings_template("email_holdings.j2", report_data, language)
+                set_cache(cache_key, html)
             last_html = html
             subject = f"【持仓分析】{now.strftime('%Y年%m月%d日')} — {name}"
             messages.append({"to": email, "subject": subject, "html": html})

@@ -201,3 +201,133 @@ def test_macro_cache_miss_writes_cache(tmp_path, monkeypatch):
     macro_mod.run_macro_report(args)
 
     assert mail_cache.get_cache("macro_2026-07-10") == "<html>FRESH</html>"  # miss 写入缓存
+
+
+def test_holdings_cache_hit_per_recipient_skips_analysis(tmp_path, monkeypatch):
+    """recipient A 缓存命中（跳过其 brief/render），recipient C 未命中（走分析）。
+
+    holdings 缓存是 per-recipient（key 含 email + 持仓指纹），与 macro/picks 的
+    广播缓存不同 —— 命中只跳过该 recipient 的 generate_holdings_brief +
+    render_holdings_section + render_holdings_template，整个 pipeline 仍跑完。
+    """
+    from investbrief.core import mail_cache
+    from investbrief.pipelines import holdings as h_mod
+
+    monkeypatch.setattr(mail_cache, "CACHE_DIR", tmp_path)
+
+    # 冻结日期到 2026-07-10（holdings 用 datetime.now(ZoneInfo) 算 today；模块级 datetime）
+    monkeypatch.setattr(h_mod, "datetime", _FakeDT)
+
+    recipients = [
+        {"email": "a@b.com", "name": "A", "active": True, "language": "zh-CN",
+         "holdings": [{"symbol": "AMD", "market": "us", "type": "stock"}]},
+        {"email": "c@d.com", "name": "C", "active": True, "language": "zh-CN",
+         "holdings": [{"symbol": "NVDA", "market": "us", "type": "stock"}]},
+    ]
+    monkeypatch.setattr(h_mod, "load_config", lambda: {"recipients": recipients})
+
+    # 预填 A 的缓存（key 含 email + 持仓指纹，指纹输入是 r["holdings"] 原始 dict 列表）
+    a_key = mail_cache.make_key("holdings", "2026-07-10", "a@b.com", recipients[0]["holdings"])
+    mail_cache.set_cache(a_key, "<html>A-CACHED</html>")
+
+    # 所有辅助函数都是 run_holdings_report 内的函数级 import → patch 源头模块
+    monkeypatch.setattr("investbrief.holdings.analyzer.init_cache", lambda *a, **k: None)
+    fake_analyzer = MagicMock()
+    fake_analyzer.analyze_one = lambda *a, **k: MagicMock()  # HoldingResult 占位
+    monkeypatch.setattr("investbrief.holdings.analyzer.HoldingsAnalyzer", lambda: fake_analyzer)
+
+    analyze_called = {"n": 0}
+    def fake_brief(sub):
+        analyze_called["n"] += 1
+        return "<p>brief</p>"
+    monkeypatch.setattr("investbrief.holdings.brief.generate_holdings_brief", fake_brief)
+
+    monkeypatch.setattr("investbrief.holdings.renderer.render_holdings_section",
+                        lambda sub: "<div>sections</div>")
+    monkeypatch.setattr("investbrief.mail.render.render_holdings_template",
+                        lambda *a, **k: "<html>FRESH</html>")
+
+    sent = {}
+    fake_sender = MagicMock()
+    fake_sender.send_bulk = lambda msgs: sent.update(messages=msgs) or (2, [])
+    monkeypatch.setattr("investbrief.mail.sender.EmailSender", lambda cfg: fake_sender)
+
+    args = MagicMock(force=False, skip_summary=False, dry_run=False)
+    h_mod.run_holdings_report(args)
+
+    # A 命中（不分析），C 未命中（分析）→ generate_holdings_brief 只调 1 次
+    assert analyze_called["n"] == 1, (
+        f"应有 1 个 recipient 命中跳过分析，实际 brief 调用 {analyze_called['n']} 次")
+    htmls = {m["to"]: m["html"] for m in sent["messages"]}
+    assert htmls["a@b.com"] == "<html>A-CACHED</html>"  # A 用缓存
+    assert htmls["c@d.com"] == "<html>FRESH</html>"     # C 走 miss 路径
+
+
+def test_holdings_cache_miss_writes_per_recipient(tmp_path, monkeypatch):
+    """miss → 走分析 + set_cache 为该 recipient 写入缓存文件。"""
+    from investbrief.core import mail_cache
+    from investbrief.pipelines import holdings as h_mod
+
+    monkeypatch.setattr(mail_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(h_mod, "datetime", _FakeDT)
+
+    recipients = [{"email": "a@b.com", "name": "A", "active": True, "language": "zh-CN",
+                   "holdings": [{"symbol": "AMD", "market": "us", "type": "stock"}]}]
+    monkeypatch.setattr(h_mod, "load_config", lambda: {"recipients": recipients})
+
+    monkeypatch.setattr("investbrief.holdings.analyzer.init_cache", lambda *a, **k: None)
+    fake_analyzer = MagicMock()
+    fake_analyzer.analyze_one = lambda *a, **k: MagicMock()
+    monkeypatch.setattr("investbrief.holdings.analyzer.HoldingsAnalyzer", lambda: fake_analyzer)
+    monkeypatch.setattr("investbrief.holdings.brief.generate_holdings_brief",
+                        lambda sub: "<p>brief</p>")
+    monkeypatch.setattr("investbrief.holdings.renderer.render_holdings_section",
+                        lambda sub: "<div>sections</div>")
+    monkeypatch.setattr("investbrief.mail.render.render_holdings_template",
+                        lambda *a, **k: "<html>FRESH</html>")
+    monkeypatch.setattr("investbrief.mail.sender.EmailSender",
+                        lambda cfg: MagicMock(send_bulk=lambda m: (1, [])))
+
+    args = MagicMock(force=False, skip_summary=False, dry_run=False)
+    h_mod.run_holdings_report(args)
+
+    a_key = mail_cache.make_key("holdings", "2026-07-10", "a@b.com", recipients[0]["holdings"])
+    assert mail_cache.get_cache(a_key) == "<html>FRESH</html>"  # miss 写入 per-recipient 缓存
+
+
+def test_holdings_force_skips_cache_even_when_hit(tmp_path, monkeypatch):
+    """预填 A 缓存 + --force → A 仍走分析（不命中缓存）。"""
+    from investbrief.core import mail_cache
+    from investbrief.pipelines import holdings as h_mod
+
+    monkeypatch.setattr(mail_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(h_mod, "datetime", _FakeDT)
+
+    recipients = [{"email": "a@b.com", "name": "A", "active": True, "language": "zh-CN",
+                   "holdings": [{"symbol": "AMD", "market": "us", "type": "stock"}]}]
+    monkeypatch.setattr(h_mod, "load_config", lambda: {"recipients": recipients})
+
+    a_key = mail_cache.make_key("holdings", "2026-07-10", "a@b.com", recipients[0]["holdings"])
+    mail_cache.set_cache(a_key, "<html>STALE</html>")
+
+    monkeypatch.setattr("investbrief.holdings.analyzer.init_cache", lambda *a, **k: None)
+    fake_analyzer = MagicMock()
+    fake_analyzer.analyze_one = lambda *a, **k: MagicMock()
+    monkeypatch.setattr("investbrief.holdings.analyzer.HoldingsAnalyzer", lambda: fake_analyzer)
+
+    brief_called = {"n": 0}
+    def fake_brief(sub):
+        brief_called["n"] += 1
+        return "<p>brief</p>"
+    monkeypatch.setattr("investbrief.holdings.brief.generate_holdings_brief", fake_brief)
+    monkeypatch.setattr("investbrief.holdings.renderer.render_holdings_section",
+                        lambda sub: "<div>sections</div>")
+    monkeypatch.setattr("investbrief.mail.render.render_holdings_template",
+                        lambda *a, **k: "<html>FRESH</html>")
+    monkeypatch.setattr("investbrief.mail.sender.EmailSender",
+                        lambda cfg: MagicMock(send_bulk=lambda m: (1, [])))
+
+    args = MagicMock(force=True, skip_summary=False, dry_run=False)
+    h_mod.run_holdings_report(args)
+
+    assert brief_called["n"] > 0, "--force 应跳过缓存走分析"
