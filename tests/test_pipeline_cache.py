@@ -116,6 +116,43 @@ def test_picks_force_skips_cache_even_when_hit(tmp_path, monkeypatch):
     assert build_called["n"] > 0, "--force 应跳过缓存走 build"
 
 
+def test_picks_cache_hit_dry_run_still_builds_no_send(tmp_path, monkeypatch, capsys):
+    """预填 picks 缓存 + --dry-run → 仍走 build + 打印 JSON，不查缓存不发邮件。
+
+    回归 Critical：原缓存查询在 dry_run 守卫之前，dry_run+命中会 send_bulk 发邮件。
+    """
+    from investbrief.core import mail_cache
+    from investbrief.pipelines import picks as picks_mod
+
+    monkeypatch.setattr(mail_cache, "CACHE_DIR", tmp_path)
+    mail_cache.set_cache("picks_2026-07-10", "<html>STALE</html>")
+    monkeypatch.setattr(picks_mod, "datetime", _FakeDT)
+
+    build_called = {"n": 0}
+    def fake_build(*a, **k):
+        build_called["n"] += 1
+        return None
+    monkeypatch.setattr(picks_mod, "load_config",
+                        lambda: {"recipients": _fake_recipients()})
+    monkeypatch.setattr(picks_mod, "_data", MagicMock())
+    monkeypatch.setattr(picks_mod, "_safe_build", fake_build)
+    monkeypatch.setattr(picks_mod, "_brief", MagicMock())
+    monkeypatch.setattr(picks_mod, "_renderer", MagicMock())
+
+    sent = {"n": 0}
+    fake_sender = MagicMock()
+    fake_sender.send_bulk = lambda m: sent.update(n=sent["n"] + 1) or (1, [])
+    monkeypatch.setattr(picks_mod, "EmailSender", lambda cfg: fake_sender)
+
+    args = MagicMock(force=False, skip_summary=True, dry_run=True, preview=False)
+    picks_mod.run_picks_report(args)
+
+    assert build_called["n"] > 0, "dry_run 应走 build（不命中缓存）"
+    assert sent["n"] == 0, "dry_run 不应发邮件"
+    out = capsys.readouterr().out
+    assert "picks" in out or "{" in out, "dry_run 应打印 JSON"
+
+
 def test_macro_cache_hit_skips_build(tmp_path, monkeypatch):
     """预填 macro 缓存 → build 不被调，send_bulk 收到缓存 HTML。
 
@@ -201,6 +238,57 @@ def test_macro_cache_miss_writes_cache(tmp_path, monkeypatch):
     macro_mod.run_macro_report(args)
 
     assert mail_cache.get_cache("macro_2026-07-10") == "<html>FRESH</html>"  # miss 写入缓存
+
+
+def test_macro_cache_hit_dry_run_still_builds_no_send(tmp_path, monkeypatch, capsys):
+    """预填 macro 缓存 + --dry-run → 仍走 build + 打印 JSON，不查缓存不发邮件。
+
+    回归 Critical：原缓存查询在 dry_run 守卫之前，dry_run+命中会 send_bulk 发邮件。
+    skip_summary=True 跳过 generate_macro_brief/research，故用 create_provider 调用
+    作为"build 被调"信号（create_provider 在缓存检查之后才执行）。
+    """
+    from investbrief.core import mail_cache
+    from investbrief.pipelines import macro as macro_mod
+
+    monkeypatch.setattr(mail_cache, "CACHE_DIR", tmp_path)
+    mail_cache.set_cache("macro_2026-07-10", "<html>STALE</html>")
+    from datetime import datetime
+    monkeypatch.setattr(macro_mod, "now_cn", lambda: datetime(2026, 7, 10, 9, 0))
+
+    monkeypatch.setattr(macro_mod, "load_config",
+                        lambda: {"recipients": _fake_recipients(),
+                                 "markets": {"us": {"enabled": True}}, "email_service": {}})
+
+    # fake provider：所有 macro getter 返空，risk_group/supports_regime falsy 跳过两段
+    fake_provider = MagicMock()
+    fake_provider.refresh = lambda: None
+    fake_provider.get_monetary_policy = lambda: {}
+    fake_provider.get_asset_performance = lambda: {}
+    fake_provider.get_economic_calendar = lambda: {}
+    fake_provider.get_news = lambda config, limit: []
+    fake_provider.risk_group = None
+    fake_provider.supports_regime = False
+    fake_provider.data = MagicMock(close=lambda: None)
+    fake_provider.render_section = lambda *a, **k: ""
+
+    build_called = {"n": 0}
+    def fake_create(code):
+        build_called["n"] += 1
+        return fake_provider
+    monkeypatch.setattr(macro_mod, "create_provider", fake_create)
+
+    sent = {"n": 0}
+    fake_sender = MagicMock()
+    fake_sender.send_bulk = lambda m: sent.update(n=sent["n"] + 1) or (1, [])
+    monkeypatch.setattr("investbrief.mail.sender.EmailSender", lambda cfg: fake_sender)
+
+    args = MagicMock(force=False, skip_summary=True, dry_run=True, update=False)
+    macro_mod.run_macro_report(args)
+
+    assert build_called["n"] > 0, "dry_run 应走 build（不命中缓存）"
+    assert sent["n"] == 0, "dry_run 不应发邮件"
+    out = capsys.readouterr().out
+    assert "macro_summary" in out or "{" in out, "dry_run 应打印 JSON"
 
 
 def test_holdings_cache_hit_per_recipient_skips_analysis(tmp_path, monkeypatch):

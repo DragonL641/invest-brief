@@ -396,7 +396,7 @@ def run_picks_report(args):
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
     today = now.strftime("%Y-%m-%d")
     cache_key = make_key("picks", today)
-    if not getattr(args, "force", False):
+    if not getattr(args, "force", False) and not getattr(args, "dry_run", False):
         cached = get_cache(cache_key)
         if cached:
             logger.info(f"Picks cache hit ({cache_key}), sending cached HTML")

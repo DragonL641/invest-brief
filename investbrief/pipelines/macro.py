@@ -66,7 +66,7 @@ def run_macro_report(args):
     from investbrief.core.mail_cache import make_key, get_cache, set_cache
     today = now_cn().strftime("%Y-%m-%d")
     cache_key = make_key("macro", today)
-    if not getattr(args, "force", False):
+    if not getattr(args, "force", False) and not getattr(args, "dry_run", False):
         cached = get_cache(cache_key)
         if cached:
             logger.info(f"Macro cache hit ({cache_key}), sending cached HTML")
