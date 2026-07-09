@@ -14,4 +14,6 @@ node_modules/
 /package-lock.json
 
 # P1: SQLite state/cache (macro_data.db + picks_cache.db 等)
-data/*.db
+# data/*.db* 覆盖 .db 及 WAL 辅助文件(.db-shm / .db-wal / .db-journal),
+# 均为运行时本地状态(每次跑会变),不入库避免污染仓库与跨机冲突
+data/*.db*
