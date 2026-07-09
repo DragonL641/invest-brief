@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class BaseData(ABC):
     """Abstract base class for market data operations."""
 
-    VALID_TABLES = {"cn_index_daily", "us_index_daily", "macro_data", "sentiment_data", "update_log"}
+    VALID_TABLES = {"cn_index_daily", "us_index_daily", "macro_data", "sentiment_data", "update_log", "stock_daily"}
 
     # —— 市场声明（子类覆盖）——
     market_code: str = ""
@@ -79,6 +79,12 @@ class BaseData(ABC):
                 table_name TEXT PRIMARY KEY,
                 last_update_date TEXT,
                 update_time TEXT
+            );
+            CREATE TABLE IF NOT EXISTS stock_daily (
+                market TEXT, symbol TEXT, date TEXT,
+                open REAL, high REAL, low REAL, close REAL,
+                volume REAL, amount REAL,
+                PRIMARY KEY (market, symbol, date)
             );
         """)
         self.conn.commit()
@@ -192,6 +198,34 @@ class BaseData(ABC):
         self._validate_table(table_name)
         sql = f"SELECT * FROM {table_name} WHERE code = ? ORDER BY date DESC LIMIT ?"
         return pd.read_sql_query(sql, self.conn, params=(code, n))
+
+    def upsert_stock_df(self, df: pd.DataFrame) -> int:
+        """upsert stock_daily 行（PK: market+symbol+date，INSERT OR IGNORE 去重）。
+
+        live_fetch 返回的 df 列可能不全（CN akshare 有 amount，US yfinance 无）或含多余列，
+        reindex 统一到 9 列（缺失补 None、多余丢弃），再复用 upsert_df（NaN→None + INSERT OR IGNORE）。
+        """
+        if df is None or df.empty:
+            return 0
+        cols = ["market", "symbol", "date", "open", "high", "low", "close", "volume", "amount"]
+        return self.upsert_df("stock_daily", df.reindex(columns=cols))
+
+    def query_stock_daily(self, market: str, symbol: str, n: int = 250) -> pd.DataFrame:
+        """返回某 (market, symbol) 最近 n 根日 bar（date 升序）。无数据返回空 DataFrame。"""
+        sql = ("SELECT * FROM stock_daily WHERE market=? AND symbol=? "
+               "ORDER BY date DESC LIMIT ?")
+        df = pd.read_sql_query(sql, self.conn, params=(market, symbol, n))
+        if df.empty:
+            return df
+        return df.sort_values("date").reset_index(drop=True)
+
+    def has_today_bar(self, market: str, symbol: str) -> bool:
+        """stock_daily 是否已有今天的 bar（DB-First fast-path 判定）。"""
+        from datetime import date as _date
+        today = _date.today().isoformat()
+        sql = "SELECT 1 FROM stock_daily WHERE market=? AND symbol=? AND date=? LIMIT 1"
+        df = pd.read_sql_query(sql, self.conn, params=(market, symbol, today))
+        return not df.empty
 
     def latest_macro(self, indicator: str, country: str) -> float | None:
         """返回 macro_data 中某 (indicator, country) 的最新 value，无则 None。"""
