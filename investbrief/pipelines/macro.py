@@ -4,7 +4,8 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from investbrief.core.config import load_config, REPORTS_DIR, enabled_market_codes
+from investbrief.core.config import load_config, REPORTS_DIR, CONFIG_FILE, enabled_market_codes
+from investbrief.core.timeutil import now_cn
 from investbrief.market import create_provider
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,29 @@ def run_macro_report(args):
     if not recipients:
         logger.info("No active recipients, skipping.")
         return
+
+    # 日级缓存：命中（非 --force）→ 直接发缓存 HTML，跳过整个 build（省 refresh+fetch+Claude）
+    from investbrief.core.mail_cache import make_key, get_cache, set_cache
+    today = now_cn().strftime("%Y-%m-%d")
+    cache_key = make_key("macro", today)
+    if not getattr(args, "force", False):
+        cached = get_cache(cache_key)
+        if cached:
+            logger.info(f"Macro cache hit ({cache_key}), sending cached HTML")
+            from investbrief.mail.sender import EmailSender
+            now = now_cn()
+            subject = f"【宏观经济日报】{now.strftime('%Y年%m月%d日')}"
+            sender = EmailSender(str(CONFIG_FILE))
+            messages = [{"to": r["email"], "subject": subject, "html": cached} for r in recipients]
+            sent, failed = sender.send_bulk(messages)
+            if failed:
+                if len(failed) == len(recipients):
+                    raise RuntimeError(f"All {len(recipients)} macro recipients failed (cached): "
+                                       f"{[f[0] for f in failed]}")
+                logger.warning(f"{len(failed)}/{len(recipients)} macro recipients failed (cached): "
+                               f"{[f[0] for f in failed]}")
+            logger.info("Macro report pipeline complete (cached)")
+            return
 
     render_config = {"color_up": "#e74c3c", "color_down": "#27ae60"}
     skip_summary = getattr(args, "skip_summary", False)
@@ -207,6 +231,7 @@ def run_macro_report(args):
         pass
 
     # Save local preview
+    preview_html = None
     try:
         from investbrief.mail.render import render_template
         REPORTS_DIR.mkdir(exist_ok=True)
@@ -216,5 +241,7 @@ def run_macro_report(args):
         logger.info(f"Preview saved to {preview_path}")
     except Exception as e:
         logger.warning(f"Failed to save preview: {e}")
+    if preview_html:
+        set_cache(cache_key, preview_html)  # 写缓存移到 try 外（preview_html render 失败则跳过）
 
     logger.info("Macro report pipeline complete")
