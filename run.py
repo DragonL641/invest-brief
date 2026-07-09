@@ -110,6 +110,8 @@ def main():
     parser.add_argument("--now", action="store_true", help="Run once immediately (default: scheduler mode)")
     parser.add_argument("--dry-run", action="store_true", help="Build report, output to stdout, do not send email")
     parser.add_argument("--skip-summary", action="store_true", help="Skip Claude API summary, use placeholder")
+    parser.add_argument("--force", action="store_true",
+                        help="跳过邮件日级缓存，强制重新生成 macro/picks/holdings")
     parser.add_argument("--update", action="store_true",
                         help="Only refresh macro data into SQLite, no render/email")
     parser.add_argument("--only", choices=["macro", "holdings", "picks"], default=None,
