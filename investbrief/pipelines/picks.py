@@ -9,6 +9,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from investbrief.core.config import load_config, CONFIG_FILE, REPORTS_DIR, DB_PATH
+from investbrief.mail.sender import EmailSender
 from investbrief.picks import profiles as _profiles
 load_profiles = _profiles.load_profiles  # 模块级 alias,便于测试 monkeypatch(与 _spot_df 对称)
 from investbrief.picks import universe as _universe
@@ -390,6 +391,25 @@ def run_picks_report(args):
         logger.info("No active recipients, skipping picks.")
         return
 
+    # 日级缓存：命中（非 --force）→ 直接发缓存 HTML，跳过整个 build（省 30min 深拉）
+    from investbrief.core.mail_cache import make_key, get_cache, set_cache
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    today = now.strftime("%Y-%m-%d")
+    cache_key = make_key("picks", today)
+    if not getattr(args, "force", False):
+        cached = get_cache(cache_key)
+        if cached:
+            logger.info(f"Picks cache hit ({cache_key}), sending cached HTML")
+            subject = f"【股票推荐】{now.strftime('%Y年%m月%d日')}"
+            sender = EmailSender(str(CONFIG_FILE))
+            messages = [{"to": r["email"], "subject": subject, "html": cached} for r in recipients]
+            sent, failed = sender.send_bulk(messages)
+            if failed:
+                logger.warning(f"{len(failed)}/{len(recipients)} picks recipients failed (cached): "
+                               f"{[f[0] for f in failed]}")
+            logger.info("Picks pipeline complete (cached)")
+            return
+
     all_picks: list[dict] = []
     sections_html = ""
     skip_summary = getattr(args, "skip_summary", False)
@@ -431,8 +451,9 @@ def run_picks_report(args):
         logger.info("Preview mode: rendered to reports/preview_picks.html, not sent.")
         return
 
+    set_cache(cache_key, html)  # 写日级缓存（仅真实 send 路径；dry_run/preview 在此之前 return）
+
     subject = f"【股票推荐】{now.strftime('%Y年%m月%d日')}"
-    from investbrief.mail.sender import EmailSender
     sender = EmailSender(str(CONFIG_FILE))
     messages = [{"to": r["email"], "subject": subject, "html": html} for r in recipients]
     sent, failed = sender.send_bulk(messages)
