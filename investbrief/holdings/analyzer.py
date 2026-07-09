@@ -12,6 +12,8 @@ from dataclasses import dataclass, field, asdict
 from typing import Any
 from collections.abc import Callable
 
+import pandas as pd
+
 from investbrief.datasources.akshare import AKShareClient
 from investbrief.datasources.finnhub import FinnhubClient
 from investbrief.datasources.yfinance import YFinanceClient
@@ -39,6 +41,67 @@ def init_cache(path: str):
 
 def _factor_cache() -> FactorCache | None:
     return _fcache
+
+
+# ---- holdings history DB-First（stock_daily 跨日复用） ----
+# 持仓固定（不像 universe 扫描那样每日变动），跨日复用收益最大：有 today bar → 0 网络请求。
+_db_handle = None
+
+
+def _stock_db():
+    """共享 BaseData 句柄用于 stock_daily DB-First。
+
+    CNData(db_path=DB_PATH) 只触发 BaseData.__init__ → _ensure_tables（CREATE TABLE IF NOT EXISTS），
+    无 refresh / 网络副作用（已验证：CNData 未覆盖 __init__）。惰性初始化，跨调用复用同一连接。
+    """
+    global _db_handle
+    if _db_handle is None:
+        from investbrief.core.config import DB_PATH
+        from investbrief.data.cn_data import CNData
+        _db_handle = CNData(db_path=DB_PATH)
+    return _db_handle
+
+
+def _history_db_first(market: str, symbol: str, *, days: int, db, live_fetch):
+    """holdings history DB-First fast-path。
+
+    1. stock_daily 有 today bar → 直接返回 DB（0 网络请求）。
+    2. 否则 → live_fetch(symbol, days) 拉取 → 回写 stock_daily → 返回 live 结果。
+    任一步失败 → 回退 live_fetch 原始结果（DB 不是强依赖，pipeline 不阻塞）。
+
+    列归一化覆盖两种源：
+    - CN akshare get_stock_history: lowercase 列 + DatetimeIndex(date) + amount
+    - US yfinance get_history:      Capitalized 列(Open/High/Low/Close/Volume) + DatetimeIndex + 无 amount
+    两者 date 都是 index（非列），需从 index 合成并 strftime 成 "YYYY-MM-DD"（匹配 has_today_bar 的 isoformat）。
+    """
+    try:
+        if db is not None and db.has_today_bar(market, symbol):
+            cached = db.query_stock_daily(market, symbol, n=days)
+            if cached is not None and not cached.empty:
+                # 归一化成与 live 一致的 shape（DatetimeIndex + ohlcv[+amount]），对齐 compute_indicators 契约：
+                # query_stock_daily 返回 date 为列 + market/symbol 多余列；live 路径（akshare/yfinance）date 是 index。
+                dt_idx = pd.to_datetime(cached["date"])
+                cached = cached.drop(columns=[c for c in ("market", "symbol", "date") if c in cached.columns])
+                return cached.set_index(dt_idx)
+    except Exception as e:
+        logger.warning(f"_history_db_first DB read {market}:{symbol} failed: {e}")
+    df = live_fetch(symbol, days)
+    try:
+        if db is not None and isinstance(df, pd.DataFrame) and not df.empty:
+            rows = df.rename(columns={
+                "Open": "open", "High": "high", "Low": "low",
+                "Close": "close", "Volume": "volume",
+                "Date": "date",  # 兼容个别 mock 把 Date 作为列
+            }).copy()
+            rows["market"] = market
+            rows["symbol"] = symbol
+            if "date" not in rows.columns:
+                rows["date"] = df.index  # CN/US 源 date 都是 index
+            rows["date"] = pd.to_datetime(rows["date"]).dt.strftime("%Y-%m-%d")
+            db.upsert_stock_df(rows)
+    except Exception as e:
+        logger.warning(f"_history_db_first DB write {market}:{symbol} failed: {e}")
+    return df
 
 
 @dataclass
@@ -388,7 +451,11 @@ class HoldingsAnalyzer:
         current = quote.get("price")
         info = self._collect_fundamentals(symbol, "us") or {}
         data = self._parallel({
-            "history": lambda: self._yf.get_history(symbol, period="6mo"),
+            # live_fetch 签名需 (symbol, days) 以匹配 _history_db_first 调用；yfinance 用 period="6mo"
+            # 不吃 days，故 days 参数在此未用（仅作 DB 查询范围 ≈ 6mo=183d）。
+            "history": lambda s=symbol: _history_db_first(
+                "us", s, days=183, db=_stock_db(),
+                live_fetch=lambda sym, days=183: self._yf.get_history(sym, period="6mo")),
             "news": lambda: self._fh.get_company_news(symbol, days=7),
             "events": lambda: self._collect_events(symbol, "us"),
             "insider": lambda: self._collect_insider(symbol, "us"),
@@ -432,7 +499,9 @@ class HoldingsAnalyzer:
         data = self._parallel({
             "quote": lambda: self._ak.get_stock_quote(symbol),
             "flow": lambda: self._ak.get_stock_fund_flow(symbol),
-            "history": lambda: self._ak.get_stock_history(symbol, days=180),
+            "history": lambda s=symbol: _history_db_first(
+                "cn", s, days=180, db=_stock_db(),
+                live_fetch=lambda sym, days=180: self._ak.get_stock_history(sym, days=days)),
             "news": lambda: self._ak.get_stock_news(symbol, limit=5),
             "events": lambda: self._collect_events(symbol, "cn"),
             "insider": lambda: self._collect_insider(symbol, "cn"),
