@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -58,7 +59,9 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     turnover_col = next((c for c in ("成交额", "amount", "turnover") if c in candidates_df.columns), None)
     if turnover_col:
         candidates_df = candidates_df.sort_values(by=turnover_col, ascending=False)
-    candidates_df = candidates_df.head(_candidate_cap(profile_name))
+    # run 开始时 limit_hits=0 → 基线 cap;动态收缩靠 futures 循环早停(见下)。
+    effective_cap = _candidate_cap_for_run(profile_name, 0)
+    candidates_df = candidates_df.head(effective_cap)
 
     u = prof.get("universe", {})
     gates = u.get("fundamental_gates") or {}
@@ -73,6 +76,16 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
         _factors.FACTOR_CATEGORY.get(f) == "fundamental" for f in prof["factors"]
     )
 
+    # 限流代理计数(线程安全):数据层 fetch_history 限流时吞异常返回空 df,
+    # _process_candidate 在 hist 空返回时累加 limit_hits;futures 循环据此早停。
+    # 注:不嗅探 except 异常文案——网络限流根本到不了 except(被数据层吞掉返回空)。
+    limit_hits = {"n": 0}
+    limit_lock = threading.Lock()
+
+    def _bump_limit():
+        with limit_lock:
+            limit_hits["n"] += 1
+
     def _process_candidate(row) -> tuple[dict, tuple] | None:
         """工作线程:单候选深拉 + gate 校验 + 因子计算 → (cand, (symbol, (hist, fund, val))) | None。"""
         raw_code = str(row.get("代码", row.get("symbol", "")))
@@ -82,6 +95,10 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
         try:
             hist = _data.fetch_history(symbol, market, days=hist_days)
             if hist is None or hist.empty:
+                # 空返回 = 限流代理信号(数据层 fetch_history 限流时吞异常返回空 df,
+                # 到不了 except)。计数累加,futures 循环在 ≥25 时早停。
+                # 阈值 25 足够高,偶发的合法空返回(新股/ETF 数据缺失)不会误触发。
+                _bump_limit()
                 return None
             fund = _data.fetch_fundamentals(symbol, market) if needs_fund else {}
             # main_flow 因子(CN only):近5日主力资金流,只在 profile 启用该因子时拉取(限流保护)。
@@ -112,6 +129,7 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
                     "industry": _industry_for(symbol, market)}
             return cand, (symbol, (hist, fund, val))
         except Exception as e:
+            # 非网络异常(因子计算/gate/KeyError 等)——不是限流,不计入 limit_hits。
             logger.warning(f"candidate {market}:{raw_code} failed: {e}")
             return None
 
@@ -122,6 +140,15 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
         futures = [ex.submit(_process_candidate, row) for _, row in rows]
         for fut in futures:
             r = fut.result()
+            # 空返回计数 ≥ 第二档阈值(限流代理信号累积)→ cancel 未启动 future + break,保速度
+            if limit_hits["n"] >= _RATE_LIMIT_DOWNGRADE_THRESHOLDS[1]:
+                for f in futures:
+                    f.cancel()
+                logger.warning(
+                    f"{profile_name}/{market}: heavy rate-limit "
+                    f"(hits={limit_hits['n']}), early-stop deep-pull"
+                )
+                break
             if r is None:
                 continue
             cand, (sym, det) = r
@@ -275,6 +302,30 @@ def _enrich_with_holdings(pick: dict, with_ai: bool):
 
 def _candidate_cap(profile_name: str) -> int:
     return {"swing": 60, "medium": 80, "long": 60}.get(profile_name, 60)
+
+
+# 限流降档:build_picks_for_profile 内 _process_candidate 把"空返回"作为限流
+# 代理信号(数据层 fetch_history 限流时吞异常返回空 df),累加 limit_hits;
+# 超阈值则收缩有效 cap。两档:(10 次 → 中档, 25 次 → 底档)。
+# limit_hits 是原始"空返回"计数(线程安全累加),非档位索引。
+_RATE_LIMIT_DOWNGRADE_THRESHOLDS = (10, 25)
+_CAP_LADDER = (30, 15)  # 对应两档阈值收缩后的 cap
+
+
+def _candidate_cap_for_run(profile_name: str, limit_hits: int) -> int:
+    """根据当前 run 内观察到的"空返回"(限流代理)计数,返回收缩后的有效 cap。
+
+    基线复用 _candidate_cap(唯一真相源),未知 profile fallback 60 由其保证。
+    - limit_hits < 10  → 基线 (_candidate_cap: swing/long=60, medium=80)
+    - 10 ≤ limit_hits < 25 → 中档 (30)
+    - limit_hits ≥ 25 → 底档 (15)
+    """
+    base = _candidate_cap(profile_name)
+    if limit_hits < _RATE_LIMIT_DOWNGRADE_THRESHOLDS[0]:
+        return base
+    if limit_hits < _RATE_LIMIT_DOWNGRADE_THRESHOLDS[1]:
+        return _CAP_LADDER[0]
+    return _CAP_LADDER[1]
 
 
 def _history_days(profile_name: str) -> int:
