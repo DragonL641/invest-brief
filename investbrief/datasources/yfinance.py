@@ -15,6 +15,14 @@ _HIGH_IMPORTANCE_PATTERNS = [
     "pce", "personal consumption", "unemployment rate",
 ]
 
+_RATE_LIMIT_MARKERS = ("too many requests", "429", "rate limit", "rate limited")
+
+
+def _is_rate_limited(exc: Exception) -> bool:
+    """识别 yfinance/curl_cffi 抛出的限流异常（按 message 文本，跨端点统一）。"""
+    msg = str(exc).lower()
+    return any(m in msg for m in _RATE_LIMIT_MARKERS)
+
 
 def _classify_economic_importance(event_name: str) -> str:
     lower = event_name.lower()
@@ -100,6 +108,23 @@ class YFinanceClient:
                 time.sleep(wait)
             cls._last_request = time.monotonic()
 
+    @classmethod
+    def _call_with_retry(cls, op, *, label: str, max_retries: int = 3):
+        """执行 op()。限流异常 → 指数退避(1/2s，末次直接放弃)重试；非限流异常或超上限 → 抛出。
+
+        与 _throttle 配合：_throttle 控主动速率(2.5 QPS)，本方法控被动恢复(被 429 后退避)。
+        """
+        for attempt in range(max_retries):
+            try:
+                return op()
+            except Exception as e:
+                if not _is_rate_limited(e) or attempt == max_retries - 1:
+                    raise
+                delay = 2 ** attempt  # 1, 2
+                logger.warning(f"yfinance {label} rate-limited, retry {attempt+1}/{max_retries} after {delay}s")
+                time.sleep(delay)
+        return None  # unreachable
+
     def _ticker(self, symbol: str):
         if len(self._ticker_cache) > self._max_cache:
             oldest = next(iter(self._ticker_cache))
@@ -115,25 +140,27 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
-            self._throttle()
-            t = self._ticker(symbol)
-            fi = t.fast_info
-            current = float(fi.last_price) if fi.last_price else None
-            if not current:
-                return None
-            prev = float(fi.previous_close) if fi.previous_close else current
-            change_pct = ((current - prev) / prev) * 100 if prev else 0
-            return {
-                "price": current,
-                "previous_close": prev,
-                "change": round(current - prev, 4),
-                "change_percent": round(change_pct, 2),
-                "day_high": float(fi.day_high) if fi.day_high else None,
-                "day_low": float(fi.day_low) if fi.day_low else None,
-                "volume": int(fi.last_volume) if fi.last_volume else None,
-                "market_cap": float(fi.market_cap) if fi.market_cap else None,
-                "source": "yfinance",
-            }
+            def _op():
+                self._throttle()
+                t = self._ticker(symbol)
+                fi = t.fast_info
+                current = float(fi.last_price) if fi.last_price else None
+                if not current:
+                    return None
+                prev = float(fi.previous_close) if fi.previous_close else current
+                change_pct = ((current - prev) / prev) * 100 if prev else 0
+                return {
+                    "price": current,
+                    "previous_close": prev,
+                    "change": round(current - prev, 4),
+                    "change_percent": round(change_pct, 2),
+                    "day_high": float(fi.day_high) if fi.day_high else None,
+                    "day_low": float(fi.day_low) if fi.day_low else None,
+                    "volume": int(fi.last_volume) if fi.last_volume else None,
+                    "market_cap": float(fi.market_cap) if fi.market_cap else None,
+                    "source": "yfinance",
+                }
+            return self._call_with_retry(_op, label=f"quote({symbol})")
         except Exception as e:
             logger.warning(f"yfinance quote error ({symbol}): {e}")
             return None
@@ -335,12 +362,14 @@ class YFinanceClient:
         if not self.enabled:
             return None
         try:
-            self._throttle()
-            t = self._ticker(symbol)
-            df = t.history(period=period)
-            if df is None or df.empty:
-                return None
-            return df
+            def _op():
+                self._throttle()
+                t = self._ticker(symbol)
+                df = t.history(period=period)
+                if df is None or df.empty:
+                    return None
+                return df
+            return self._call_with_retry(_op, label=f"history({symbol})")
         except Exception as e:
             logger.warning(f"yfinance history error ({symbol}): {e}")
             return None
