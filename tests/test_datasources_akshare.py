@@ -33,6 +33,9 @@ def test_patched_session_request_skips_non_eastmoney(monkeypatch):
 
 
 def test_with_retry_succeeds_after_retries(monkeypatch):
+    from investbrief.datasources import akshare as ak_mod
+    # _throttle 设 0 间隔，使本次只测 retry/backoff（throttle 行为由 test_akshare_throttle 覆盖）
+    monkeypatch.setattr(ak_mod, "_MIN_INTERVAL", 0.0)
     from investbrief.datasources.akshare import _with_retry
     sleeps = []
     monkeypatch.setattr("investbrief.datasources.akshare.time.sleep", lambda s: sleeps.append(s))
@@ -50,6 +53,8 @@ def test_with_retry_succeeds_after_retries(monkeypatch):
 
 
 def test_with_retry_all_fail_returns_none(monkeypatch):
+    from investbrief.datasources import akshare as ak_mod
+    monkeypatch.setattr(ak_mod, "_MIN_INTERVAL", 0.0)
     from investbrief.datasources.akshare import _with_retry
     sleeps = []
     monkeypatch.setattr("investbrief.datasources.akshare.time.sleep", lambda s: sleeps.append(s))

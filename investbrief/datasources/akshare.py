@@ -80,15 +80,35 @@ class _DataFrameCache:
 _df_cache = _DataFrameCache()
 
 
-def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
-    """运行 akshare 调用，带随机退避 + 最后一次长退避。
+# —— 全局节流：akshare 历史无全局 QPS 限制，eastmoney 高频请求触发 RemoteDisconnected/限流。
+# 仿 YFinanceClient._throttle：模块级 Lock + _last_request，所有 akshare 网络调用经此。
+_throttle_lock = threading.Lock()
+_last_request = 0.0
+_MIN_INTERVAL = 0.3  # seconds between akshare requests (~3.3 QPS 上限)
 
+
+def _throttle():
+    """Block until enough time has passed since the last akshare request."""
+    global _last_request
+    with _throttle_lock:
+        now = time.monotonic()
+        wait = _MIN_INTERVAL - (now - _last_request)
+        if wait > 0:
+            time.sleep(wait)
+        _last_request = time.monotonic()
+
+
+def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
+    """运行 akshare 调用，带随机退避 + 最后一次长退避 + 全局节流。
+
+    _throttle 控主动速率(每次 fn() 前)；随机退避控失败恢复(eastmoney 限流时)。
     随机延时（uniform base_delay~2x × attempt）规避 eastmoney 节奏识别；
     最后一次重试前 max(delay, 10s) 给限流窗口冷却。
     成功返回 fn() 结果（可能为 None/空 df）；全部失败返回 None 并记录 warning。
     """
     for attempt in range(attempts):
         try:
+            _throttle()
             return fn()
         except Exception as e:
             if attempt < attempts - 1:
