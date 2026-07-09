@@ -1,14 +1,14 @@
 """US stock data acquisition using yfinance and akshare."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import akshare as ak
 import pandas as pd
 import urllib.request
-import yfinance as yf
 
 from investbrief.data.base import BaseData
 from investbrief.core.config import US_GDP_BASE_YEAR, US_GDP_BASE_VALUE
+from investbrief.datasources.yfinance import YFinanceClient
 import logging
 
 logger = logging.getLogger(__name__)
@@ -66,12 +66,8 @@ class USData(BaseData):
         for ticker_symbol in self.INDEX_SYMBOLS:
             try:
                 last_date = self.get_update_date(f"us_index_daily_{ticker_symbol}")
-                if last_date:
-                    # Incremental: fetch from ~1 week before last_date (TZ-safe), dedup by PK on upsert.
-                    start = (datetime.strptime(last_date, "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")
-                    hist = self._retry_api(lambda ts=ticker_symbol, s=start: yf.Ticker(ts).history(start=s))
-                else:
-                    hist = self._retry_api(lambda ts=ticker_symbol: yf.Ticker(ts).history(period="max"))
+                # get_history 不支持 start/end 区间，统一 period="max" 全量拉。
+                hist = self._retry_api(lambda ts=ticker_symbol: YFinanceClient().get_history(ts, period="max"))
                 if hist is None or hist.empty:
                     continue
                 hist = hist.reset_index()
@@ -80,6 +76,7 @@ class USData(BaseData):
                 df = hist[["code", "date", "Open", "High", "Low", "Close", "Volume"]].copy()
                 df.columns = ["code", "date", "open", "high", "low", "close", "volume"]
                 if last_date:
+                    # 增量去重：只保留新于已记录 last_date 的行（与 PK upsert 配合）。
                     df = df[df["date"] > last_date]
                 if not df.empty:
                     self.upsert_df("us_index_daily", df)
@@ -187,8 +184,10 @@ class USData(BaseData):
 
     def _update_spy_pe(self):
         try:
-            spy = yf.Ticker("SPY")
-            info = spy.info
+            info = YFinanceClient().get_info("SPY")
+            if not info:
+                logger.warning("SPY info not available")
+                return
             pe = info.get("trailingPE")
             if pe is None:
                 logger.warning("SPY trailing PE not available")

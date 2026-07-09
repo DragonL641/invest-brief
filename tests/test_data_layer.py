@@ -151,37 +151,39 @@ def test_us_index_symbols_cover_investbrief_surface():
     }
 
 
-def test_us_update_index_daily_uses_start_when_has_last_date(monkeypatch, db):
-    """有 last_date 时走增量 (history(start=...))，无则 period=max。"""
+def test_us_update_index_daily_routes_through_yfinance_client(monkeypatch, db):
+    """指数 history 必须经 YFinanceClient.get_history(period="max")，
+    不直接用 yf.Ticker（增量去重靠 PK upsert，不再用 start= 区间）。"""
     from investbrief.data import us_data as us_mod
     calls = []
 
-    class _FakeTicker:
-        def __init__(self, sym): self._sym = sym
-        def history(self, **kw):
-            calls.append(kw)
+    class _FakeClient:
+        def get_history(self, symbol, period="6mo"):
+            calls.append({"symbol": symbol, "period": period})
             return pd.DataFrame({"Date": [pd.Timestamp("2026-07-03")],
-                                 "Open":[1],"High":[1],"Low":[1],"Close":[1],"Volume":[1]})
+                                 "Open": [1], "High": [1], "Low": [1],
+                                 "Close": [1], "Volume": [1]})
 
-    monkeypatch.setattr(us_mod.yf, "Ticker", lambda s: _FakeTicker(s))
+    monkeypatch.setattr(us_mod, "YFinanceClient", lambda: _FakeClient())
 
     class _US(us_mod.USData):
         def update_all(self): pass
         def update_incremental(self): pass
 
-    # First run: no last_date → period="max"
+    # First run: no last_date → get_history(period="max")
     c1 = _US(db_path=db.db_path)
     c1.update_index_daily()
     c1.close()
-    assert any("period" in k for k in calls), "first run should use period=max"
-    assert calls and "max" in calls[0].get("period", "")
+    assert calls, "first run should call get_history"
+    assert all(c["period"] == "max" for c in calls), "all calls should use period=max"
 
     calls.clear()
-    # Second run: last_date now set → start= used
+    # Second run: last_date now set → still period="max" (dedup via PK upsert)
     c2 = _US(db_path=db.db_path)
     c2.update_index_daily()
     c2.close()
-    assert any("start" in k for k in calls), "incremental run should use start="
+    assert calls, "incremental run should still call get_history"
+    assert all(c["period"] == "max" for c in calls), "incremental should also use period=max"
 
 
 def test_gold_update_fred_series_uses_last_date_as_cosd(monkeypatch, db):
