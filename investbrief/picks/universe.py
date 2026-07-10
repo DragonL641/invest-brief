@@ -10,7 +10,8 @@ from __future__ import annotations
 import pandas as pd
 
 _CN = {"symbol": "代码", "name": "名称", "amount": "成交额", "cap": "总市值",
-       "chg60": "60日涨跌幅", "pe": "市盈率-动态", "pb": "市净率"}
+       "chg60": "60日涨跌幅", "pe": "市盈率-动态", "pb": "市净率",
+       "price": "最新价"}
 
 
 def get_spot_df(market: str):
@@ -44,6 +45,13 @@ def _apply_cn(df: pd.DataFrame, u: dict) -> pd.DataFrame:
         lo, hi = band
         cap = pd.to_numeric(df[cap_col], errors="coerce")
         df = df[(cap >= lo) & (cap <= hi)]
+    # 沪深主板(代码 60/00 开头),排除创业板(30)/科创板(688)/北交所(920/8/4)
+    if u.get("mainboard_only") and _CN["symbol"] in df.columns:
+        code = df[_CN["symbol"]].astype(str)
+        df = df[code.str[:2].isin(["60", "00"])]
+    # 股价上限(资金量约束)
+    if u.get("max_price_cn") and _CN["price"] in df.columns:
+        df = df[pd.to_numeric(df[_CN["price"]], errors="coerce") < u["max_price_cn"]]
     return df
 
 

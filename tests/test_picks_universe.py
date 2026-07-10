@@ -39,3 +39,59 @@ def test_coarse_filter_market_cap_band_medium():
                             "trend_60d_positive": True, "market_cap_cn": [5.0e9, 1.0e11]}}
     out = universe.coarse_filter(df, profile, market="cn")
     assert set(out["代码"].tolist()) == {"000002"}
+
+
+# --- 主板 + 股价门槛(配置化 mainboard_only / max_price_cn) ---
+
+
+def _spot_cn(rows):
+    """构造 CN spot DataFrame。rows = [{代码,名称,成交额,最新价,...}]"""
+    return pd.DataFrame(rows)
+
+
+def test_apply_cn_mainboard_only_keeps_60_00_drops_others():
+    """mainboard_only: 只留 60/00 开头,排除 300/688/920。"""
+    df = _spot_cn([
+        {"代码": "600519", "名称": "贵州茅台", "成交额": 1e9, "最新价": 30},
+        {"代码": "000001", "名称": "平安银行", "成交额": 1e9, "最新价": 30},
+        {"代码": "002028", "名称": "思源电气", "成交额": 1e9, "最新价": 30},
+        {"代码": "300750", "名称": "宁德时代", "成交额": 1e9, "最新价": 30},   # 创业板
+        {"代码": "688981", "名称": "中芯国际", "成交额": 1e9, "最新价": 30},   # 科创板
+        {"代码": "920819", "名称": "北证股", "成交额": 1e9, "最新价": 30},     # 北交所
+    ])
+    out = universe._apply_cn(df, {"mainboard_only": True})
+    codes = set(out["代码"].astype(str))
+    assert codes == {"600519", "000001", "002028"}, f"应只留主板,实际 {codes}"
+
+
+def test_apply_cn_max_price_drops_above_threshold():
+    """max_price_cn=40: 只留最新价 < 40；停牌(None 价)被排除。"""
+    df = _spot_cn([
+        {"代码": "600001", "名称": "A", "成交额": 1e9, "最新价": 30},
+        {"代码": "600002", "名称": "B", "成交额": 1e9, "最新价": 45},
+        {"代码": "600003", "名称": "C", "成交额": 1e9, "最新价": 100},
+        {"代码": "600004", "名称": "停牌", "成交额": 1e9, "最新价": None},  # 停牌 NaN 价 → 排除
+    ])
+    out = universe._apply_cn(df, {"max_price_cn": 40})
+    assert set(out["代码"].astype(str)) == {"600001"}  # B/C/停牌 都排除
+
+
+def test_apply_cn_mainboard_and_price_combined():
+    """主板 + 股价同时生效。"""
+    df = _spot_cn([
+        {"代码": "600001", "名称": "A", "成交额": 1e9, "最新价": 30},   # 主板+低价 ✓
+        {"代码": "600002", "名称": "B", "成交额": 1e9, "最新价": 50},   # 主板+高价 ✗
+        {"代码": "300001", "名称": "C", "成交额": 1e9, "最新价": 20},   # 创业板+低价 ✗
+    ])
+    out = universe._apply_cn(df, {"mainboard_only": True, "max_price_cn": 40})
+    assert set(out["代码"].astype(str)) == {"600001"}
+
+
+def test_apply_cn_no_mainboard_field_keeps_all():
+    """无 mainboard_only 字段 → 不限板块(向后兼容)。"""
+    df = _spot_cn([
+        {"代码": "600001", "名称": "A", "成交额": 1e9, "最新价": 30},
+        {"代码": "300001", "名称": "C", "成交额": 1e9, "最新价": 30},
+    ])
+    out = universe._apply_cn(df, {})
+    assert len(out) == 2  # 不过滤
