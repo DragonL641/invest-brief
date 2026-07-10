@@ -265,6 +265,12 @@ def _enrich(pick: dict, hist, prof: dict, fund: dict | None = None, val: dict | 
             pick["stop_level"] = round(ma20 * (1 - risk.get("stop_max_dd", 0.08)), 2)
         elif risk.get("stop_break_ma60") and ma60:
             pick["stop_level"] = round(ma60, 2)
+        # 关键价位(卡片标题展示):压力=近60日最高,支撑=近60日最低
+        if "high" in hist.columns and "low" in hist.columns:
+            pick["key_levels"] = {
+                "resistance": round(float(hist["high"].tail(60).max()), 2),
+                "support":    round(float(hist["low"].tail(60).min()), 2),
+            }
         # 技术面(卡片展示)
         macd = ta.macd(c)
         rets = ta.returns(c)

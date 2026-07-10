@@ -292,3 +292,41 @@ def test_swing_pick_pe_pb_even_without_valuation_factor(monkeypatch):
     assert top is not None
     assert top["fundamentals"]["pe"] == 15.5  # 修复前 None,修复后 spot pe
     assert top["fundamentals"]["pb"] == 2.3
+
+
+def test_enrich_key_levels_resistance_support(monkeypatch):
+    """_enrich 算 key_levels: 压力=近60日最高, 支撑=近60日最低。"""
+    import pandas as pd
+    from investbrief.pipelines import picks
+
+    n = 130
+    idx = pd.date_range("2024-01-01", periods=n, freq="B")
+    hist = pd.DataFrame({
+        "close": [10.0] * n,
+        "high":  [8.0 + i * 0.1 for i in range(n)],
+        "low":   [6.0 - i * 0.05 for i in range(n)],
+        "volume": [1e6] * n,
+    }, index=idx)
+
+    pick = {"symbol": "000001", "market": "cn"}
+    picks._enrich(pick, hist, {"risk": {"stop_break_ma20": True, "stop_max_dd": 0.08}})
+
+    assert "key_levels" in pick
+    assert pick["key_levels"]["resistance"] == round(max(hist["high"].tail(60)), 2)
+    assert pick["key_levels"]["support"] == round(min(hist["low"].tail(60)), 2)
+
+
+def test_enrich_key_levels_skipped_when_no_high_low(monkeypatch):
+    """hist 缺 high/low → key_levels 缺席(guard 单维度降级),但 technicals/fundamentals 仍写(guard 不拖垮 _enrich)。"""
+    import pandas as pd
+    from investbrief.pipelines import picks
+
+    n = 130
+    idx = pd.date_range("2024-01-01", periods=n, freq="B")
+    hist = pd.DataFrame({"close": [10.0] * n, "volume": [1e6] * n}, index=idx)  # 无 high/low
+    pick = {"symbol": "000001", "market": "cn"}
+    picks._enrich(pick, hist, {"risk": {"stop_break_ma20": True, "stop_max_dd": 0.08}})
+
+    assert "key_levels" not in pick    # 缺 high/low → guard 跳过 key_levels
+    assert "technicals" in pick        # 但 technicals 仍写（guard 不触发外层 except）
+    assert "fundamentals" in pick      # fundamentals 也仍写
