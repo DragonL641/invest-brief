@@ -120,7 +120,7 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
             if (min_listed_days or min_listed_years) and not _passes_listing_gates(
                     symbol, market, min_listed_days, min_listed_years):
                 return None
-            val = _valuation_for(row, market) if "valuation" in prof["factors"] else {}
+            val = _valuation_for(row, market)  # pe/pb 是卡片展示维度,总是取(spot 已有,零成本);不止 valuation 因子时用
             raw = {}
             for fkey in prof["factors"]:
                 fn = _factors.FACTOR_REGISTRY.get(fkey)

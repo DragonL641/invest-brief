@@ -276,3 +276,19 @@ def test_listing_gate_degrades_when_fetch_fails(monkeypatch):
 def test_listing_gate_skipped_when_no_thresholds():
     """无任何上市时长阈值 → 直接通过。"""
     assert picks._passes_listing_gates("X", "cn", None, None) is True
+
+
+def test_swing_pick_pe_pb_even_without_valuation_factor(monkeypatch):
+    """bug: swing 无 valuation 因子,但卡片 pe/pb 应从 spot 取(之前因 val 条件卡死为空)。"""
+    spot = pd.DataFrame([{"代码": "000001", "名称": "X", "成交额": 1.0e9,
+                          "市盈率-动态": 15.5, "市净率": 2.3}])
+    monkeypatch.setattr(picks, "_spot_df", lambda market: spot)
+    monkeypatch.setattr(picks._data, "fetch_history",
+                        lambda symbol, market, days: _valid_history())
+    monkeypatch.setattr(picks._data, "fetch_fundamentals",
+                        lambda symbol, market: {})
+    monkeypatch.setattr(picks, "load_profiles", lambda: _swing_profile())
+    top = picks.build_picks_for_profile("swing", "cn")
+    assert top is not None
+    assert top["fundamentals"]["pe"] == 15.5  # 修复前 None,修复后 spot pe
+    assert top["fundamentals"]["pb"] == 2.3
