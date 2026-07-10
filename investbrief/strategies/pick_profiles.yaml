@@ -22,7 +22,7 @@ profiles:
     standardize: rank_percentile
     industry_neutralize: false
     top_n: 1
-    risk: {stop_break_ma20: true, stop_max_dd: 0.08, max_per_stock: 0.10}
+    risk: {stop_break_ma20: true, stop_max_dd: 0.05, max_per_stock: 0.10}
 
   medium:
     holding_period: "3个月~1年"
@@ -44,7 +44,7 @@ profiles:
     standardize: rank_percentile
     industry_neutralize: true   # active(US sector via yfinance);CN 降级 no-op(stock_individual_info_em 接口崩)
     top_n: 1
-    risk: {max_per_stock: 0.15, max_per_industry: 0.30, stop_break_ma60: true}
+    risk: {stop_break_ma60: true, stop_max_dd: 0.07, max_per_stock: 0.15, max_per_industry: 0.30}
 
   long:
     holding_period: "1年~5年+"
@@ -64,4 +64,4 @@ profiles:
     standardize: rank_percentile
     industry_neutralize: true   # active(US sector via yfinance);CN 降级 no-op
     top_n: 1
-    risk: {max_per_stock: 0.10}
+    risk: {stop_break_ma60: true, stop_max_dd: 0.12, max_per_stock: 0.10}
