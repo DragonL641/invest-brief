@@ -18,16 +18,16 @@ from investbrief.pipelines import picks as picks_mod
 def test_candidate_cap_shrinks_on_rate_limit():
     """_candidate_cap_for_run(profile, limit_hits) 随原始"空返回"命中数收缩。"""
     # 基线 (limit_hits < 10)
-    assert picks_mod._candidate_cap_for_run("medium", 0) == 80
-    assert picks_mod._candidate_cap_for_run("swing", 0) == 60
-    assert picks_mod._candidate_cap_for_run("long", 0) == 60
+    assert picks_mod._candidate_cap_for_run("medium", 0) == 40
+    assert picks_mod._candidate_cap_for_run("swing", 0) == 30
+    assert picks_mod._candidate_cap_for_run("long", 0) == 30
     # 中档 (10 ≤ limit_hits < 25)
-    assert picks_mod._candidate_cap_for_run("medium", 10) == 30
-    assert picks_mod._candidate_cap_for_run("medium", 15) == 30
+    assert picks_mod._candidate_cap_for_run("medium", 10) == 20
+    assert picks_mod._candidate_cap_for_run("medium", 15) == 20
     # 底档 (limit_hits ≥ 25)
-    assert picks_mod._candidate_cap_for_run("medium", 25) == 15
-    assert picks_mod._candidate_cap_for_run("medium", 30) == 15
-    assert picks_mod._candidate_cap_for_run("swing", 30) == 15
+    assert picks_mod._candidate_cap_for_run("medium", 25) == 10
+    assert picks_mod._candidate_cap_for_run("medium", 30) == 10
+    assert picks_mod._candidate_cap_for_run("swing", 30) == 10
 
 
 def test_rate_limit_thresholds():
@@ -36,8 +36,8 @@ def test_rate_limit_thresholds():
 
 
 def test_cap_ladder_values():
-    """cap 收缩档位: 30 (中档) / 15 (底档)。"""
-    assert picks_mod._CAP_LADDER == (30, 15)
+    """cap 收缩档位: 20 (中档) / 10 (底档)。"""
+    assert picks_mod._CAP_LADDER == (20, 10)
 
 
 def test_candidate_cap_for_run_reuses_candidate_cap():
@@ -50,17 +50,17 @@ def test_candidate_cap_for_run_reuses_candidate_cap():
 
 def test_candidate_cap_for_run_boundary_at_thresholds():
     """边界值: 9→基线 / 10→中档 / 24→中档 / 25→底档。"""
-    assert picks_mod._candidate_cap_for_run("medium", 9) == 80
-    assert picks_mod._candidate_cap_for_run("medium", 10) == 30
-    assert picks_mod._candidate_cap_for_run("medium", 24) == 30
-    assert picks_mod._candidate_cap_for_run("medium", 25) == 15
+    assert picks_mod._candidate_cap_for_run("medium", 9) == 40
+    assert picks_mod._candidate_cap_for_run("medium", 10) == 20
+    assert picks_mod._candidate_cap_for_run("medium", 24) == 20
+    assert picks_mod._candidate_cap_for_run("medium", 25) == 10
 
 
 def test_candidate_cap_for_run_unknown_profile_falls_back():
-    """未知 profile → _candidate_cap fallback 60,同样参与收缩。"""
-    assert picks_mod._candidate_cap_for_run("unknown", 0) == 60
-    assert picks_mod._candidate_cap_for_run("unknown", 15) == 30
-    assert picks_mod._candidate_cap_for_run("unknown", 30) == 15
+    """未知 profile → _candidate_cap fallback 30,同样参与收缩。"""
+    assert picks_mod._candidate_cap_for_run("unknown", 0) == 30
+    assert picks_mod._candidate_cap_for_run("unknown", 15) == 20
+    assert picks_mod._candidate_cap_for_run("unknown", 30) == 10
 
 
 # ---------- 集成测试:空返回信号链 → 早停(锁住 C1 修法,防回归) ----------

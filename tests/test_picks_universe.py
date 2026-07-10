@@ -95,3 +95,25 @@ def test_apply_cn_no_mainboard_field_keeps_all():
     ])
     out = universe._apply_cn(df, {})
     assert len(out) == 2  # 不过滤
+
+
+# --- 候选 cap 缩小一半 + ladder 校准(Task 2) ---
+
+
+def test_candidate_cap_halved():
+    """cap 缩小一半：swing30/medium40/long30。"""
+    from investbrief.pipelines.picks import _candidate_cap
+    assert _candidate_cap("swing") == 30
+    assert _candidate_cap("medium") == 40
+    assert _candidate_cap("long") == 30
+    assert _candidate_cap("unknown") == 30  # 默认
+
+
+def test_cap_ladder_recalibrated():
+    """ladder 校准为 (20, 10)（base 改小后避免撞 base）。"""
+    from investbrief.pipelines import picks
+    assert picks._CAP_LADDER == (20, 10)
+    # _candidate_cap_for_run 收缩档位仍正确
+    assert picks._candidate_cap_for_run("swing", 0) == 30   # base
+    assert picks._candidate_cap_for_run("swing", 15) == 20   # 中档（≥10 阈值）
+    assert picks._candidate_cap_for_run("swing", 30) == 10   # 底档（≥25 阈值）

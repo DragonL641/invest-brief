@@ -302,7 +302,7 @@ def _enrich_with_holdings(pick: dict, with_ai: bool):
 
 
 def _candidate_cap(profile_name: str) -> int:
-    return {"swing": 60, "medium": 80, "long": 60}.get(profile_name, 60)
+    return {"swing": 30, "medium": 40, "long": 30}.get(profile_name, 30)
 
 
 # 限流降档:build_picks_for_profile 内 _process_candidate 把"空返回"作为限流
@@ -310,16 +310,16 @@ def _candidate_cap(profile_name: str) -> int:
 # 超阈值则收缩有效 cap。两档:(10 次 → 中档, 25 次 → 底档)。
 # limit_hits 是原始"空返回"计数(线程安全累加),非档位索引。
 _RATE_LIMIT_DOWNGRADE_THRESHOLDS = (10, 25)
-_CAP_LADDER = (30, 15)  # 对应两档阈值收缩后的 cap
+_CAP_LADDER = (20, 10)  # 限流收缩档(base→20→10);base 缩小后从 (30,15) 降到 (20,10)
 
 
 def _candidate_cap_for_run(profile_name: str, limit_hits: int) -> int:
     """根据当前 run 内观察到的"空返回"(限流代理)计数,返回收缩后的有效 cap。
 
-    基线复用 _candidate_cap(唯一真相源),未知 profile fallback 60 由其保证。
-    - limit_hits < 10  → 基线 (_candidate_cap: swing/long=60, medium=80)
-    - 10 ≤ limit_hits < 25 → 中档 (30)
-    - limit_hits ≥ 25 → 底档 (15)
+    基线复用 _candidate_cap(唯一真相源),未知 profile fallback 30 由其保证。
+    - limit_hits < 10  → 基线 (_candidate_cap: swing/long=30, medium=40)
+    - 10 ≤ limit_hits < 25 → 中档 (20)
+    - limit_hits ≥ 25 → 底档 (10)
     """
     base = _candidate_cap(profile_name)
     if limit_hits < _RATE_LIMIT_DOWNGRADE_THRESHOLDS[0]:
