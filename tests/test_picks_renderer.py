@@ -138,3 +138,48 @@ def test_technicals_dim_skips_ma_row_when_no_ma_data():
     assert "均线" not in html
     assert "动能" in html
     assert "涨跌" in html
+
+
+# ---------- Task5: 机构态度丰富(评级分布详情 + 目标价区间) ----------
+def test_rating_dim_rich_distribution_and_targets():
+    """机构态度:评级分布详情(各家数+共识+总数) + 目标价详情(均值/最高/最低+空间)。
+    upside_pct 是百分数值(21.2 = 21%),需 /100 归一化后 _ret(不放大成 2120%)。"""
+    pick = _sample_pick()
+    pick["rating"] = {
+        "distribution": {"strong_buy": 12, "buy": 8, "hold": 3, "sell": 0, "strong_sell": 0},
+        "total": 23,
+        "price_target": {"current": 7.59, "mean": 9.20, "high": 10.5, "low": 8.0, "upside_pct": 21.2},
+    }
+    html = renderer._rating_dim(pick)
+    # 评级分布详情
+    assert "强烈买入" in html
+    assert "12" in html              # strong_buy 数
+    assert "共23家" in html or "23" in html  # 机构总数
+    # 目标价详情
+    assert "9.20" in html or "9.2" in html   # 均值
+    assert "10.5" in html                     # 最高
+    assert "8.0" in html or "8.00" in html    # 最低
+    assert "+21" in html                      # 空间%(21.2 → +21%)
+    # 防回归:不能把 upside_pct 百分数当小数放大成 +2120%
+    assert "+2120%" not in html
+    assert "+212%" not in html
+
+
+def test_rating_dim_cn_distribution_merged():
+    """CN schema(outperform/neutral/underperform)归并进 4 格,不丢失。
+    holdings/analyzer.py:671-677 CN distribution 用 buy/outperform/neutral/underperform/sell;
+    若不归并,outperform(15)会被静默丢弃,严重低估看多。"""
+    pick = _sample_pick()
+    pick["rating"] = {
+        "distribution": {"buy": 5, "outperform": 15, "neutral": 3, "underperform": 1, "sell": 0},
+        "total": 24,
+    }
+    html = renderer._rating_dim(pick)
+    # outperform(15) 归并进"买入" → 买入=5+15=20
+    assert "买入" in html and "20" in html
+    # neutral(3) 归并进"持有" → 持有=3
+    assert "持有" in html and "3" in html
+    # underperform(1) 归并进"卖出" → 卖出=1
+    assert "卖出" in html and "1" in html
+    # 共识% = (buy5+outperform15)/24 = 83%
+    assert "83" in html

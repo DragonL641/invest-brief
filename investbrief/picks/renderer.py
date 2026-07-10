@@ -164,20 +164,48 @@ def _technicals_dim(pick: dict) -> str:
 
 # ---------- 机构态度 / 盈利预测(复用 holdings analyzer 数据) ----------
 def _rating_dim(pick: dict) -> str:
+    """评级分布详情(各家数+共识+总数) + 目标价详情(均值/最高/最低+空间)。
+    distribution key 对齐 holdings analyzer(US: strong_buy/buy/hold/sell/strong_sell;
+    CN: buy/outperform/neutral/underperform/sell)。upside_pct 是百分数值(21.2 = 21%),
+    需 /100 归一化后 _ret,避免放大成 +2120%。"""
     rt = pick.get("rating") or {}
     if not rt or not (rt.get("distribution") or rt.get("price_target")):
         return ""
-    cells = []
+
+    rows = []
     dist = rt.get("distribution") or {}
     if dist:
         total = rt.get("total") or sum(dist.values()) or 1
-        buy_pct = (dist.get("buy", 0) + dist.get("strong_buy", 0) + dist.get("outperform", 0)) / total * 100
-        cells.append(_cell("买入共识", f"{buy_pct:.0f}%"))
+        buy_n = dist.get("buy", 0) + dist.get("strong_buy", 0) + dist.get("outperform", 0)
+        buy_pct = buy_n / total * 100 if total else 0
+        # CN/US distribution schema 归并进统一 4 格(避免 CN outperform/neutral/underperform 丢失):
+        #   US: strong_buy→强烈买入、buy→买入、hold→持有、sell+strong_sell→卖出
+        #   CN: buy→买入、outperform→买入、neutral→持有、underperform+sell→卖出
+        dist_cells = "".join([
+            _cell("强烈买入", dist.get("strong_buy", 0)),
+            _cell("买入",   dist.get("buy", 0) + dist.get("outperform", 0)),
+            _cell("持有",   dist.get("hold", 0) + dist.get("neutral", 0)),
+            _cell("卖出",   dist.get("sell", 0) + dist.get("strong_sell", 0) + dist.get("underperform", 0)),
+            _cell("共识",   f"{buy_pct:.0f}%"),
+            _cell("共",     f"{total}家"),
+        ])
+        rows.append(_dim("评级", dist_cells))
+
     pt = rt.get("price_target") or {}
-    if pt.get("upside_pct") is not None:
-        cls = "pos" if pt["upside_pct"] > 0 else "neg"
-        cells.append(_cell("目标空间", f"{pt['upside_pct']:+.0f}%", cls))
-    return _dim("机构态度", "".join(cells)) if cells else ""
+    if pt.get("mean") is not None:
+        upside = pt.get("upside_pct")
+        # upside_pct 是百分数(21.2),/100 → 小数后 _ret → "+21.2%"
+        upside_disp = _ret(upside / 100) if isinstance(upside, (int, float)) else "—"
+        cls = "pos" if isinstance(upside, (int, float)) and upside > 0 else ("neg" if isinstance(upside, (int, float)) and upside < 0 else "")
+        pt_cells = "".join([
+            _cell("均值", _num(pt.get("mean"))),
+            _cell("最高", _num(pt.get("high"))),
+            _cell("最低", _num(pt.get("low"))),
+            _cell("空间", upside_disp, cls),
+        ])
+        rows.append(_dim("目标", pt_cells))
+
+    return "".join(rows) if rows else ""
 
 
 def _forecast_dim(pick: dict) -> str:
