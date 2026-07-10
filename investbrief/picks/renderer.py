@@ -110,8 +110,28 @@ def _fundamentals_dim(pick: dict) -> str:
 
 
 def _technicals_dim(pick: dict) -> str:
+    """技术面按类别分3行:均线 / 动能 / 涨跌。return_*d 是百分数值(core/ta.py:104 *100),
+    需 /100 归一化为小数后再 _pct;close_vs_ma60_pct 本身是小数。"""
     t = pick.get("technicals") or {}
-    align = {"bullish": "多头", "bearish": "空头", "mixed": "交织"}.get(t.get("ma_alignment"), "—")
+
+    def _to_ret(v):
+        # 百分比值(2.1 = 2.1%) → _pct 友好的小数(0.021)
+        return v / 100 if isinstance(v, (int, float)) else None
+
+    # 均线类
+    align = {"bullish": "多头排列", "bearish": "空头排列", "mixed": "交织"}.get(t.get("ma_alignment"), "—")
+    has_ma = any(t.get(k) is not None for k in ("ma20", "ma60", "ma120"))
+    ma_cells = ""
+    if has_ma:
+        ma_cells = "".join([
+            _cell("MA20", _num(t.get("ma20"))),
+            _cell("MA60", _num(t.get("ma60"))),
+            _cell("MA120", _num(t.get("ma120"))),
+            _cell("排列", align),
+            _cell("距MA60", _pct(t.get("close_vs_ma60_pct"))),
+        ])
+
+    # 动能类(macd_cross 缺失时用 macd_bar 红绿柱兜底,不丢信息)
     _mc = t.get("macd_cross")
     _mb = t.get("macd_bar")
     if _mc == "golden":
@@ -122,17 +142,24 @@ def _technicals_dim(pick: dict) -> str:
         cross = "红柱" if _mb > 0 else "绿柱"
     else:
         cross = "—"
-    cells = [
-        _cell("MA20", _num(t.get("ma20"))),
-        _cell("MA60", _num(t.get("ma60"))),
-        _cell("MA120", _num(t.get("ma120"))),
-        _cell("均线", align),
+    dyn_cells = "".join([
         _cell("RSI", _num(t.get("rsi"))),
         _cell("MACD", cross),
-        _cell("5日", _pct((t.get("return_5d") or 0) / 100 if isinstance(t.get("return_5d"), (int, float)) else None)),
-        _cell("60日", _pct((t.get("return_60d") or 0) / 100 if isinstance(t.get("return_60d"), (int, float)) else None)),
-    ]
-    return _dim("技术面", "".join(cells))
+    ])
+
+    # 涨跌类(return_*d 是百分比值,/100 归一化)
+    ret_cells = "".join([
+        _cell("5日", _pct(_to_ret(t.get("return_5d")))),
+        _cell("20日", _pct(_to_ret(t.get("return_20d")))),
+        _cell("60日", _pct(_to_ret(t.get("return_60d")))),
+    ])
+
+    rows = "".join(r for r in [
+        _dim("均线", ma_cells) if ma_cells else "",
+        _dim("动能", dyn_cells),
+        _dim("涨跌", ret_cells),
+    ] if r)
+    return rows
 
 
 # ---------- 机构态度 / 盈利预测(复用 holdings analyzer 数据) ----------

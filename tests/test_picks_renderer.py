@@ -90,3 +90,51 @@ def test_factor_dim_one_line_per_factor_with_explain():
     # 不再显示百分比进度条
     assert "fbar-track" not in html
     assert "89%" not in html and "75%" not in html
+
+
+# ---------- Task4: 技术面按类别分行(均线/动能/涨跌) ----------
+def test_technicals_dim_grouped_by_category():
+    """技术面按类别分3行:均线/动能/涨跌。return_*d 是百分数值(生产惯例,core/ta.py:104 *100)。"""
+    pick = _sample_pick()
+    pick["technicals"] = {
+        "ma20": 7.3, "ma60": 7.2, "ma120": 7.0, "ma_alignment": "bullish",
+        "close_vs_ma60_pct": 0.054,
+        "rsi": 58, "macd_cross": "golden", "macd_bar": 0.12,
+        "return_5d": 2.1, "return_20d": 8.5, "return_60d": 15.2,  # 百分比值
+    }
+    html = renderer._technicals_dim(pick)
+    # 3 类分行
+    assert "均线" in html
+    assert "动能" in html
+    assert "涨跌" in html
+    # 均线类:MA 值 + 多头排列 + 距MA60(decimal → +5.4%)
+    assert "7.3" in html and "多头排列" in html
+    assert "+5.4%" in html
+    # 动能类:RSI + 金叉
+    assert "58" in html and "金叉" in html
+    # 涨跌类:百分比值 → /100 归一化后 +2.1% / +8.5% / +15.2%(不被放大成 +210%)
+    assert "+2.1%" in html
+    assert "+8.5%" in html
+    assert "+15.2%" in html
+    assert "+210%" not in html   # 防回归:不能把百分比当十进制
+
+
+def test_technicals_dim_macd_bar_fallback():
+    """macd_cross 缺失但有 macd_bar → 红柱/绿柱(保留信息,不退化为 —)。"""
+    pick = _sample_pick()
+    pick["technicals"] = {"rsi": 50, "macd_bar": 0.15}  # 无 macd_cross,bar>0
+    html = renderer._technicals_dim(pick)
+    assert "红柱" in html
+    pick["technicals"] = {"rsi": 50, "macd_bar": -0.08}  # bar<0
+    html = renderer._technicals_dim(pick)
+    assert "绿柱" in html
+
+
+def test_technicals_dim_skips_ma_row_when_no_ma_data():
+    """均线行无 MA 数据(ma20/60/120 全空)→ 跳过均线行,仍有动能/涨跌。"""
+    pick = _sample_pick()
+    pick["technicals"] = {"rsi": 55, "return_5d": 1.2}
+    html = renderer._technicals_dim(pick)
+    assert "均线" not in html
+    assert "动能" in html
+    assert "涨跌" in html
