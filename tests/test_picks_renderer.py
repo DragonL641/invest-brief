@@ -32,3 +32,41 @@ def test_render_pick_section_wraps_two_cards():
     section = renderer.render_pick_section("swing", _pick("cn1"), _pick("us1", 80.0))
     assert "cn1" in section and "us1" in section
     assert "波段" in section            # 段落标题
+
+
+# ---------- Task2: 标题加价位行 + 综合分弱化 + 删 _price_dim ----------
+def _sample_pick():
+    return {
+        "symbol": "000001", "name": "平安银行", "market": "cn",
+        "composite": 72.3, "price": 7.59,
+        "key_levels": {"resistance": 8.50, "support": 6.80},
+        "stop_level": 6.20,
+        "fundamentals": {"pe": 15.5, "pb": 2.3, "roe": 0.12},
+        "technicals": {"ma20": 7.3, "ma60": 7.2, "rsi": 58},
+        "factor_scores": {},
+    }
+
+
+def test_card_head_has_price_levels_row():
+    """标题区含现价/压力/支撑/止损价位行。"""
+    html = renderer.render_pick_card(_sample_pick(), "swing", "cn")
+    assert "7.59" in html
+    assert "8.50" in html or "8.5" in html    # 压力位
+    assert "6.80" in html or "6.8" in html    # 支撑位
+    assert "6.20" in html or "6.2" in html    # 止损
+    assert "price-row" in html   # 值在 price-row 容器内，不是散落到 dims
+
+
+def test_composite_score_deemphasized():
+    """综合分弱化(小号灰色,不再是显眼大号彩色)。"""
+    html = renderer.render_pick_card(_sample_pick(), "swing", "cn")
+    assert "72.3" in html or "72" in html     # 综合分仍显示
+    # 不应再有显眼 score-num 大号(弱化:小号灰色)
+    assert 'class="score-num"' not in html          # 旧显眼 class 没了
+    assert "font-size:11px" in html or "#95a5a6" in html  # 新弱化样式在
+
+
+def test_no_standalone_price_dim():
+    """card-body 不再有独立的'价位'维度(已移标题)。"""
+    html = renderer.render_pick_card(_sample_pick(), "swing", "cn")
+    assert html.count("现价") == 1   # 只在标题出现一次,不在 dims

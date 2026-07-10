@@ -55,16 +55,6 @@ def _dim(name: str, cells_html: str) -> str:
     return f'<div class="dim-row"><div class="dim-name">{name}</div><div class="dim-cells">{cells_html}</div></div>'
 
 
-def _score_color(v) -> str:
-    if not isinstance(v, (int, float)):
-        return "#95a5a6"
-    if v >= 60:
-        return "#27ae60"
-    if v >= 35:
-        return "#e67e22"
-    return "#95a5a6"
-
-
 # ---------- 关键信号 tag ----------
 def _signals(pick: dict) -> str:
     t = pick.get("technicals") or {}
@@ -147,13 +137,6 @@ def _technicals_dim(pick: dict) -> str:
         _cell("60日", _pct((t.get("return_60d") or 0) / 100 if isinstance(t.get("return_60d"), (int, float)) else None)),
     ]
     return _dim("技术面", "".join(cells))
-
-
-def _price_dim(pick: dict) -> str:
-    return _dim("价位", "".join([
-        _cell("现价", f'<b>{_fmt(pick.get("price"))}</b>'),
-        _cell("止损", _fmt(pick.get("stop_level")), "neg"),
-    ]))
 
 
 # ---------- 机构态度 / 盈利预测(复用 holdings analyzer 数据) ----------
@@ -264,7 +247,6 @@ def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> 
         _technicals_dim(pick),
         _rating_dim(pick),
         _forecast_dim(pick),
-        _price_dim(pick),
     ] if d)
     sig = _signals(pick)
     logic_lines = _explain(pick)
@@ -275,11 +257,20 @@ def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> 
     ai = pick.get("ai_conclusion")
     ai_html = f'<div class="logic-box" style="background:#f8f9fa;border-left-color:#1f3a5f;color:#2c3e50;"><b>🤖 综合研判</b><div style="margin-top:4px;">{_md(ai)}</div></div>' if ai else ""
 
+    kl = pick.get("key_levels") or {}
+    price_row = f'''<div class="price-row">
+<span class="pl"><span class="pl-l">现价</span><b>{_fmt(pick.get("price"))}</b></span>
+<span class="pl neg"><span class="pl-l">压力</span>{_fmt(kl.get("resistance"))}</span>
+<span class="pl pos"><span class="pl-l">支撑</span>{_fmt(kl.get("support"))}</span>
+<span class="pl neg"><span class="pl-l">止损</span>{_fmt(pick.get("stop_level"))}</span>
+</div>'''
+
     return f'''<div class="card" style="border-left-color:{mkt_color};">
   <div class="card-head">
     <span class="card-name">{pick.get("name","")}</span><span class="card-sym">{pick.get("symbol","")}</span><span class="mkt-badge" style="background:{mkt_color};">{mkt_label}</span>
-    <span class="score"><span class="score-num" style="color:{_score_color(comp)};">{_num(comp,1)}</span><span class="score-lbl">综合分</span></span>
+    <span style="float:right;color:#95a5a6;font-size:11px;">分 {_num(comp,0)}</span>
   </div>
+  {price_row}
   <div class="card-body">
     {sig}
     <div class="dims">{dims}</div>
