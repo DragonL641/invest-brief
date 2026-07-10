@@ -40,13 +40,6 @@ def _num(v, d=2) -> str:
         return "—"
 
 
-def _bar(pct) -> str:
-    w = pct if isinstance(pct, (int, float)) else 0
-    color = "#27ae60" if (isinstance(pct, (int, float)) and pct >= 70) else (
-        "#f39c12" if (isinstance(pct, (int, float)) and pct >= 40) else "#d5dbdb")
-    return f'<span class="fbar-track"><span class="fbar-fill" style="width:{w:.0f}%;background:{color};"></span></span>'
-
-
 def _cell(label, value, cls="") -> str:
     return f'<span class="cell {cls}"><span class="cl">{label}</span>{value}</span>'
 
@@ -87,16 +80,19 @@ def _signals(pick: dict) -> str:
         f'<span class="signal-tag tag-{cls}">{txt}</span>' for txt, cls in tags) + '</div>'
 
 
-# ---------- 量化因子行 ----------
+# ---------- 量化因子行(一行一个因子 + 右边解释) ----------
 def _factor_dim(pick: dict) -> str:
     fs = pick.get("factor_scores") or {}
-    cells = []
-    for k, sc in fs.items():
-        label = FACTOR_LABELS.get(k, k)
-        pct = sc.get("pct")
-        pct_disp = f"{pct:.0f}%" if isinstance(pct, (int, float)) else "—"
-        cells.append(f'<span class="cell">{label}{_bar(pct)}<span style="color:#95a5a6;font-size:11px;">{pct_disp}</span></span>')
-    return _dim("量化因子", "".join(cells)) if cells else ""
+    rows = []
+    for key, sc in fs.items():
+        label = FACTOR_LABELS.get(key, key)
+        explain = _explain_factor(key, sc, pick)
+        if explain:
+            rows.append(
+                f'<div class="factor-row"><span class="fl-name">{label}</span>'
+                f'<span class="fl-explain">{explain}</span></div>'
+            )
+    return f'<div class="dim-row"><div class="dim-name">量化因子</div><div class="factor-list">{"".join(rows)}</div></div>' if rows else ""
 
 
 # ---------- 基本面 / 技术面 / 价位 维度 ----------
@@ -169,51 +165,63 @@ def _forecast_dim(pick: dict) -> str:
 
 
 # ---------- 具体买入逻辑(用实际指标值解释,不只"前 X%") ----------
-def _explain(pick: dict) -> list[str]:
-    """对头部因子(贡献最大的几项)用实际指标值生成具体解释。"""
+def _explain_factor(key: str, sc: dict, pick: dict) -> str | None:
+    """单因子解释文案(实际指标值+含义)。复用原 _explain 的 per-factor 逻辑,
+    返回无 label 前缀的解释串(调用方决定是否加前缀)。未知因子返回 None。"""
     t = pick.get("technicals") or {}
     f = pick.get("fundamentals") or {}
-    fs = pick.get("factor_scores") or {}
+    raw = sc.get("raw")
     price = pick.get("price")
     ma60 = t.get("ma60")
     align_cn = {"bullish": "MA20>MA60>MA120 多头排列", "bearish": "MA20<MA60<MA120 空头排列"}.get(t.get("ma_alignment"), "")
 
-    # 按贡献排序,取前 4 个有数据的因子逐条解释
+    if key == "trend_strength":
+        dev = t.get("close_vs_ma60_pct")
+        extra = f",收盘{_fmt(price)}高于MA60 {_fmt(ma60)}({_ret(dev)})"
+        if align_cn:
+            extra += f",{align_cn}"
+        return f"趋势强{extra}"
+    elif key == "momentum_60d_ex5":
+        return f"60日涨幅(剔除最近5日){_ret(raw)}"
+    elif key == "ma20_deviation":
+        return f"距MA20乖离 {_ret(raw)},贴近均线属低吸位置"
+    elif key == "volume_price":
+        vp = f"{raw:.2f}倍" if isinstance(raw, (int, float)) else "—"
+        return f"放量上涨日均量/缩量回调日均量 = {vp},量能配合向上"
+    elif key == "low_volatility_20d":
+        return f"20日波动率 {_num(raw,4)},池内偏低更稳健"
+    elif key == "growth":
+        return f"营收同比 {_pct(f.get('revenue_yoy'))},净利润同比 {_pct(f.get('profit_yoy'))}"
+    elif key == "quality":
+        base = f"ROE {_pct(f.get('roe'))},毛利率 {_pct(f.get('gross_margin'))}"
+        return base + ",经营现金流为正" if f.get("fcf_positive") else base
+    elif key == "valuation":
+        return f"PE {_num(f.get('pe'))} / PB {_num(f.get('pb'))},池内估值偏低"
+    elif key == "moat":
+        return f"毛利率 {_pct(f.get('gross_margin'))},轻资产(低资本开支)特征"
+    elif key == "industry_prosperity":
+        return f"营收增速 {_pct(f.get('revenue_yoy'))}(行业景气代理)"
+    elif key == "momentum_12m_ex1m":
+        return f"12月动量(剔除最近1月){_ret(raw)}"
+    elif key == "profitability_stability":
+        return f"连续盈利 {_fmt(raw)} 年"
+    elif key == "main_flow":
+        return f"近5日主力净流入占比 {_num(raw)}%"
+    if isinstance(raw, (int, float)):
+        return f"{_fmt_raw(raw)}(池内前 ...%)"
+    return None
+
+
+def _explain(pick: dict) -> list[str]:
+    """对头部因子(贡献最大的几项)用实际指标值生成具体解释。"""
+    fs = pick.get("factor_scores") or {}
     ordered = sorted(fs.items(), key=lambda kv: (kv[1].get("weighted") or 0), reverse=True)[:4]
     lines = []
     for key, sc in ordered:
-        raw = sc.get("raw")
-        label = FACTOR_LABELS.get(key, key)
-        if key == "trend_strength":
-            dev = t.get("close_vs_ma60_pct")
-            extra = f",收盘{_fmt(price)}高于MA60 {_fmt(ma60)}({_ret(dev)})"
-            if align_cn:
-                extra += f",{align_cn}"
-            lines.append(f"{label}:趋势强{extra}")
-        elif key == "momentum_60d_ex5":
-            lines.append(f"{label}:60日涨幅(剔除最近5日){_ret(raw)}")
-        elif key == "ma20_deviation":
-            lines.append(f"{label}:距MA20乖离 {_ret(raw)},贴近均线属低吸位置")
-        elif key == "volume_price":
-            vp = f"{raw:.2f}倍" if isinstance(raw, (int, float)) else "—"
-            lines.append(f"{label}:放量上涨日均量/缩量回调日均量 = {vp},量能配合向上")
-        elif key == "low_volatility_20d":
-            lines.append(f"{label}:20日波动率 {_num(raw,4)},池内偏低更稳健")
-        elif key == "growth":
-            lines.append(f"{label}:营收同比 {_pct(f.get('revenue_yoy'))},净利润同比 {_pct(f.get('profit_yoy'))}")
-        elif key == "quality":
-            lines.append(f"{label}:ROE {_pct(f.get('roe'))},毛利率 {_pct(f.get('gross_margin'))},经营现金流为正" if f.get("fcf_positive") else f"{label}:ROE {_pct(f.get('roe'))},毛利率 {_pct(f.get('gross_margin'))}")
-        elif key == "valuation":
-            lines.append(f"{label}:PE {_num(f.get('pe'))} / PB {_num(f.get('pb'))},池内估值偏低")
-        elif key == "moat":
-            lines.append(f"{label}:毛利率 {_pct(f.get('gross_margin'))},轻资产(低资本开支)特征")
-        elif key == "industry_prosperity":
-            lines.append(f"{label}:营收增速 {_pct(f.get('revenue_yoy'))}(行业景气代理)")
-        elif key == "momentum_12m_ex1m":
-            lines.append(f"{label}:12月动量(剔除最近1月){_ret(raw)}")
-        else:
-            if isinstance(raw, (int, float)):
-                lines.append(f"{label}:{_fmt_raw(raw)}(池内前 ...%)")
+        explain = _explain_factor(key, sc, pick)
+        if explain:
+            label = FACTOR_LABELS.get(key, key)
+            lines.append(f"{label}:{explain}")
     return lines
 
 

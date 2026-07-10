@@ -70,3 +70,23 @@ def test_no_standalone_price_dim():
     """card-body 不再有独立的'价位'维度(已移标题)。"""
     html = renderer.render_pick_card(_sample_pick(), "swing", "cn")
     assert html.count("现价") == 1   # 只在标题出现一次,不在 dims
+
+
+# ---------- Task3: 量化因子一行一个 + 右解释 ----------
+def test_factor_dim_one_line_per_factor_with_explain():
+    """量化因子:每个因子独立行 + 右边解释(实际指标值,非百分比)。"""
+    pick = _sample_pick()
+    pick["factor_scores"] = {
+        "trend_strength": {"raw": None, "pct": 89.0, "weighted": 22.5},
+        "low_volatility_20d": {"raw": 0.0234, "pct": 75.0, "weighted": 7.5},
+    }
+    pick["technicals"] = {"ma_alignment": "bullish", "ma60": 7.2, "close_vs_ma60_pct": 0.054}
+    pick["price"] = 7.59
+    html = renderer._factor_dim(pick)
+    assert "趋势强度" in html
+    assert "低波动" in html
+    # 解释含实际值(波动率 0.0234 / 多头排列)
+    assert "0.0234" in html or "多头排列" in html
+    # 不再显示百分比进度条
+    assert "fbar-track" not in html
+    assert "89%" not in html and "75%" not in html
