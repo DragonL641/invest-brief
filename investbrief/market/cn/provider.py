@@ -131,6 +131,7 @@ class CNMarketProvider(MarketProvider):
         change = 0.0
         if not fx_rows.empty and len(fx_rows) > 1:
             prev = float(fx_rows.iloc[1]["value"])
+            # point 走实时、prev 走 DB 前值:口径近似「相对昨收」,实时与 DB 非严格同源
             change = round((point - prev) / prev * 100, 2) if prev else 0.0
         assets.append({"name": "人民币汇率(USDCNY)", "point": point, "change": change})
         return assets

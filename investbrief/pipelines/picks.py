@@ -243,6 +243,9 @@ def _compute_stop_level(close: float | None, ma20, ma60, risk: dict | None) -> f
 
     下跌趋势里 MA 可能高于现价(云铝 MA60=28.44 > 现价 23.15),直接用 MA 会得到
     「止损>现价」的荒谬值;clamp 到 close*(1-max_dd) 确保止损始终在现价下方。
+
+    注:max_dd 此处语义为「自现价的回撤」(stop ≤ close*(1-max_dd)),区别于旧实现
+    的「MA 下方再打 max_dd 折」——上涨趋势里新止损会比旧逻辑更接近现价(更松)。
     """
     if not close:
         return None
