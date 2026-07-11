@@ -236,6 +236,23 @@ def _passes_listing_gates(symbol: str, market: str, min_days: int | None,
         return True
 
 
+def _compute_stop_level(close: float | None, ma20, ma60, risk: dict | None) -> float | None:
+    """止损价:取「趋势信号线(MA)」与「现价下拽 max_dd」的较小者,恒低于现价。
+
+    下跌趋势里 MA 可能高于现价(云铝 MA60=28.44 > 现价 23.15),直接用 MA 会得到
+    「止损>现价」的荒谬值;clamp 到 close*(1-max_dd) 确保止损始终在现价下方。
+    """
+    if not close:
+        return None
+    max_dd = (risk or {}).get("stop_max_dd", 0.08)
+    price_stop = close * (1 - max_dd)
+    if risk and risk.get("stop_break_ma20") and ma20:
+        return round(min(ma20, price_stop), 2)
+    if risk and risk.get("stop_break_ma60") and ma60:
+        return round(min(ma60, price_stop), 2)
+    return round(price_stop, 2)
+
+
 def _enrich(pick: dict, hist, prof: dict, fund: dict | None = None, val: dict | None = None):
     """补 price/key_mas/stop + 技术面/基本面/估值(卡片展示维度)。"""
     try:
@@ -248,11 +265,7 @@ def _enrich(pick: dict, hist, prof: dict, fund: dict | None = None, val: dict | 
         mas = ta.ma_set(c, (5, 10, 20, 60, 120))   # 含 5/10/20 才能算 ma_alignment
         ma20, ma60, ma120 = mas.get("ma20"), mas.get("ma60"), mas.get("ma120")
         pick["key_mas"] = {"ma20": ma20, "ma60": ma60, "ma120": ma120}
-        risk = prof.get("risk", {})
-        if risk.get("stop_break_ma20") and ma20:
-            pick["stop_level"] = round(ma20 * (1 - risk.get("stop_max_dd", 0.08)), 2)
-        elif risk.get("stop_break_ma60") and ma60:
-            pick["stop_level"] = round(ma60, 2)
+        pick["stop_level"] = _compute_stop_level(close, ma20, ma60, prof.get("risk", {}))
         # 关键价位(卡片标题展示):压力=近60日最高,支撑=近60日最低
         if "high" in hist.columns and "low" in hist.columns:
             pick["key_levels"] = {

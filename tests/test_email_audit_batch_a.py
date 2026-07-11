@@ -35,3 +35,25 @@ def test_cn_macro_news_disabled_returns_empty(monkeypatch):
     client.enabled = False
     monkeypatch.setattr(cn_news, "TavilyClient", lambda: client)
     assert cn_news.fetch_cn_macro_news(limit=5) == []
+
+
+# ---- #2 止损价恒低于现价 ----
+
+def test_stop_level_below_price_in_downtrend():
+    """下跌趋势(MA60>现价,云铝场景)止损仍低于现价。"""
+    from investbrief.pipelines.picks import _compute_stop_level
+    stop = _compute_stop_level(
+        23.15, ma20=23.70, ma60=28.44,
+        risk={"stop_break_ma60": True, "stop_max_dd": 0.07})
+    assert stop < 23.15
+    assert stop == round(min(28.44, 23.15 * 0.93), 2)  # 21.53
+
+
+def test_stop_level_uses_ma_when_uptrend():
+    """上涨趋势(MA<现价)用趋势线下拽两者较小者。"""
+    from investbrief.pipelines.picks import _compute_stop_level
+    stop = _compute_stop_level(
+        7.59, ma20=7.42, ma60=5.63,
+        risk={"stop_break_ma20": True, "stop_max_dd": 0.05})
+    assert stop < 7.59
+    assert stop == round(min(7.42, 7.59 * 0.95), 2)  # 7.21
