@@ -12,7 +12,7 @@ def _pick(profile, market, symbol):
 def test_generate_picks_brief_returns_html(monkeypatch):
     monkeypatch.setattr(brief, "call_claude", lambda *a, **k: "综合研判正文")
     html = brief.generate_picks_brief([_pick("swing", "cn", "s1"),
-                                        _pick("swing", "us", "s2")])
+                                        _pick("swing", "cn", "s2")])
     assert "综合研判正文" in html
 
 

@@ -10,7 +10,7 @@ from investbrief.picks.factors import FACTOR_LABELS
 from investbrief.core.textfmt import md_inline as _md
 
 _PROFILE_TITLE = {"swing": "波段 · 2周~3个月", "medium": "中长线 · 3个月~1年", "long": "长线 · 1年~5年+"}
-_MARKET_BADGE = {"cn": ("A股", "#e74c3c"), "us": ("美股", "#3498db")}
+_MARKET_BADGE = {"cn": ("A股", "#e74c3c")}
 
 
 # ---------- 格式化 ----------
@@ -343,9 +343,8 @@ def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> 
 </div>'''
 
 
-def render_pick_section(profile: str, cn_pick: dict | None, us_pick: dict | None) -> str:
-    """同周期 A股+美股 两只【上下堆叠】(手机友好,不再左右排布)。"""
+def render_pick_section(profile: str, pick: dict | None) -> str:
+    """单 profile 的 A股 Top1 卡片。"""
     title = _PROFILE_TITLE.get(profile, profile)
     return f'''<div class="profile-title">{title}</div>
-{render_pick_card(cn_pick, profile, "cn")}
-{render_pick_card(us_pick, profile, "us")}'''
+{render_pick_card(pick, profile, "cn")}'''

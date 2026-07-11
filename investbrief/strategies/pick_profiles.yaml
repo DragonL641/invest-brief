@@ -8,7 +8,6 @@ profiles:
       mainboard_only: true       # CN 沪深主板(60/00 开头),排除创业/科创/北交所
       max_price_cn: 40           # CN 最新价 < 40 元(资金量约束)
       min_turnover_cn: 100000000   # 1亿(用纯整数,避免 1.0e8 指数记法被 PyYAML 解析为 str)
-      min_turnover_us: 10000000    # $10M
       min_listed_days: 250          # active(approximate,earliest_report_period 代理 × 0.69 交易日系数)
       trend_60d_positive: true
       max_5d_gain: 0.30            # 深拉阶段(③)用历史 close 校验(active)
@@ -18,7 +17,7 @@ profiles:
       ma20_deviation:     {weight: 0.20, invert: true}
       volume_price:       {weight: 0.15}
       low_volatility_20d: {weight: 0.10, invert: true}
-      main_flow:          {weight: 0.10}   # CN only(US → None,因子降级);近5日主力净流入占比
+      main_flow:          {weight: 0.10}   # 近5日主力净流入占比
     standardize: rank_percentile
     industry_neutralize: false
     top_n: 1
@@ -31,7 +30,6 @@ profiles:
       mainboard_only: true       # CN 沪深主板(60/00 开头),排除创业/科创/北交所
       max_price_cn: 40           # CN 最新价 < 40 元(资金量约束)
       market_cap_cn: [5000000000, 100000000000]   # 50亿~1000亿(纯整数,避免指数记法)
-      market_cap_us: mid
       min_listed_days: 250          # active(approximate,earliest_report_period 代理 × 0.69 交易日系数)
       fundamental_gates:
         min_roe_4q: 0.08            # active: fund.roe < 阈值 → 剔除
@@ -42,7 +40,7 @@ profiles:
       valuation:           {weight: 0.25, invert: true}   # was 0.15;还 valuation
       momentum_12m_ex1m:   {weight: 0.10}
     standardize: rank_percentile
-    industry_neutralize: true   # active(US sector via yfinance);CN 降级 no-op(stock_individual_info_em 接口崩)
+    industry_neutralize: true   # CN 降级 no-op(stock_individual_info_em 接口崩,industry 全 None)
     top_n: 1
     risk: {stop_break_ma60: true, stop_max_dd: 0.07, max_per_stock: 0.15, max_per_industry: 0.30}
 
@@ -53,7 +51,7 @@ profiles:
       max_price_cn: 40           # CN 最新价 < 40 元(资金量约束)
       min_listed_years: 3           # active(approximate,earliest_report_period 代理)
       fundamental_gates:
-        min_profitable_years: 3     # active: fetch_profitable_years(CN 同花顺年度报告期;US yfinance financials)
+        min_profitable_years: 3     # active: fetch_profitable_years(CN 同花顺年度报告期)
       cautious_cyclical: true
     factors:
       quality:                 {weight: 0.20}   # was 0.35; 释放 0.15 给 profitability_stability
@@ -62,6 +60,6 @@ profiles:
       valuation:               {weight: 0.20, invert: true}
       profitability_stability: {weight: 0.15}   # 连续盈利年数(quality 子维度,从 quality 拆出独立 gradation)
     standardize: rank_percentile
-    industry_neutralize: true   # active(US sector via yfinance);CN 降级 no-op
+    industry_neutralize: true   # CN 降级 no-op(industry 全 None)
     top_n: 1
     risk: {stop_break_ma60: true, stop_max_dd: 0.12, max_per_stock: 0.10}

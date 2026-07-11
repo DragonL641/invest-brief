@@ -1,8 +1,7 @@
 # investbrief/pipelines/picks.py
-"""股票推荐 pipeline:三 profile × 两市场 选 Top1 → 6 只 → Claude 研判 → 渲染 → 发送。"""
+"""股票推荐 pipeline:三 profile × CN 选 Top1 → 3 只 → Claude 研判 → 渲染 → 发送。"""
 import json
 import logging
-import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -23,20 +22,9 @@ logger = logging.getLogger(__name__)
 
 _CACHE_PATH = str(DB_PATH).replace("macro_data.db", "picks_cache.db")
 _PROFILES = ("swing", "medium", "long")
-_MARKETS = ("cn", "us")
 
 # 候选股深拉并发度:对齐 holdings/analyzer.py(2),更高会触发 eastmoney 限流。
 _DEEP_PULL_WORKERS = 2
-
-# akshare stock_us_spot_em 的「代码」列是 "<市场码>.<ticker>" 格式
-# (105=NASDAQ, 106=NYSE, ...),如 "105.AMZN"。yfinance 需要纯 ticker,去掉数字前缀;
-# 无数字前缀的(如 BRK.B)原样返回。
-_US_CODE_PREFIX = re.compile(r"^\d+\.(.+)$")
-
-
-def _clean_us_symbol(code: str) -> str:
-    m = _US_CODE_PREFIX.match(code)
-    return m.group(1) if m else code
 
 
 def _spot_df(market: str):
@@ -90,7 +78,7 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     def _process_candidate(row) -> tuple[dict, tuple] | None:
         """工作线程:单候选深拉 + gate 校验 + 因子计算 → (cand, (symbol, (hist, fund, val))) | None。"""
         raw_code = str(row.get("代码", row.get("symbol", "")))
-        symbol = _clean_us_symbol(raw_code) if market == "us" else raw_code
+        symbol = raw_code
         if not symbol:
             return None
         try:
@@ -127,7 +115,7 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
                 raw[fkey] = fn(hist, fund, val) if fn else None
             cand = {"symbol": symbol, "name": str(row.get("名称", symbol)),
                     "market": market, "raw_factors": raw,
-                    "industry": _industry_for(symbol, market)}
+                    "industry": None}
             return cand, (symbol, (hist, fund, val))
         except Exception as e:
             # 非网络异常(因子计算/gate/KeyError 等)——不是限流,不计入 limit_hits。
@@ -336,34 +324,19 @@ def _candidate_cap_for_run(profile_name: str, limit_hits: int) -> int:
 
 
 def _history_days(profile_name: str) -> int:
-    # long=400:momentum_12m_ex1m 需 252 交易日;CN akshare 400 自然日≈270 交易日,
-    # US yfinance period="400d"(1.3 支持 Nd 格式)。swing 180 / medium 260 不变。
+    # long=400:momentum_12m_ex1m 需 252 交易日;CN akshare 400 自然日≈270 交易日。
+    # swing 180 / medium 260 不变。
     return {"swing": 180, "medium": 260, "long": 400}.get(profile_name, 180)
 
 
 def _valuation_for(row, market: str) -> dict:
     """从 spot 行取 PE/PB;3 年分位留空(深拉估值历史在 data 增强,首版用截面分位回退)。
 
-    CN stock_zh_a_spot_em: 市盈率-动态 / 市净率;US stock_us_spot_em: 市盈率(无 市净率)。
+    CN stock_zh_a_spot_em: 市盈率-动态 / 市净率。
     """
-    if market == "cn":
-        pe = _num(row, "市盈率-动态")
-        pb = _num(row, "市净率")
-    else:
-        pe = _num(row, "市盈率")   # stock_us_spot_em has 市盈率 (no 市净率)
-        pb = None
+    pe = _num(row, "市盈率-动态")
+    pb = _num(row, "市净率")
     return {"pe": pe, "pb": pb, "pe_pct_3y": None, "pb_pct_3y": None, "peg": None}
-
-
-def _industry_for(symbol: str, market: str):
-    """候选股行业标签(用于 industry_neutralize)。
-
-    US: yfinance info['sector'](fetch_industry 缓存 30 天)
-    CN: stock_individual_info_em 接口对全市场崩(Length mismatch),返回 None 降级。
-    """
-    if not symbol:
-        return None
-    return _data.fetch_industry(symbol, market)
 
 
 def _num(row, col):
@@ -421,13 +394,11 @@ def run_picks_report(args):
     skip_summary = getattr(args, "skip_summary", False)
     for prof_name in _PROFILES:
         cn = _safe_build(prof_name, "cn")
-        us = _safe_build(prof_name, "us")
         # 复用 holdings 逐股分析,补 机构态度/盈利预测/综合研判(编排层调用,域不变量不破)
-        for p in (cn, us):
-            if p:
-                _enrich_with_holdings(p, with_ai=not skip_summary)
-                all_picks.append(p)
-        sections_html += _renderer.render_pick_section(prof_name, cn, us)
+        if cn:
+            _enrich_with_holdings(cn, with_ai=not skip_summary)
+            all_picks.append(cn)
+        sections_html += _renderer.render_pick_section(prof_name, cn)
 
     picks_brief = "" if skip_summary else _brief.generate_picks_brief(all_picks)
 

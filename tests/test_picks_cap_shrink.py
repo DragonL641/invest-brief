@@ -93,7 +93,7 @@ def test_empty_returns_trigger_early_stop(caplog, monkeypatch):
     monkeypatch.setattr(picks_mod._data, "fetch_history", _empty_history_stub)
 
     with caplog.at_level(logging.WARNING, logger="investbrief.pipelines.picks"):
-        result = picks_mod.build_picks_for_profile("medium", "us")
+        result = picks_mod.build_picks_for_profile("medium", "cn")
 
     # 候选全空 → rank_picks([]) 返回 [] → build 返回 None
     assert result is None
@@ -128,7 +128,7 @@ def test_empty_returns_do_not_trigger_early_stop_below_threshold(caplog, monkeyp
     monkeypatch.setattr(picks_mod._data, "fetch_history", _empty_history_stub)
 
     with caplog.at_level(logging.WARNING, logger="investbrief.pipelines.picks"):
-        result = picks_mod.build_picks_for_profile("medium", "us")
+        result = picks_mod.build_picks_for_profile("medium", "cn")
 
     # 候选全空 → 返回 None(没候选可 rank)
     assert result is None

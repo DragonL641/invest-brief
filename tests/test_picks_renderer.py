@@ -28,9 +28,9 @@ def test_render_pick_card_handles_none_pick():
     assert "无符合条件" in html or "暂无" in html
 
 
-def test_render_pick_section_wraps_two_cards():
-    section = renderer.render_pick_section("swing", _pick("cn1"), _pick("us1", 80.0))
-    assert "cn1" in section and "us1" in section
+def test_render_pick_section_wraps_card():
+    section = renderer.render_pick_section("swing", _pick("000001"))
+    assert "000001" in section
     assert "波段" in section            # 段落标题
 
 

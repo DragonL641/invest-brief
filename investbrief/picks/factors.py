@@ -108,7 +108,7 @@ def _valuation(hist, _fund, val) -> float | None:
 
 def _momentum_12m_ex1m(hist, _fund, _val) -> float | None:
     if len(hist) < 252:
-        # 数据不足(美股/A股可能没满一年),用可得的更长窗口退化
+        # 数据不足(A股可能没满一年),用可得的更长窗口退化
         if len(hist) < 60:
             return None
         return float(hist["close"].iloc[-21] / hist["close"].iloc[0] - 1)
@@ -132,7 +132,7 @@ def _profitability_stability(hist, fund, _val) -> float | None:
 
     越多越稳 → 截面 rank 后越大越好(不 invert)。数据由 pipeline 注入
     fund['profitable_years'](picks.data.fetch_profitable_years, 30d 缓存;
-    CN 同花顺年度报告期 / US yfinance financials)。
+    CN 同花顺年度报告期)。
 
     gate min_profitable_years=3 做二元剔除后, 3 年 vs 8 年原本无区分度;
     本因子让"连续盈利能力"在通过 gate 的候选中有独立 gradation。

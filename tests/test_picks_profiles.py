@@ -71,8 +71,6 @@ def test_universe_numeric_thresholds_are_not_strings():
     medium_u = raw["profiles"]["medium"]["universe"]
     assert isinstance(swing_u["min_turnover_cn"], (int, float)), \
         f"min_turnover_cn must be numeric, got {type(swing_u['min_turnover_cn']).__name__}"
-    assert isinstance(swing_u["min_turnover_us"], (int, float)), \
-        f"min_turnover_us must be numeric, got {type(swing_u['min_turnover_us']).__name__}"
     band = medium_u["market_cap_cn"]
     assert all(isinstance(x, (int, float)) for x in band), \
         f"market_cap_cn entries must be numeric, got {band!r}"
