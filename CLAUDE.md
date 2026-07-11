@@ -49,12 +49,12 @@ docker compose up --build                # Local: build scheduler from source
 docker compose -f docker-compose.prod.yml up -d  # Prod: pull GHCR image
 ```
 
-`--market {us,cn,all}` is accepted but **deprecated and effectively a no-op** — cn-pivot 后报告恒为「A 股主 section + 外围环境卡 + 黄金」单一合并邮件,无 us macro section。`--market` 仅保留 CLI 兼容性。The `network` pytest marker flags tests that hit real external APIs; they are excluded from the PR gate (run locally with no marker filter to execute them).
+`--market {cn,all}` is accepted but **deprecated and effectively a no-op** — cn-pivot 后报告恒为「A 股主 section + 外围环境卡 + 黄金」单一合并邮件,无 us macro section。`--market` 仅保留 CLI 兼容性(`us` 已不是有效值,`--market us` 会被 argparse 拒绝)。The `network` pytest marker flags tests that hit real external APIs; they are excluded from the PR gate (run locally with no marker filter to execute them).
 
 ## Configuration
 
 - `config.json` (gitignored) — `markets` (cron schedules), `email_service` (SMTP), `recipients[]`. Copy from `config.example.json`.
-- **Schedule:** the scheduler honors the FIRST cron entry of the FIRST enabled market. cn-pivot 后 `us` 在 `config.example.json` 仍保留为 `enabled:true`(过渡期),但 scheduler 实际用 **cn 的 cron** 触发(代码 `_run_scheduled_macro` 走 `first_enabled_cron`,us 的 cron 不会触发独立运行——us 已无 provider,`macro.py` 显式过滤 `c != "us"`)。建议生产配置把 `us.enabled` 置 `false`,让 cn 的 cron 成为唯一触发源。
+- **Schedule:** the scheduler honors the FIRST cron entry of the FIRST enabled market. `first_enabled_cron`(`scheduler.py`)按 `for market in ("us", "cn")` **优先 us**(残留偏好);因 `config.example.json` 已设 `us.enabled=false`,实际落到 **cn 的 cron**。若保留 `us.enabled=true`,scheduler 会在 us 的 cron 时点触发(us 已无 provider,`macro.py` 显式过滤 `c != "us"`,报告仍是合并的 A 股邮件,不会独立跑 us section)。生产配置建议保持 `us.enabled=false`,让 cn 的 cron 成为唯一触发源。
 - `recipients[]` shape: `{email, name, active, language, holdings?}`. `language` is accepted but currently ignored (Chinese-only output; kept for call-site compat). Optional `holdings: [{symbol, market, type}]` (**market∈{cn}**, type∈{stock,etf,fund}; fund=CN 场外基金) triggers a separate per-recipient **holdings-analysis email** (distinct from the macro email). P1 market/type constraints enforced in `_validate_holdings` (`core/config.py`): `_VALID_HOLDING_MARKETS = {"cn"}`,即 **holdings 只支持 CN**;`fund` 亦为 CN-only。No web/auth fields.
 - `.env` (gitignored) — `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_DEFAULT_SONNET_MODEL` (see `core/llm.py:default_model()` — env value used as-is unless it carries a `[1m]` suffix, which is stripped/ignored because Claude Code's runtime leaks IDs like `glm-5.2[1m]` that compatible endpoints reject; hardcoded fallback is `claude-sonnet-4-5-20250929`, since `claude-sonnet-4-6` is **not** recognized by GLM-style Anthropic-compatible endpoints), `SMTP_PASSWORD`, and `TAVILY_KEY` (唯一 news/research key;cn-pivot 删掉了 `FINNHUB_KEY`/`ALPHAVANTAGE_KEY`,不再需要)。
 - `ANTHROPIC_AUTH_TOKEN` auto-aliases to `ANTHROPIC_API_KEY`.
@@ -146,7 +146,7 @@ DB at `data/macro_data.db` (gitignored; parent dir auto-created by `BaseData.con
 | `core/` | `logging.py` / `textfmt.py` | centralized `setup_logging` / `md_inline` (Markdown→inline HTML) |
 | `core/` | `strategy_loader.py` | `load_strategy(name)` — lru_cached YAML loader for `strategies/` |
 | `core/` | `config.py` | `load_config` / `validate_config` / `validate_holdings` + constants (`DB_PATH`, `API_RETRY_*`, `REPORTS_DIR`;`US_GDP_BASE_*` 已删) — formerly top-level `investbrief/config.py` |
-| `strategies/` | `risk_indicators.yaml` / `etf_rules.yaml` | Externalized P4 indicator config / ETF analysis rules (YAML) |
+| `strategies/` | `risk_indicators.yaml` / `etf_rules.yaml` / `pick_profiles.yaml` | Externalized P4 indicator config / ETF analysis rules / A 股选股 profile (YAML) |
 | `data/` | `base.py` / `cn_data.py` / `gold_data.py` | **Stateful SQLite data layer** (P1) — providers read index/macro series from here; DB-First refresh fast-path;`us_data.py` 已删,见 Data Layer above |
 | `datasources/` | `akshare.py` / `tavily.py` / `_common.py` | **API adapters** — cn-pivot 后只剩 akshare(含外围环境新方法 `get_us_treasury_10y`/`get_sp500_quote`/`get_fx_usdcny_realtime`/`get_cn_qvix`) + Tavily(news/research)。`yfinance.py`/`finnhub.py`/`alphavantage.py` 已删。`akshare.py` carries eastmoney throttling mitigations (UA/Referer, negative cache, backoff, `get_stock_quote`) |
 | `market/` | `base.py` | `MarketProvider` ABC (macro methods + `render_section` with `risk_html=`/`regime_html=`) |
@@ -159,9 +159,10 @@ DB at `data/macro_data.db` (gitignored; parent dir auto-created by `BaseData.con
 | `risk/` | `models.py` / `config.py` / `render.py` | **Market-cycle risk model** (P4) — `RiskModel.calculate_score` for **cn/gold**(us 已删); 5 weighted dimensions; `state` (人读) + `risk_level` (low/moderate/high/extreme); indicators loaded from `strategies/risk_indicators.yaml`; see Risk Model above |
 | `regime/` | `engine.py` / `config.py` / `render.py` | **Economic-quadrant regime** — `RegimeEngine.judge` (Browne growth×通胀); reads GDP+CPI from `macro_data`;pipeline 只对 cn 调用; see Regime model above |
 | `holdings/` | `analyzer.py` / `brief.py` / `renderer.py` / `regime_prompts.py` + `etf/{analyzer,engine,indicators}` | **Holdings email pipeline** — per-recipient analysis (**CN only**: stock/etf/fund); `_with_ai`/`generate_stock_conclusion` adds Claude single-stock brief (`_fallback_stock_conclusion` rule-based on failure); `_extract_technicals` produces 18 technical fields; `regime_prompts.py` injects the **per-holding technical regime** hint; the former `etf/rules.json` is externalized to `strategies/etf_rules.yaml` |
+| `picks/` | `engine.py` / `factors.py` / `universe.py` / `profiles.py` / `data.py` / `cache.py` / `renderer.py` / `brief.py` | **A 股 selection email pipeline** — 3 个 profile(由 `strategies/pick_profiles.yaml` 定义)各选 Top1;`engine.py` 编排筛选+打分,`factors.py` 因子计算,`universe.py` 股票池,`cache.py` 日级缓存,`renderer.py` 渲染卡片,`brief.py` Claude 研判 |
 | `mail/` | `sender.py` | `EmailSender` — SMTP with retry; `send` + `send_bulk(messages)→(sent, failed)` (one connection for N recipients) |
 | `mail/` | `render.py` | **Jinja2** template-rendering library: `load_template` / `render_template` / `render_holdings_template`. Chinese-only; `autoescape=False` (vars are pre-rendered HTML fragments); `language` arg accepted but ignored. `translate_html` was deleted. Formerly top-level `report.py` |
-| `mail/` | `templates/{email_base,email_holdings}.j2` | Jinja2 templates (`.j2`) |
+| `mail/` | `templates/{email_base,email_holdings,email_picks}.j2` | Jinja2 templates (`.j2`) |
 | `pipelines/` | `macro.py` / `holdings.py` / `picks.py` / `scheduler.py` / `_send.py` | **Pipeline orchestration** — `run_macro_report` + `fetch_news` + `_safe_risk_score` + `_safe_regime_judge`; `run_holdings_report`; `run_picks_report`(A 股 selection); `run_scheduler` / `first_enabled_cron` / `_run_scheduled_macro`; `send_report` helper |
 
 ### Macro data sources (verified,全 akshare + FRED)
