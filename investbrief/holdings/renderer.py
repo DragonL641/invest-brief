@@ -106,6 +106,22 @@ def _render_dimensions(r: HoldingResult) -> str:
         if cells:
             rows.append(_dim_row("📈 技术面", "".join(cells)))
 
+    # ETF 估值溢价 + 命中信号(ETF 无 fundamentals/technicals,单独维度)
+    if r.type == "etf":
+        etf_cells = []
+        pr = (r.price or {}).get("premium_rate")
+        if pr is not None:
+            cls = "stock-up" if pr > 0 else "stock-down"
+            etf_cells.append(f'<span class="cell"><span class="cl">溢价率</span> <span class="{cls}">{pr:+.2f}%</span></span>')
+        for s in (r.signals or [])[:4]:
+            name = getattr(s, "name", None) or (s.get("name") if isinstance(s, dict) else "")
+            sig = getattr(s, "signal", None) or (s.get("signal") if isinstance(s, dict) else "")
+            sig_cn = {"bullish": "多", "bearish": "空", "warning": "警惕", "neutral": "中"}.get(sig, sig or "")
+            if name:
+                etf_cells.append(f'<span class="cell"><span class="cl">{name}</span> {sig_cn}</span>')
+        if etf_cells:
+            rows.append(_dim_row("📊 溢价与信号", "".join(etf_cells)))
+
     # 资金筹码
     fl = r.flow
     cn_act = r.cn_activity
