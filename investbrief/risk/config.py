@@ -23,7 +23,7 @@ CN_INDICATORS = _INDICATORS["cn"]  # 仍被 tests/test_risk_config.py 引用
 def load_indicators(group: str) -> dict:
     """统一入口: 按 risk_group 名取该市场的全部 indicator 配置。
 
-    cn/us 合并 common; gold 不含 common。未知 group 返回 {}。
+    cn 合并 common; gold 不含 common。未知 group 返回 {}。
     """
     if group == "gold":
         return _INDICATORS.get("gold", {})

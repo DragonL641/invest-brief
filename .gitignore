@@ -18,3 +18,9 @@ node_modules/
 # 均为运行时本地状态(每次跑会变),不入库避免污染仓库与跨机冲突
 data/*.db*
 /config.json.bak
+
+# cn-pivot 清理: web 时代产物不再入库(design 稿/截图/浏览器日志/nginx)
+.playwright-cli/
+nginx/
+/*.png
+*.pen

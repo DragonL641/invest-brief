@@ -14,7 +14,7 @@ import random
 import requests
 
 # eastmoney 反爬：默认 UA 是 python-requests 几乎必拦。注入浏览器 UA + Referer。
-# 只对 eastmoney 域名生效，不影响 yfinance/tavily/finnhub（它们自设 headers 会覆盖）。
+# 只对 eastmoney 域名生效，不影响 tavily（它自设 headers 会覆盖）。
 _DEFAULT_EM_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
                   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -81,7 +81,7 @@ _df_cache = _DataFrameCache()
 
 
 # —— 全局节流：akshare 历史无全局 QPS 限制，eastmoney 高频请求触发 RemoteDisconnected/限流。
-# 仿 YFinanceClient._throttle：模块级 Lock + _last_request，所有 akshare 网络调用经此。
+# 模块级 Lock + _last_request，所有 akshare 网络调用经此。
 _throttle_lock = threading.Lock()
 _last_request = 0.0
 _MIN_INTERVAL = 0.3  # seconds between akshare requests (~3.3 QPS 上限)
@@ -119,40 +119,6 @@ def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
                 continue
             logger.warning(f"AKShare {label} failed after {attempts} attempts: {e}")
             return None
-
-
-# stock_us_spot_em 全量美股快照拉取的 wall-clock 上限。该接口在某些网络条件下
-# 会 hang 住不抛异常(实测 95s+),而 _with_retry / _retry_api 都无应用层超时。
-US_SPOT_TIMEOUT = 60
-
-
-def run_with_timeout(fn, *, timeout: float, label: str):
-    """在 daemon 线程里跑 fn,wall-clock 超时即抛 TimeoutError。
-
-    把"hang(不抛异常的阻塞)"转成异常,使调用方既有的 except 降级路径生效
-    (get_us_spot_df → 返回 None + 负缓存;us_data breadth → SPX 兜底)。
-
-    用 daemon 线程而非 ThreadPoolExecutor:后者的 shutdown(wait=True) 会等底层
-    线程,仍会阻塞;daemon 线程超时后主线程立即继续,底层线程泄漏但随进程退出消亡
-    (日级 cron 可接受)。
-    """
-    box: dict = {}
-
-    def _runner():
-        try:
-            box["value"] = fn()
-        except BaseException as e:  # noqa: BLE001 — 透传给主线程 re-raise
-            box["error"] = e
-
-    t = threading.Thread(target=_runner, daemon=True)
-    t.start()
-    t.join(timeout)
-    if t.is_alive():
-        logger.warning(f"{label} timed out after {timeout}s (daemon thread leaked)")
-        raise TimeoutError(f"{label} exceeded {timeout}s")
-    if "error" in box:
-        raise box["error"]
-    return box.get("value")
 
 
 def _safe_float(val) -> float | None:
@@ -271,26 +237,6 @@ class AKShareClient:
     def get_cn_spot_df(self) -> "pd.DataFrame | None":
         """全量 A 股 spot 快照(5min TTL+负缓存)。picks 粗筛用。"""
         return self._get_all_stocks_df()
-
-    def get_us_spot_df(self) -> "pd.DataFrame | None":
-        """全量美股 spot 快照(stock_us_spot_em,5min TTL+负缓存)。
-
-        字段覆盖弱于 A 股(可能缺 60日涨跌幅/市值/PE-PB);首跑需校验实际列。
-        """
-        df = _df_cache.get("us_spot", 300)
-        if df is not None:
-            return df
-        if _df_cache.is_recently_failed("us_spot"):
-            return None
-        df = _with_retry(
-            lambda: run_with_timeout(
-                ak.stock_us_spot_em, timeout=US_SPOT_TIMEOUT, label="stock_us_spot_em"),
-            label="stock_us_spot_em")
-        if df is not None and not df.empty:
-            _df_cache.set("us_spot", df)
-        else:
-            _df_cache.mark_failed("us_spot", 60)
-        return df
 
     def _lookup_name(self, symbol: str) -> str | None:
         """从 cached 全量 A 股 df 查 name（stock_bid_ask_em 不返回名称）。

@@ -4,8 +4,8 @@ common:
     name: 50日均线偏离度
     weight: 0.05
     category: technical
-    thresholds: {cn: 0.15, us: 0.15}
-    low_thresholds: {cn: 0.0, us: 0.0}
+    thresholds: {cn: 0.15}
+    low_thresholds: {cn: 0.0}
     description: "(收盘价 - MA50) / MA50"
     scale: 100
     unit: "%"
@@ -14,8 +14,8 @@ common:
     name: 成交量萎缩度
     weight: 0.04
     category: technical
-    thresholds: {cn: 0.7, us: 0.7}
-    low_thresholds: {cn: 0.7, us: 0.7}
+    thresholds: {cn: 0.7}
+    low_thresholds: {cn: 0.7}
     invert: true
     description: "5日均量 / 30日均量"
     scale: 100

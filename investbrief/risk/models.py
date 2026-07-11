@@ -303,7 +303,7 @@ class RiskModel:
     def _detect_price_fund_divergence(self, market: str, date: str | None) -> bool:
         """⑤ 价格-资金背离: 指数处近60日高位 + 融资余额近20日下降。
 
-        仅 cn(融资余额口径); us 暂不检测(credit_spread 语义不同)。
+        仅 cn(融资余额口径)。
         backtest 注: 结构市(21顶)两融不高, 此信号主要捕捉全面顶, 结构市可能失效。
         """
         if market != "cn":

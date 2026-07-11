@@ -150,31 +150,3 @@ def test_get_stock_quote_name_none_when_all_df_miss(monkeypatch):
     q = client.get_stock_quote("999999")
     assert q is not None
     assert q["name"] is None
-
-
-def test_run_with_timeout_returns_value():
-    from investbrief.datasources.akshare import run_with_timeout
-    assert run_with_timeout(lambda: 42, timeout=2, label="t") == 42
-
-
-def test_run_with_timeout_raises_on_hang():
-    import time
-    import pytest
-    from investbrief.datasources.akshare import run_with_timeout
-    with pytest.raises(TimeoutError):
-        run_with_timeout(lambda: time.sleep(2), timeout=0.5, label="hang")
-
-
-def test_get_us_spot_df_times_out_returns_none(monkeypatch):
-    """stock_us_spot_em hang → TimeoutError → _with_retry 耗尽 → None + 负缓存(不阻塞)。"""
-    import threading
-    from investbrief.datasources import akshare as ak_mod
-    from investbrief.datasources.akshare import AKShareClient, _df_cache
-    monkeypatch.setattr(ak_mod, "_MIN_INTERVAL", 0.0)
-    monkeypatch.setattr(ak_mod, "US_SPOT_TIMEOUT", 0.3)  # 缩短,免等 60s
-    monkeypatch.setattr(ak_mod.ak, "stock_us_spot_em", lambda: threading.Event().wait(5))
-    monkeypatch.setattr(ak_mod.time, "sleep", lambda *a: None)  # 跳过退避
-    _df_cache._store.pop("us_spot", None)
-    _df_cache._negative.pop("us_spot", None)
-    assert AKShareClient().get_us_spot_df() is None
-    assert _df_cache.is_recently_failed("us_spot")

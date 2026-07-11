@@ -1,7 +1,7 @@
 """无 Claude/无邮件:跑 picks 引擎 → 渲染预览到 reports/preview_picks.html。
 
 用法: uv run python scripts/preview_picks.py [--skip-summary]
-触网(akshare/yfinance);失败标的降级,不阻塞。preview=True → 渲染存盘但不发送。
+触网(akshare);失败标的降级,不阻塞。preview=True → 渲染存盘但不发送。
 """
 import argparse
 import logging

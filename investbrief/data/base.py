@@ -202,7 +202,7 @@ class BaseData(ABC):
     def upsert_stock_df(self, df: pd.DataFrame) -> int:
         """upsert stock_daily 行（PK: market+symbol+date，INSERT OR IGNORE 去重）。
 
-        live_fetch 返回的 df 列可能不全（CN akshare 有 amount，US yfinance 无）或含多余列，
+        live_fetch 返回的 df 列可能不全(CN akshare 有 amount)或含多余列，
         reindex 统一到 9 列（缺失补 None、多余丢弃），再复用 upsert_df（NaN→None + INSERT OR IGNORE）。
         """
         if df is None or df.empty:
@@ -282,7 +282,7 @@ class BaseData(ABC):
         """Incremental update since last recorded date."""
 
     def is_fresh(self) -> bool:
-        """当日数据是否已更新(DB-First 快路径)。子类(CNData/USData)覆盖; GoldData 用默认。"""
+        """当日数据是否已更新(DB-First 快路径)。子类(CNData)覆盖; GoldData 用默认。"""
         return True
 
     def _retry_api(self, fn):

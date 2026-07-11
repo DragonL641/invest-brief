@@ -2,12 +2,10 @@
 Entry point for invest-brief.
 
 Usage:
-    uv run run.py --market us --now           # Run US market once immediately
-    uv run run.py --market cn --now           # Run CN market once immediately
-    uv run run.py --market all --now          # Run all markets once immediately
-    uv run run.py --market us --dry-run       # Build US report, output to stdout
-    uv run run.py --market us --skip-summary  # Skip Claude API summary
-    uv run run.py --market us                 # Scheduler mode (cron-based)
+    uv run run.py --now                       # Run all pipelines once immediately
+    uv run run.py --dry-run                   # Build macro report, output to stdout
+    uv run run.py --skip-summary              # Skip Claude API summary
+    uv run run.py                             # Scheduler mode (cron-based)
 """
 
 import sys
@@ -24,7 +22,7 @@ ENV_FILE = PROJECT_DIR / ".env"
 
 load_dotenv(ENV_FILE, override=False)
 
-# Auto-detect system proxy for yfinance / requests (macOS only — networksetup is macOS-specific)
+# Auto-detect system proxy for requests (macOS only — networksetup is macOS-specific)
 if sys.platform == "darwin" and not os.environ.get("HTTPS_PROXY"):
     import subprocess
     try:
@@ -104,8 +102,8 @@ def main():
     parser.add_argument(
         "--market",
         required=False,
-        choices=["us", "cn", "all"],
-        help="(Deprecated) macro pipeline always merges US+CN; kept for CLI compat",
+        choices=["cn", "all"],
+        help="(Deprecated, no-op) cn-pivot 后报告恒为 A 股+外围卡+黄金;保留仅为 CLI 兼容",
     )
     parser.add_argument("--now", action="store_true", help="Run once immediately (default: scheduler mode)")
     parser.add_argument("--dry-run", action="store_true", help="Build report, output to stdout, do not send email")
