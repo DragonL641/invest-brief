@@ -32,3 +32,18 @@ def test_news_filter_relaxes_when_all_stale():
     ]
     out = _extract_news(items, symbol="002230", name="科大讯飞", max_days=7)
     assert len(out) == 2  # 全过期 → 放宽,仍返回
+
+
+# ---- #6 极端指标标注风险子分单位 ----
+
+def test_macro_context_marks_risk_subscore():
+    """极端指标标注「风险子分 X/10」,不被 Claude 当成指标原值。"""
+    from investbrief.market.macro_brief import serialize_macro_context, MACRO_BRIEF_PROMPT
+    risk = {"gold": {"total_score": 62, "state": "狂热泡沫", "risk_level": "high",
+                     "action": "大幅减仓",
+                     "indicators": {"gold_to_gdp": {"name": "黄金GDP占比", "score": 9.8,
+                                                    "value": 18.5, "percentile": 98}}}}
+    ctx = serialize_macro_context({}, {}, [], risk_scores=risk)
+    assert "风险子分9.8/10" in ctx        # 标注了子分单位
+    assert "黄金GDP占比" in ctx
+    assert "子分" in MACRO_BRIEF_PROMPT    # prompt 也说明口径
