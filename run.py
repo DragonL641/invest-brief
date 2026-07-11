@@ -90,7 +90,9 @@ def run_once(args):
         run_picks_report(args)
 
 
-def main():
+def build_parser():
+    """Construct the CLI argparse parser. Extracted from main() for testability
+    (routing/choices tests call this directly instead of spawning a subprocess)."""
     parser = argparse.ArgumentParser(description="invest-brief - Personalized Investment Briefing")
     parser.add_argument(
         "--market",
@@ -108,6 +110,11 @@ def main():
     parser.add_argument("--only", choices=["macro", "holdings", "picks"], default=None,
                         help="Run only one pipeline (default: all)")
     parser.add_argument("--log-level", default="INFO", help="Log level (DEBUG, INFO, WARNING, ERROR)")
+    return parser
+
+
+def main():
+    parser = build_parser()
     args = parser.parse_args()
 
     # Setup logging (centralized: format + third-party noise suppression)
