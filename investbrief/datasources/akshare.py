@@ -613,36 +613,35 @@ class AKShareClient:
     # ---- 龙虎榜 ----
 
     def get_dragon_tiger_list(self, days: int = 5) -> list[dict[str, Any]]:
-        """获取龙虎榜数据。
+        """获取龙虎榜数据(最近 days 自然日,一次范围查询)。
 
-        遍历最近 days 个交易日，逐日调用 stock_lhb_detail_em()，汇总结果。
+        stock_lhb_detail_em 支持 start_date+end_date,一次拉区间替代逐日循环
+        (原 days 次 throttle 调用 → 1 次;days=30 时 ~45s → ~2s)。
         """
         try:
-            results = []
             end = datetime.now()
-            for i in range(days):
-                d = end - timedelta(days=i)
-                date_str = d.strftime("%Y%m%d")
-                try:
-                    df = ak.stock_lhb_detail_em(
-                        start_date=date_str, end_date=date_str
-                    )
-                    if df is None or df.empty:
-                        continue
-                except Exception:
-                    # 非交易日或接口异常，跳过
-                    continue
-                for _, r in df.iterrows():
-                    results.append({
-                        "symbol": str(r.get("代码", "")),
-                        "name": str(r.get("名称", "")),
-                        "change_pct": self._safe_float(r.get("涨跌幅")),
-                        "buy_amount": self._safe_float(r.get("龙虎榜买入额")),
-                        "sell_amount": self._safe_float(r.get("龙虎榜卖出额")),
-                        "net_buy": self._safe_float(r.get("龙虎榜净买额")),
-                        "reason": str(r.get("上榜原因", "")),
-                        "date": str(r.get("上榜日", "")),
-                    })
+            start = end - timedelta(days=days)
+            try:
+                df = ak.stock_lhb_detail_em(
+                    start_date=start.strftime("%Y%m%d"),
+                    end_date=end.strftime("%Y%m%d"),
+                )
+            except Exception:
+                return []
+            if df is None or df.empty:
+                return []
+            results = []
+            for _, r in df.iterrows():
+                results.append({
+                    "symbol": str(r.get("代码", "")),
+                    "name": str(r.get("名称", "")),
+                    "change_pct": self._safe_float(r.get("涨跌幅")),
+                    "buy_amount": self._safe_float(r.get("龙虎榜买入额")),
+                    "sell_amount": self._safe_float(r.get("龙虎榜卖出额")),
+                    "net_buy": self._safe_float(r.get("龙虎榜净买额")),
+                    "reason": str(r.get("上榜原因", "")),
+                    "date": str(r.get("上榜日", "")),
+                })
             return results
         except Exception as e:
             logger.warning(f"AKShare get_dragon_tiger_list failed: {e}")
