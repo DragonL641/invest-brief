@@ -20,3 +20,10 @@ def test_sp500_quote_returns_point_and_change():
 def test_fx_usdcny_realtime_returns_float():
     v = AKShareClient().get_fx_usdcny_realtime()
     assert isinstance(v, float) and 6 < v < 8     # USDCNY 合理区间
+
+
+def test_cn_qvix_returns_dict_with_50etf_and_300etf():
+    q = AKShareClient().get_cn_qvix()
+    assert isinstance(q, dict)
+    assert "qvix_50" in q and "qvix_300" in q
+    assert isinstance(q["qvix_50"], (int, float)) and q["qvix_50"] > 0

@@ -1294,6 +1294,19 @@ class AKShareClient:
             logger.warning(f"get_fx_usdcny_realtime failed: {e}")
             return None
 
+    def get_cn_qvix(self) -> dict:
+        """A 股 QVIX 恐慌指数(50ETF / 300ETF 期权隐含波动率)。任一失败该键为 None。"""
+        out = {"qvix_50": None, "qvix_300": None}
+        for key, fn in (("qvix_50", "index_option_50etf_qvix"),
+                        ("qvix_300", "index_option_300etf_qvix")):
+            try:
+                df = _with_retry(lambda f=fn: getattr(ak, f)(), label=f"qvix_{key}")
+                if df is not None and not df.empty:
+                    out[key] = float(df.iloc[-1]["close"])
+            except Exception as e:
+                logger.warning(f"get_cn_qvix[{key}] failed: {e}")
+        return out
+
     # ---- 工具方法 ----
 
     _safe_float = staticmethod(_safe_float)
