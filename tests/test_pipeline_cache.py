@@ -23,11 +23,6 @@ def test_picks_cache_hit_skips_build(tmp_path, monkeypatch):
     mail_cache.set_cache(today_key, "<html>CACHED</html>")
 
     # freeze 日期到 2026-07-10
-    class _FakeDT:
-        @classmethod
-        def now(cls, tz=None):
-            from datetime import datetime
-            return datetime(2026, 7, 10, 9, 0)
     monkeypatch.setattr(picks_mod, "now_cn", _frozen_now)
 
     monkeypatch.setattr(picks_mod, "load_config",
@@ -51,14 +46,6 @@ def test_picks_cache_hit_skips_build(tmp_path, monkeypatch):
     assert build_called["n"] == 0, "命中缓存仍调用了 build"
     assert len(sent["messages"]) == 1
     assert sent["messages"][0]["html"] == "<html>CACHED</html>"
-
-
-class _FakeDT:
-    """冻结到 2026-07-10 09:00 (Asia/Shanghai)。"""
-    @classmethod
-    def now(cls, tz=None):
-        from datetime import datetime
-        return datetime(2026, 7, 10, 9, 0)
 
 
 def _mock_miss_path(monkeypatch, picks_mod):
