@@ -21,9 +21,9 @@ _GDP_PERIOD = {"cn": GDP_PERIOD_CN, "us": GDP_PERIOD_US}
 _GDP_WINDOW = {"cn": VOTE_WINDOW_QUARTERLY, "us": VOTE_WINDOW_MONTHLY}
 _SWITCH_RUNS = {"cn": SWITCH_CONFIRMATION_RUNS_CN, "us": SWITCH_CONFIRMATION_RUNS_US}
 
-_GROWTH_LABEL = {"expansion": "扩张", "slowdown": "放缓", "unknown": "未知"}
-_INFLATION_LABEL = {"up": "上行", "down": "下行", "unknown": "未知"}
-_CREDIT_LABEL = {"expansion": "扩张", "slowdown": "放缓", "unknown": "未知"}
+_GROWTH_LABEL = {"expansion": "扩张", "slowdown": "放缓", "unknown": "信号不足"}
+_INFLATION_LABEL = {"up": "上行", "down": "下行", "unknown": "信号不足"}
+_CREDIT_LABEL = {"expansion": "扩张", "slowdown": "放缓", "unknown": "信号不足"}
 
 
 def _yoy_from_absolute(values: list[float], period: int) -> list[float]:

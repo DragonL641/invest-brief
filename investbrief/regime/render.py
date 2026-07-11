@@ -38,8 +38,8 @@ def render_regime_card(data: dict) -> str:
 
     current = data["quadrant"]
     confidence = data.get("confidence", 0)
-    growth_label = data.get("growth_axis", "未知")
-    inflation_label = data.get("inflation_axis", "未知")
+    growth_label = data.get("growth_axis", "信号不足")
+    inflation_label = data.get("inflation_axis", "信号不足")
     credit_label = data.get("credit_axis")  # None(US,无信用轴)/"扩张"/"放缓"/"未知"
     inds = data.get("indicators") or {}
 

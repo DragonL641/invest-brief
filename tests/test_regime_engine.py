@@ -193,7 +193,7 @@ class TestJudgeFromSeries:
     def test_empty_series_returns_neutral(self):
         r = _judge_from_series([], [], "us")
         assert r["quadrant"] == "中性"
-        assert r["growth_axis"] == "未知"
+        assert r["growth_axis"] == "信号不足"
 
     def test_cn_credit_axis_boosts_confidence_on_alignment(self):
         """CN: GDP 扩张 + 信用扩张 → confidence 比无信用时高 10。
@@ -244,7 +244,7 @@ class TestJudgeFromSeries:
         sf = [200] * 12 + [190, 180, 170, 160]  # 降
         r = _judge_from_series(gdp, cpi, "cn",
                                credit_series={"M2_YOY": m2, "SOCIAL_FIN": sf})
-        assert r["credit_axis"] == "未知"
+        assert r["credit_axis"] == "信号不足"
         assert r["confidence"] == r_base["confidence"]
 
     def test_us_never_has_credit_axis(self):
@@ -377,7 +377,7 @@ class TestRegimeEngine:
         eng = RegimeEngine(_FakeData(gdp + cpi))
         r = eng.judge("cn")
         assert r["quadrant"] == "繁荣"
-        assert r["credit_axis"] == "未知"  # 无信用数据
+        assert r["credit_axis"] == "信号不足"  # 无信用数据
 
     def test_cn_switch_runs_1_no_lookback_downgrade(self):
         """CN: SWITCH_CONFIRMATION_RUNS_CN=1 → 不回看,即使末值象限跳变也不降级。
