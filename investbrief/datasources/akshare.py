@@ -1243,6 +1243,57 @@ class AKShareClient:
             logger.warning(f"get_fx_rate_usdcny failed: {e}")
             return None
 
+    # ---- 外围环境数据(美债/标普/USDCNY 实时) ----
+
+    def get_us_treasury_10y(self) -> float | None:
+        """美债10Y 收益率(akshare bond_zh_us_rate,最新一行'美国国债收益率10年')。失败返回 None。"""
+        try:
+            df = _with_retry(lambda: ak.bond_zh_us_rate(), label="us_treasury_10y")
+            if df is None or df.empty:
+                return None
+            val = df.iloc[-1]["美国国债收益率10年"]
+            return float(val) if pd.notna(val) else None
+        except Exception as e:
+            logger.warning(f"get_us_treasury_10y failed: {e}")
+            return None
+
+    def get_sp500_quote(self) -> dict | None:
+        """标普500 最新点数 + 前日涨跌幅%(akshare index_us_stock_sina '.INX')。失败返回 None。"""
+        try:
+            df = _with_retry(
+                lambda: ak.index_us_stock_sina(symbol=".INX"), label="sp500"
+            )
+            if df is None or len(df) < 1:
+                return None
+            point = float(df.iloc[-1]["close"])
+            change = 0.0
+            if len(df) >= 2:
+                prev = float(df.iloc[-2]["close"])
+                change = round((point - prev) / prev * 100, 2) if prev else 0.0
+            return {"point": point, "change": change}
+        except Exception as e:
+            logger.warning(f"get_sp500_quote failed: {e}")
+            return None
+
+    def get_fx_usdcny_realtime(self) -> float | None:
+        """USDCNY 即期汇率(akshare forex_spot_em,代码 USDCNYC 美元人民币中间价)。失败返回 None。
+
+        实测:fx_spot_quote 返回值全 NaN(不可用);forex_spot_em 返回 代码/名称/最新价,
+        USDCNY 对应 代码='USDCNYC'(名称'美元人民币中间价')。
+        """
+        try:
+            df = _with_retry(lambda: ak.forex_spot_em(), label="fx_usdcny_realtime")
+            if df is None or df.empty:
+                return None
+            row = df[df["代码"].str.contains("USDCNY", case=False, na=False)]
+            if row.empty:
+                return None
+            val = row.iloc[0]["最新价"]
+            return float(val) if pd.notna(val) else None
+        except Exception as e:
+            logger.warning(f"get_fx_usdcny_realtime failed: {e}")
+            return None
+
     # ---- 工具方法 ----
 
     _safe_float = staticmethod(_safe_float)
