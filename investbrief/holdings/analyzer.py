@@ -348,10 +348,7 @@ class HoldingsAnalyzer:
         return self._ak.get_financial_indicators(symbol)
 
     def _analyze_cn_stock(self, symbol: str, *, with_ai: bool = True) -> HoldingResult:
-        # 季频维度(rating + fundamentals)走跨日缓存
-        fin = self._collect_fundamentals(symbol, "cn") or {}
-        # 日频维度(quote/flow/history/news/events/insider/cn_activity)并行,不缓存
-        # (cn_activity 内部自带 7d 季频缓存)
+        # 季频+日频维度全部并行;rating 走跨日缓存(fundamentals 内部自带 7d 季频缓存)
         data = self._parallel({
             "quote": lambda: self._ak.get_stock_quote(symbol),
             "flow": lambda: self._ak.get_stock_fund_flow(symbol),
@@ -362,9 +359,11 @@ class HoldingsAnalyzer:
             "events": lambda: self._collect_events(symbol, "cn"),
             "insider": lambda: self._collect_insider(symbol, "cn"),
             "cn_activity": lambda: self._collect_cn_activity(symbol, "cn"),
+            "fund": lambda: self._collect_fundamentals(symbol, "cn") or {},
         })
         quote = data.get("quote") or {}
         flow = data.get("flow") or {}
+        fin = data.get("fund") or {}
         result = HoldingResult(
             symbol=symbol, market="cn", type="stock",
             name=quote.get("name") or symbol,
