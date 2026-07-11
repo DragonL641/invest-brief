@@ -1224,20 +1224,15 @@ class AKShareClient:
         return result
 
     def get_fx_rate_usdcny(self) -> dict[str, Any] | None:
-        """USDCNY 即期汇率（lazy import yfinance，避免 CN 客户端硬依赖 yfinance）。"""
+        """USDCNY 即期汇率（akshare forex_spot_em，委托 get_fx_usdcny_realtime）。"""
         try:
-            import yfinance as yf
-            t = yf.Ticker("USDCNY=X")
-            fi = t.fast_info
-            price = float(fi.last_price) if fi.last_price else None
-            prev = float(fi.previous_close) if fi.previous_close else price
-            if not price:
+            price = self.get_fx_usdcny_realtime()
+            if price is None:
                 return None
-            chg = ((price - prev) / prev * 100) if prev else 0
             return {
                 "pair": "USDCNY",
                 "price": round(price, 4),
-                "change_pct": round(chg, 2),
+                "change_pct": None,  # akshare 实时接口无前收, change 由 DB 两期算
             }
         except Exception as e:
             logger.warning(f"get_fx_rate_usdcny failed: {e}")

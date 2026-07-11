@@ -17,10 +17,6 @@ REPORTS_DIR = BASE_DIR / "reports"
 API_RETRY_COUNT = 3
 API_RETRY_DELAY = 5  # seconds
 
-# === US GDP 基期（USData._update_gdp 用）===
-US_GDP_BASE_YEAR = 2023
-US_GDP_BASE_VALUE = 27.36  # 万亿美元
-
 _VALID_HOLDING_MARKETS = {"cn"}
 _VALID_HOLDING_TYPES = {"stock", "etf", "fund"}
 

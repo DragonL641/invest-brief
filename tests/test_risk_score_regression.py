@@ -9,7 +9,6 @@ DB 无数据时 skip (CI 兼容)。
 import pytest
 
 from investbrief.data.cn_data import CNData
-from investbrief.data.us_data import USData
 from investbrief.data.gold_data import GoldData
 from investbrief.risk.models import RiskModel
 from investbrief.risk.config import load_indicators
@@ -37,12 +36,11 @@ def _build_model(market_code, data_source):
 
 
 @pytest.mark.parametrize("market_code,data_cls,expected_min,expected_max", [
-    ("us", USData, 0.0, 100.0),
     ("cn", CNData, 0.0, 100.0),
     ("gold", GoldData, 0.0, 100.0),
 ])
 def test_calculate_score_stable_range(market_code, data_cls, expected_min, expected_max):
-    """三个市场的总分都落在 0-100 合法区间, 且 dimensions 五维齐全(非空)。"""
+    """两个市场的总分都落在 0-100 合法区间, 且 dimensions 五维齐全(非空)。"""
     data = data_cls()
     try:
         model = _build_model(market_code, data)
@@ -56,13 +54,13 @@ def test_calculate_score_stable_range(market_code, data_cls, expected_min, expec
         data.close()
 
 
-def test_us_cn_gold_scores_recorded():
+def test_cn_gold_scores_recorded():
     """记录当前分数到 stdout(人工核对, 非断言)。
 
     重构前跑一次记下数值, 重构后应一致。此测试只保证不报错。
     """
     results = {}
-    for code, cls in [("us", USData), ("cn", CNData), ("gold", GoldData)]:
+    for code, cls in [("cn", CNData), ("gold", GoldData)]:
         data = cls()
         try:
             model = _build_model(code, data)
@@ -70,4 +68,4 @@ def test_us_cn_gold_scores_recorded():
         finally:
             data.close()
     print(f"\n[REGRESSION BASELINE] scores: {results}")
-    assert len(results) == 3
+    assert len(results) == 2

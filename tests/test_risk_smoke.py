@@ -1,4 +1,4 @@
-"""P2 冒烟测试：RiskModel 针对 P1 填充的真实 SQLite 计算 cn/us 风险分。
+"""P2 冒烟测试：RiskModel 针对 P1 填充的真实 SQLite 计算 cn/gold 风险分。
 
 依赖 data/macro_data.db 已被 P1 的 --update/backfill 填充；否则 skip。
 目的：验证移植后的指标链端到端跑通、且确实在算（非全回退 5.0 → 总分 50）。
@@ -10,7 +10,6 @@ import pytest
 from investbrief.core.config import DB_PATH
 from investbrief.data.cn_data import CNData
 from investbrief.data.gold_data import GoldData
-from investbrief.data.us_data import USData
 from investbrief.risk.models import RiskModel
 from investbrief.risk.config import load_indicators
 from investbrief.pipelines.macro import _build_indicators
@@ -20,8 +19,8 @@ def _db_has_data() -> bool:
     if not os.path.exists(DB_PATH):
         return False
     try:
-        ds = USData()
-        n = ds.query("SELECT COUNT(*) AS n FROM us_index_daily").iloc[0]["n"]
+        ds = CNData()
+        n = ds.query("SELECT COUNT(*) AS n FROM cn_index_daily").iloc[0]["n"]
         ds.close()
         return n > 100
     except Exception:

@@ -1,7 +1,7 @@
 """Centralized logging setup: format, handlers, third-party noise suppression.
 
 Business logs (investbrief.*) stay at the configured level; noisy third-party
-libs (anthropic SDK, urllib3, akshare, yfinance) are pinned to WARNING so their
+libs (anthropic SDK, urllib3, akshare) are pinned to WARNING so their
 INFO output does not drown pipeline logs in logs/run.log.
 """
 import logging
@@ -9,7 +9,7 @@ import logging.handlers
 from pathlib import Path
 
 # Third-party libs that spam INFO and add no signal to daily pipeline logs.
-_NOISY_LOGGERS = ("anthropic", "urllib3", "akshare", "yfinance", "httpx", "openai")
+_NOISY_LOGGERS = ("anthropic", "urllib3", "akshare", "httpx", "openai")
 
 
 def setup_logging(level: int = logging.INFO, log_dir: Path | None = None) -> None:

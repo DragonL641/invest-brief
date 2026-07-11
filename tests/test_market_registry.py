@@ -24,12 +24,9 @@ def test_provider_default_news_calendar_empty():
     assert p.get_economic_calendar() == []
 
 
-def test_us_cn_declare_capabilities():
-    """US/CN 子类必须填齐能力声明，供编排层遍历时按 market 取 risk group/regime/data_class。"""
-    from investbrief.market.us.provider import USMarketProvider
+def test_cn_declares_capabilities():
+    """CN 子类必须填齐能力声明，供编排层遍历时按 market 取 risk group/regime/data_class。"""
     from investbrief.market.cn.provider import CNMarketProvider
-    assert USMarketProvider.risk_group == "us"
-    assert USMarketProvider.supports_regime is True
     assert CNMarketProvider.risk_group == "cn"
     assert CNMarketProvider.supports_regime is True
 

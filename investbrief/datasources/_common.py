@@ -9,8 +9,6 @@ load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env", override=Fal
 
 # Environment variable names for API keys
 ENV_KEYS = {
-    "finnhub": "FINNHUB_KEY",
-    "alphavantage": "ALPHAVANTAGE_KEY",
     "tavily": "TAVILY_KEY",
 }
 

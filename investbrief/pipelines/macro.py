@@ -24,7 +24,6 @@ def _safe_regime_judge(engine, market):
 
 _INDICATORS_FACTORIES = {
     "cn": "investbrief.market.cn.indicators:cn_indicators",
-    "us": "investbrief.market.us.indicators:us_indicators",
     "gold": "investbrief.market.gold.indicators:gold_indicators",
 }
 

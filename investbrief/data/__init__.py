@@ -1,10 +1,9 @@
 """统一数据层：SQLite 持久化 + 读取。"""
 from investbrief.data.base import BaseData
 from investbrief.data.cn_data import CNData
-from investbrief.data.us_data import USData
 from investbrief.data.gold_data import GoldData
 
-__all__ = ["BaseData", "CNData", "USData", "GoldData", "market_index_spec"]
+__all__ = ["BaseData", "CNData", "GoldData", "market_index_spec"]
 
 
 def market_index_spec(market: str) -> dict:
@@ -17,11 +16,9 @@ def market_index_spec(market: str) -> dict:
     因为 RiskModel 用单一 data_source 算多市场, 表名选择只能靠 market。
     """
     from investbrief.data.cn_data import CNData
-    from investbrief.data.us_data import USData
     from investbrief.data.gold_data import GoldData
     specs = {
         "cn": {"kind": "index", "table": CNData.primary_table, "code": CNData.primary_index},
-        "us": {"kind": "index", "table": USData.primary_table, "code": USData.primary_index},
         "gold": {"kind": "macro",
                  "indicator": GoldData.primary_indicator[0],
                  "country": GoldData.primary_indicator[1]},

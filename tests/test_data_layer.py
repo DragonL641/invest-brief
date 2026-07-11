@@ -11,7 +11,6 @@ import pytest
 from investbrief.data import cn_data as cn_mod
 from investbrief.data.base import BaseData
 from investbrief.data.cn_data import CNData
-from investbrief.data.us_data import USData
 
 
 @pytest.fixture
@@ -143,47 +142,11 @@ def test_cn_monetary_writes_lpr_m2_social_financing(monkeypatch, db):
     assert n_m2 == 2
 
 
-def test_us_index_symbols_cover_investbrief_surface():
-    """USData 必须覆盖 invest-brief 渲染的全部美股符号。"""
-    assert set(USData.INDEX_SYMBOLS) == {
-        "^GSPC", "^IXIC", "^DJI", "^VIX", "^TNX", "^FVX", "^IRX",
-        "HYG", "CL=F", "DX-Y.NYB", "GC=F",
-    }
-
-
-def test_us_update_index_daily_routes_through_yfinance_client(monkeypatch, db):
-    """指数 history 必须经 YFinanceClient.get_history(period="max")，
-    不直接用 yf.Ticker（增量去重靠 PK upsert，不再用 start= 区间）。"""
-    from investbrief.data import us_data as us_mod
-    calls = []
-
-    class _FakeClient:
-        def get_history(self, symbol, period="6mo"):
-            calls.append({"symbol": symbol, "period": period})
-            return pd.DataFrame({"Date": [pd.Timestamp("2026-07-03")],
-                                 "Open": [1], "High": [1], "Low": [1],
-                                 "Close": [1], "Volume": [1]})
-
-    monkeypatch.setattr(us_mod, "YFinanceClient", lambda: _FakeClient())
-
-    class _US(us_mod.USData):
-        def update_all(self): pass
-        def update_incremental(self): pass
-
-    # First run: no last_date → get_history(period="max")
-    c1 = _US(db_path=db.db_path)
-    c1.update_index_daily()
-    c1.close()
-    assert calls, "first run should call get_history"
-    assert all(c["period"] == "max" for c in calls), "all calls should use period=max"
-
-    calls.clear()
-    # Second run: last_date now set → still period="max" (dedup via PK upsert)
-    c2 = _US(db_path=db.db_path)
-    c2.update_index_daily()
-    c2.close()
-    assert calls, "incremental run should still call get_history"
-    assert all(c["period"] == "max" for c in calls), "incremental should also use period=max"
+def test_us_index_symbols_cover_investbrief_surface(db):
+    """us_index_daily 表仍在 schema 中(BaseData 建),供 latest_bars 等通用查询测试用。
+    USData 类已删除(cn-pivot),此测试保留以验证表存在。"""
+    names = set(db.query("SELECT name FROM sqlite_master WHERE type='table'")["name"])
+    assert "us_index_daily" in names
 
 
 def test_gold_update_fred_series_uses_last_date_as_cosd(monkeypatch, db):
@@ -263,69 +226,6 @@ def test_cn_margin_first_run_starts_from_2010(monkeypatch, db):
     assert fetched["first_start"].startswith("2010"), f"first run should start from 2010, got {fetched['first_start']}"
 
 
-def test_us_shiller_pe_skipped_when_fetch_recent(monkeypatch, db):
-    """Shiller PE：fetch 时间在 7 天内 → 跳过 xls（用 update_time，非数据日期）。"""
-    from investbrief.data import us_data as us_mod
-    from datetime import datetime, timedelta
-    called = {"get": False}
-
-    def fake_get(url, timeout=None):
-        called["get"] = True
-        raise AssertionError("should not download when recent")
-
-    monkeypatch.setattr(us_mod.urllib.request, "urlopen", fake_get)
-
-    class _US(us_mod.USData):
-        def update_all(self): pass
-        def update_incremental(self): pass
-
-    c = _US(db_path=db.db_path)
-    # Shiller data date lags (~2023-06); set last_update_date to that, but override
-    # update_time (fetch timestamp) to 2 days ago to simulate a recent fetch.
-    c.set_update_date("sentiment_pe_us_shiller", "2023-06")
-    recent_ts = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
-    c.conn.execute(
-        "UPDATE update_log SET update_time=? WHERE table_name=?",
-        (recent_ts, "sentiment_pe_us_shiller"),
-    )
-    c.conn.commit()
-    c._update_shiller_pe()
-    c.close()
-    assert not called["get"], "xls should not be downloaded when fetch < 7 days ago"
-
-
-def test_us_shiller_pe_downloads_when_fetch_stale(monkeypatch, db):
-    """Shiller PE：fetch 时间 > 7 天 → 下载 xls。"""
-    from investbrief.data import us_data as us_mod
-    from datetime import datetime, timedelta
-    called = {"get": False}
-
-    class _FakeResp:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-        def read(self):
-            called["get"] = True
-            return b""  # pandas read_excel will fail → method's try/except logs + returns
-
-    monkeypatch.setattr(us_mod.urllib.request, "urlopen", lambda url, timeout=None: _FakeResp())
-
-    class _US(us_mod.USData):
-        def update_all(self): pass
-        def update_incremental(self): pass
-
-    c = _US(db_path=db.db_path)
-    c.set_update_date("sentiment_pe_us_shiller", "2023-06")
-    stale_ts = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
-    c.conn.execute(
-        "UPDATE update_log SET update_time=? WHERE table_name=?",
-        (stale_ts, "sentiment_pe_us_shiller"),
-    )
-    c.conn.commit()
-    c._update_shiller_pe()
-    c.close()
-    assert called["get"], "xls should be downloaded when fetch > 7 days ago"
-
-
 def test_cn_treasury_yield_incremental_uses_last_date(monkeypatch, db):
     """treasury yield 有 last_date 时从 last_date 附近起（不再从 2005）。"""
     fetched = {"first_start": None, "called": False}
@@ -352,61 +252,6 @@ def test_cn_treasury_yield_incremental_uses_last_date(monkeypatch, db):
 
 
 # ---------- is_fresh (DB-First refresh fast-path) ----------
-
-def test_us_is_fresh_true_when_today_present(db):
-    """USData.is_fresh True when us_index_daily MAX(date) == today."""
-    from investbrief.data.us_data import USData
-    from datetime import datetime
-
-    class _US(USData):
-        def __init__(self):
-            self._conn = None
-        @property
-        def conn(self):
-            return db.conn
-        def _validate_table(self, t): pass
-
-    today = datetime.now().strftime("%Y-%m-%d")
-    pd.DataFrame({"code": ["^GSPC"], "date": [today], "open": [1], "high": [1],
-                  "low": [1], "close": [1], "volume": [1]}
-                 ).to_sql("us_index_daily", db.conn, if_exists="append", index=False)
-    db.conn.commit()
-    assert _US().is_fresh() is True
-
-
-def test_us_is_fresh_false_when_stale(db):
-    """USData.is_fresh False when MAX(date) != today."""
-    from investbrief.data.us_data import USData
-
-    class _US(USData):
-        def __init__(self):
-            self._conn = None
-        @property
-        def conn(self):
-            return db.conn
-        def _validate_table(self, t): pass
-
-    pd.DataFrame({"code": ["^GSPC"], "date": ["2020-01-01"], "open": [1], "high": [1],
-                  "low": [1], "close": [1], "volume": [1]}
-                 ).to_sql("us_index_daily", db.conn, if_exists="append", index=False)
-    db.conn.commit()
-    assert _US().is_fresh() is False
-
-
-def test_us_is_fresh_false_when_empty(db):
-    """USData.is_fresh False when us_index_daily is empty."""
-    from investbrief.data.us_data import USData
-
-    class _US(USData):
-        def __init__(self):
-            self._conn = None
-        @property
-        def conn(self):
-            return db.conn
-        def _validate_table(self, t): pass
-
-    assert _US().is_fresh() is False
-
 
 def test_cn_is_fresh_true_when_today_present(db):
     """CNData.is_fresh True when cn_index_daily MAX(date) == today."""
@@ -495,16 +340,12 @@ def test_basedata_market_attrs_default_empty():
     assert BaseData.primary_table == ""
 
 
-def test_cn_us_gold_declare_market_attrs():
+def test_cn_gold_declare_market_attrs():
     from investbrief.data.cn_data import CNData
-    from investbrief.data.us_data import USData
     from investbrief.data.gold_data import GoldData
     assert CNData.market_code == "cn"
     assert CNData.primary_index == "sh000001"
     assert CNData.primary_table == "cn_index_daily"
-    assert USData.market_code == "us"
-    assert USData.primary_index == "^GSPC"
-    assert USData.primary_table == "us_index_daily"
     assert GoldData.market_code == "gold"
     assert GoldData.primary_indicator == ("GOLD_PRICE_CNY", "cn")
 
@@ -513,7 +354,6 @@ def test_market_index_spec():
     import pytest
     from investbrief.data import market_index_spec
     assert market_index_spec("cn") == {"kind": "index", "table": "cn_index_daily", "code": "sh000001"}
-    assert market_index_spec("us") == {"kind": "index", "table": "us_index_daily", "code": "^GSPC"}
     assert market_index_spec("gold") == {"kind": "macro", "indicator": "GOLD_PRICE_CNY", "country": "cn"}
     with pytest.raises(KeyError):
         market_index_spec("kr")

@@ -1,4 +1,4 @@
-"""Datasources layer: low-level API clients (yfinance / akshare / finnhub / alphavantage / tavily)."""
+"""Datasources layer: low-level API clients (akshare / tavily)."""
 from typing import Dict
 
 
@@ -8,26 +8,13 @@ def get_available_apis(config: dict) -> dict[str, bool]:
 
     Returns:
         {
-            "finnhub": bool,
-            "alphavantage": bool,
-            "tavily": bool,
-            "yfinance": bool
+            "tavily": bool
         }
     """
     api_keys = config.get("api_keys", {})
 
-    # yfinance doesn't need config, check import
-    try:
-        import yfinance
-        has_yfinance = True
-    except ImportError:
-        has_yfinance = False
-
     return {
-        "finnhub": bool(api_keys.get("finnhub")),
-        "alphavantage": bool(api_keys.get("alphavantage")),
         "tavily": bool(api_keys.get("tavily")),
-        "yfinance": has_yfinance,
     }
 
 

@@ -217,21 +217,22 @@ class CNData(BaseData):
             logger.error(f"Failed to update CN 社融: {e}")
 
     def _update_usdcny(self):
-        """USDCNY 日频（yfinance USDCNY=X）→ macro_data，供 CN 资产表现板块计算 change。"""
+        """USDCNY 即期汇率(akshare forex_spot_em) → macro_data，供 CN 资产表现板块计算 change。
+
+        gold_data 已通过 FRED DEXCHUS 入库 USDCNY 历史序列; 此处只刷新当日实时值。
+        """
         try:
-            import yfinance as yf
-            hist = self._retry_api(lambda: yf.Ticker("USDCNY=X").history(period="1mo"))
-            if hist is None or hist.empty:
+            from investbrief.datasources.akshare import AKShareClient
+            price = AKShareClient().get_fx_usdcny_realtime()
+            if price is None:
                 return
-            hist = hist.reset_index()
-            hist["date"] = pd.to_datetime(hist["Date"]).dt.strftime("%Y-%m-%d")
-            rows = pd.DataFrame({
+            today = datetime.now().strftime("%Y-%m-%d")
+            rows = pd.DataFrame([{
                 "indicator": "USDCNY", "country": "global",
-                "date": hist["date"].values,
-                "value": hist["Close"].astype(float).values,
-            })
+                "date": today, "value": float(price),
+            }])
             self.upsert_df("macro_data", rows)
-            self.set_update_date("macro_data_usdcny_global", rows["date"].max())
+            self.set_update_date("macro_data_usdcny_global", today)
         except Exception as e:
             logger.error(f"Failed to update USDCNY: {e}")
 
