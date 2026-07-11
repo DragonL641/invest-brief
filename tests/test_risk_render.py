@@ -87,8 +87,8 @@ def test_render_risk_card_indicator_shows_explain_algo_warning_pct():
     html = render_risk_card(s)
     meta = CN_ALL_INDICATORS["broad_erp"]
     assert meta["explain"] in html            # explain text
-    assert meta["description"] in html        # algorithm basis
-    assert "算法" in html
+    # description 留在 YAML 供开发者, 不再进 HTML (#12)
+    assert "算法" not in html
     # 警戒: cn threshold = 1.5, scale=1, unit="%" → 1.50%
     assert "警戒" in html
     assert "1.50" in html

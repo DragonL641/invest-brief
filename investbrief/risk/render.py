@@ -129,8 +129,6 @@ def render_risk_card(score_data: dict) -> str:
         parts = []
         if meta["explain"]:
             parts.append(meta["explain"])
-        if meta["description"]:
-            parts.append(f"算法 {meta['description']}")
         threshold_raw = meta["thresholds"].get(market) if market else None
         if threshold_raw is not None:
             parts.append(f"警戒 {_fmt_value(threshold_raw, scale, unit)}")

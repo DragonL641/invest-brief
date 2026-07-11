@@ -47,3 +47,16 @@ def test_macro_context_marks_risk_subscore():
     assert "风险子分9.8/10" in ctx        # 标注了子分单位
     assert "黄金GDP占比" in ctx
     assert "子分" in MACRO_BRIEF_PROMPT    # prompt 也说明口径
+
+
+# ---- #12 风险卡精简技术注释 ----
+
+def test_risk_card_drops_algo_description():
+    """副行不再拼「算法 + description」,explain 人读提示保留。"""
+    from investbrief.risk.render import render_risk_card
+    score = {"total_score": 50, "state": "乐观扩张", "action": "逐步减仓", "market": "cn",
+             "indicators": {"margin_level": {"name": "融资余额水平", "value": 14856.0,
+                                              "score": 9.9, "percentile": 99}}}
+    html = render_risk_card(score)
+    assert "算法 " not in html  # description 不再进 HTML
+    assert "融资余额水平" in html  # 指标名仍在
