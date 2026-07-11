@@ -51,9 +51,9 @@ class CNMarketProvider(MarketProvider):
     # ==================== News & Calendar ====================
 
     def get_news(self, config: dict, limit: int) -> list:
-        from investbrief.market.cn.news import fetch_cn_news
+        from investbrief.market.cn.news import fetch_cn_macro_news
         try:
-            return fetch_cn_news([], limit)
+            return fetch_cn_macro_news(limit)
         except Exception as e:
             logger.warning(f"CN news fetch failed: {e}")
             return []
