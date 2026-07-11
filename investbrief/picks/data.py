@@ -196,7 +196,7 @@ def _normalize_cn_fund(raw: dict) -> dict:
             f = float(v)
         except (TypeError, ValueError):
             return None
-        return f / 100 if abs(f) > 1.5 else f
+        return f / 100  # get_financial_indicators 已统一返回百分数值(6.2=6.2%),无条件归一
     ocf = raw.get("operating_cashflow_per_share")
     return {
         "roe": _d(raw.get("roe")),

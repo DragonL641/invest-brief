@@ -29,6 +29,11 @@ def test_missing_keys_safe():
     assert out["fcf_positive"] is None  # ocf absent → None (not mass-filtered)
 
 
-def test_already_decimal_not_redivided():
-    """roe 已是小数(<1.5)不再 /100。"""
-    assert _normalize_cn_fund({"roe": 0.12})["roe"] == 0.12
+def test_low_pct_still_normalized():
+    """低 ROE 百分数值(0.12=0.12%, 1.26=1.26%)也归一为小数,不因 <1.5 跳过(#4)。
+
+    旧 _d 用 abs(f)>1.5 猜「百分数 vs 小数」,ROE<1.5 被当小数不除 100,
+    被 renderer _pct 放大成 126%。get_financial_indicators 恒返回百分数值,无条件 /100。
+    """
+    assert _normalize_cn_fund({"roe": 0.12})["roe"] == 0.0012
+    assert _normalize_cn_fund({"roe": 1.26})["roe"] == 0.0126

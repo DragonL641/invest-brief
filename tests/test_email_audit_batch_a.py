@@ -82,3 +82,17 @@ def test_usdcny_point_uses_realtime(monkeypatch):
     assets = p.get_asset_performance()
     fx = [a for a in assets if "USDCNY" in a["name"]][0]
     assert fx["point"] == 6.7989  # 实时,非 DB 的 6.77
+
+
+# ---- #4 ROE 低百分数值不再被放大 ----
+
+def test_roe_low_pct_not_amplified():
+    """ROE 原值 1.26(=1.26%)归一为 0.0126,_pct 渲染为 +1.3% 而非 +126.0%。"""
+    from investbrief.picks.data import _normalize_cn_fund
+    from investbrief.picks.renderer import _pct
+
+    out = _normalize_cn_fund({"roe": 1.26})
+    assert out["roe"] == 0.0126
+    assert _pct(out["roe"]) == "+1.3%"
+    # 正常值(>1.5)行为不变
+    assert _normalize_cn_fund({"roe": 6.2})["roe"] == 0.062
