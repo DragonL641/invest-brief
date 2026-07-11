@@ -187,7 +187,7 @@ class RiskModel:
             if history.empty:
                 return []
 
-            history["score_diff"] = abs(history["total_score"] - current_score)
+            history = history.assign(score_diff=abs(history["total_score"] - current_score))
             closest = history.nsmallest(top_n, "score_diff")
 
             results = []
