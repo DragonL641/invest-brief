@@ -7,6 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import pandas as pd
+
 from investbrief.core.config import load_config, CONFIG_FILE, REPORTS_DIR, DB_PATH
 from investbrief.mail.sender import EmailSender
 from investbrief.picks import profiles as _profiles
@@ -262,6 +264,16 @@ def _enrich(pick: dict, hist, prof: dict, fund: dict | None = None, val: dict | 
         c = hist["close"]
         close = float(c.iloc[-1])
         pick["price"] = round(close, 2)
+        # 今日涨跌幅(close vs 前收)—— 卡片 price_row 展示 + AI 研判引用
+        if len(c) > 1:
+            _prev_close = float(c.iloc[-2])
+            pick["change_pct"] = round((close - _prev_close) / _prev_close * 100, 2) if _prev_close else None
+        # 量比(今日量 / 近 20 日均量)—— 卡片技术面展示 + AI「放量」引用
+        _vol_ratio = None
+        if "volume" in hist.columns:
+            _vol = pd.to_numeric(hist["volume"], errors="coerce").dropna().tail(21)
+            if len(_vol) >= 2 and _vol.iloc[-1] and _vol.iloc[:-1].mean():
+                _vol_ratio = round(float(_vol.iloc[-1]) / float(_vol.iloc[:-1].mean()), 2)
         mas = ta.ma_set(c, (5, 10, 20, 60, 120))   # 含 5/10/20 才能算 ma_alignment
         ma20, ma60, ma120 = mas.get("ma20"), mas.get("ma60"), mas.get("ma120")
         pick["key_mas"] = {"ma20": ma20, "ma60": ma60, "ma120": ma120}
@@ -282,6 +294,7 @@ def _enrich(pick: dict, hist, prof: dict, fund: dict | None = None, val: dict | 
             "return_60d": rets.get("return_60d"),
             "ma20": ma20, "ma60": ma60, "ma120": ma120,
             "close_vs_ma60_pct": (close / ma60 - 1) if (ma60 and close and ma60 != 0) else None,
+            "volume_ratio": _vol_ratio,
         }
         # 基本面 + 估值(merge fund + val.pe/pb)
         pick["fundamentals"] = {**(fund or {}), "pe": (val or {}).get("pe"), "pb": (val or {}).get("pb")}

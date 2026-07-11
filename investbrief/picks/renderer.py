@@ -31,6 +31,16 @@ def _pct(v) -> str:  # 小数 0.2479 → "+24.8%" / "-5.0%"
         return "—"
 
 
+def _chg_cls(v):
+    if v is None:
+        return ""
+    return "pos" if v > 0 else ("neg" if v < 0 else "")
+
+
+def _fmt_chg(v):
+    return f"{v:+.2f}%" if isinstance(v, (int, float)) else "—"
+
+
 def _num(v, d=2) -> str:
     if v is None:
         return "—"
@@ -145,6 +155,7 @@ def _technicals_dim(pick: dict) -> str:
     dyn_cells = "".join([
         _cell("RSI", _num(t.get("rsi"))),
         _cell("MACD", cross),
+        _cell("量比", _num(t.get("volume_ratio"))),
     ])
 
     # 涨跌类(return_*d 是百分比值,/100 归一化)
@@ -325,6 +336,7 @@ def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> 
     kl = pick.get("key_levels") or {}
     price_row = f'''<div class="price-row">
 <span class="pl"><span class="pl-l">现价</span><b>{_fmt(pick.get("price"))}</b></span>
+<span class="pl {_chg_cls(pick.get('change_pct'))}"><span class="pl-l">涨跌</span>{_fmt_chg(pick.get('change_pct'))}</span>
 <span class="pl neg"><span class="pl-l">压力</span>{_fmt(kl.get("resistance"))}</span>
 <span class="pl pos"><span class="pl-l">支撑</span>{_fmt(kl.get("support"))}</span>
 <span class="pl neg"><span class="pl-l">止损</span>{_fmt(pick.get("stop_level"))}</span>

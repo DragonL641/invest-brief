@@ -27,3 +27,17 @@ def test_etf_card_shows_premium_and_signals():
     html = _render_dimensions(r)
     assert "溢价率" in html and "-1.27" in html
     assert "均线多头" in html and "多" in html  # signal bullish→多
+
+
+def test_pick_card_shows_change_pct_and_volume_ratio():
+    """#8b picks 卡 price_row 显示今日涨跌、技术面显示量比。"""
+    from investbrief.picks.renderer import render_pick_card
+    pick = {
+        "symbol": "000725", "name": "京东方Ａ", "market": "cn", "composite": 72,
+        "price": 7.59, "change_pct": 5.76,
+        "key_levels": {"resistance": 9.50, "support": 3.95}, "stop_level": 7.21,
+        "technicals": {"rsi": 56.4, "ma_alignment": "mixed", "volume_ratio": 1.25},
+    }
+    html = render_pick_card(pick, "swing", "cn")
+    assert "涨跌" in html and "5.76%" in html.replace(" ", "")
+    assert "量比" in html and "1.25" in html
