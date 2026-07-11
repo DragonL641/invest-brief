@@ -1,5 +1,7 @@
 {
   "_schedule_note": "Scheduler honors the FIRST cron of the FIRST enabled market. cn-pivot 后为纯 A 股报告(外围环境卡 + 黄金),建议把 us.enabled 置 false,让 cn 的 cron 成为唯一触发源。",
+  "_fed_funds_rate_note": "联邦基金利率目标区间上限(%)。FOMC 调整时手动改此值;不配则用代码默认 5.25。",
+  "fed_funds_rate": 5.25,
   "markets": {
     "us": {
       "_note": "cn-pivot 后 us 已无 provider,scheduler 不会触发独立 us 运行;保留结构仅作过渡兼容,enabled 应为 false。",

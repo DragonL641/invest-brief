@@ -16,9 +16,13 @@ _COLOR_UP = "#e74c3c"
 _COLOR_DOWN = "#27ae60"
 
 
-def fetch_overseas_data(ak_client) -> dict[str, Any]:
-    """从 akshare 组装外围卡数据。任一接口失败该键为 None(渲染降级)。"""
-    data: dict[str, Any] = {"fed_rate": FED_FUNDS_RATE}
+def fetch_overseas_data(ak_client, fed_rate: float = FED_FUNDS_RATE) -> dict[str, Any]:
+    """从 akshare 组装外围卡数据。任一接口失败该键为 None(渲染降级)。
+
+    fed_rate: 联邦基金利率目标区间上限(%),默认 FED_FUNDS_RATE 常量;
+              可由 config.json 的 fed_funds_rate 字段覆盖(FOMC 调整时改配置即可)。
+    """
+    data: dict[str, Any] = {"fed_rate": fed_rate}
     try:
         data["us_10y"] = ak_client.get_us_treasury_10y()
     except Exception as e:

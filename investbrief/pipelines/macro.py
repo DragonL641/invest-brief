@@ -162,9 +162,10 @@ def run_macro_report(args):
 
     # 外围环境卡(全 akshare,替换原 US section)
     from investbrief.datasources.akshare import AKShareClient
-    from investbrief.market.overseas import fetch_overseas_data, render_overseas_card
+    from investbrief.market.overseas import fetch_overseas_data, render_overseas_card, FED_FUNDS_RATE
+    fed_rate = config.get("fed_funds_rate", FED_FUNDS_RATE)
     try:
-        overseas_data = fetch_overseas_data(AKShareClient())
+        overseas_data = fetch_overseas_data(AKShareClient(), fed_rate=fed_rate)
         overseas_html = render_overseas_card(overseas_data)
     except Exception as e:
         logger.warning(f"Overseas card failed: {e}")
