@@ -34,6 +34,11 @@ _SEASONAL_TTL = 7.0   # 季频: 分析师评级 / 基本面 / 调研
 def init_cache(path: str):
     """注入 FactorCache 单例(pipelines/holdings.py 启动时调用;测试可显式 init 或留空禁用)。"""
     global _fcache
+    if _fcache is not None:
+        try:
+            _fcache.close()
+        except Exception:
+            pass
     _fcache = FactorCache(path)
 
 

@@ -23,6 +23,11 @@ _hist_mem: dict[str, pd.DataFrame] = {}
 
 def init_cache(path: str):
     global _cache
+    if _cache is not None:
+        try:
+            _cache.close()
+        except Exception:
+            pass
     _cache = FactorCache(path)
 
 
