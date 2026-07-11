@@ -372,7 +372,7 @@ class HoldingsAnalyzer:
         # 季频+日频维度全部并行;rating 走跨日缓存(fundamentals 内部自带 7d 季频缓存)
         data = self._parallel({
             "quote": lambda: self._ak.get_stock_quote(symbol),
-            "flow": lambda: self._ak.get_stock_fund_flow(symbol),
+            "flow": lambda: (self._cached(f"flow:cn:{symbol}", 1, lambda: self._ak.get_stock_fund_flow(symbol)) or {}),
             "history": lambda s=symbol: _history_db_first(
                 "cn", s, days=180, db=_stock_db(),
                 live_fetch=lambda sym, days=180: self._ak.get_stock_history(sym, days=days)),
