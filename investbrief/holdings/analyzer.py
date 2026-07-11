@@ -206,13 +206,13 @@ class HoldingsAnalyzer:
     def _collect_insider(self, symbol: str, market: str) -> dict:
         """CN 大股东/高管增减持，最近窗口聚合。失败返回 {}。
 
-        Field structure: {"net_amount": float, "direction": "buy"/"sell"/"flat",
+        Field structure: {"net_shares": float, "direction": "buy"/"sell"/"flat",
                           "latest_date": str, "count": int}
 
         数据源限制：
         - CN akshare major: action 文本（"增持4.16万"/"减持..."），无数值 → 仅参与方向判定。
         - CN akshare insider: 已过滤为「增」（buy），shares 可量化。
-        net_amount 仅累加可量化的数值；方向由 sell/buy 计数主导（无可用数值时按方向多数）。
+        net_shares 仅累加可量化的 shares（股数，非金额）；方向由 sell/buy 计数主导（无可用数值时按方向多数）。
         """
         try:
             major = self._ak.get_major_shareholder_trades(symbol, days=90) or []
@@ -245,7 +245,7 @@ class HoldingsAnalyzer:
                 direction = "flat"
             dates = [d for _, _, d in records if d]
             return {
-                "net_amount": net,
+                "net_shares": net,
                 "direction": direction,
                 "latest_date": max(dates) if dates else "",
                 "count": len(records),

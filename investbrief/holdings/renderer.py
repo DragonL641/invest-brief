@@ -171,7 +171,7 @@ def _render_dimensions(r: HoldingResult) -> str:
         if ins.get("direction") and ins.get("direction") != "flat":
             cls = "stock-up" if ins["direction"] == "buy" else "stock-down"
             verb = "增持" if ins["direction"] == "buy" else "减持"
-            cells.append(f'<span class="cell"><span class="cl">高管{verb}</span> <span class="{cls}">{_fmt_short_money(ins.get("net_amount", 0))}</span></span>')
+            cells.append(f'<span class="cell"><span class="cl">高管{verb}</span> <span class="{cls}">{_fmt_short_money(ins.get("net_shares", 0))}股</span></span>')
         if cells:
             rows.append(_dim_row("📅 事件日历", "".join(cells)))
 
@@ -271,7 +271,7 @@ def _pick_key_signals(r: HoldingResult) -> list[dict]:
     """从各维度挑最强 1-3 个信号，按优先级排序，cap 3。
 
     Priority (spec §3.3):
-      1. insider sell/buy (when direction != flat and net_amount present)
+      1. insider sell/buy (when direction != flat and net_shares present)
       2. latest rating action (up/down based on grade)
       3. RSI > 70 (down 超买) / < 30 (up 超卖)
       4. MACD golden (up) / dead (down)
@@ -282,10 +282,10 @@ def _pick_key_signals(r: HoldingResult) -> list[dict]:
     sigs: list[dict] = []
     # 1. insider sell/buy
     ins = r.insider or {}
-    if ins.get("direction") == "sell" and ins.get("net_amount"):
-        sigs.append({"label": f"高管减持 {_fmt_short_money(ins['net_amount'])}", "cls": "down"})
-    elif ins.get("direction") == "buy" and ins.get("net_amount"):
-        sigs.append({"label": f"高管增持 {_fmt_short_money(ins['net_amount'])}", "cls": "up"})
+    if ins.get("direction") == "sell" and ins.get("net_shares"):
+        sigs.append({"label": f"高管减持 {_fmt_short_money(ins['net_shares'])}股", "cls": "down"})
+    elif ins.get("direction") == "buy" and ins.get("net_shares"):
+        sigs.append({"label": f"高管增持 {_fmt_short_money(ins['net_shares'])}股", "cls": "up"})
     # 2. latest rating action
     for a in (r.rating.get("actions") or [])[:1]:
         rating_txt = a.get("rating", "") or ""

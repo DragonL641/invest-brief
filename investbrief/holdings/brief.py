@@ -67,7 +67,7 @@ def _format_holding(r: HoldingResult) -> str:
         )
     if r.insider and r.insider.get("direction") and r.insider.get("direction") != "flat":
         verb = "增持" if r.insider["direction"] == "buy" else "减持"
-        lines.append(f"  高管/大股东{verb}: 净额 {r.insider.get('net_amount')} ({r.insider.get('count')} 笔)")
+        lines.append(f"  高管/大股东{verb}: 净增减持股数 {r.insider.get('net_shares')} ({r.insider.get('count')} 笔)")
     if r.events and r.events.get("next_earnings"):
         lines.append(f"  下次财报: {r.events['next_earnings']} (距 {r.events.get('days_to_next')} 天)")
     if r.cn_activity and (r.cn_activity.get("dragon_tiger_count") or r.cn_activity.get("institution_research_count")):

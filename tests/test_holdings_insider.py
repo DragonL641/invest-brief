@@ -5,7 +5,7 @@ from investbrief.holdings.analyzer import HoldingsAnalyzer
 
 def test_cn_insider_aggregates_major_and_mgmt():
     """CN: major（减持，无数值）+ insider（增持，shares=200000）。
-    两边都有记录但数值部分仅 insider 可量化 → 净额按可用数值合计。
+    两边都有记录但数值部分仅 insider 可量化 → 净股数按可用数值合计。
     """
     a = HoldingsAnalyzer()
     major = [
@@ -22,9 +22,9 @@ def test_cn_insider_aggregates_major_and_mgmt():
     assert ins["count"] == 2
     assert ins["latest_date"] == "2026-06-25"
     # 减持方向占主导（major 减持 + insider 增持，仅按方向计数：sell=1, buy=1 → 平）
-    # 但更合理：major 减持若无数值不参与净额；insider 增持 200000 → net=200000 → buy
+    # 但更合理：major 减持若无数值不参与净股数；insider 增持 200000 → net=200000 → buy
     assert ins["direction"] == "buy"
-    assert ins["net_amount"] == 200_000
+    assert ins["net_shares"] == 200_000
 
 
 def test_cn_insider_sell_dominant():

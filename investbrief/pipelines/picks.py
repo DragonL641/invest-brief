@@ -4,13 +4,12 @@ import json
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 from investbrief.core.config import load_config, CONFIG_FILE, REPORTS_DIR, DB_PATH
+from investbrief.core.timeutil import now_cn
 from investbrief.mail.sender import EmailSender
 from investbrief.picks import profiles as _profiles
 load_profiles = _profiles.load_profiles  # 模块级 alias,便于测试 monkeypatch(与 _spot_df 对称)
@@ -402,7 +401,7 @@ def run_picks_report(args):
 
     # 日级缓存：命中（非 --force）→ 直接发缓存 HTML，跳过整个 build（省 30min 深拉）
     from investbrief.core.mail_cache import make_key, get_cache, set_cache
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    now = now_cn()
     today = now.strftime("%Y-%m-%d")
     cache_key = make_key("picks", today)
     if not getattr(args, "force", False) and not getattr(args, "dry_run", False):
@@ -432,7 +431,7 @@ def run_picks_report(args):
 
     picks_brief = "" if skip_summary else _brief.generate_picks_brief(all_picks)
 
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    now = now_cn()
     report_data = {
         "data_time": now.strftime("%Y-%m-%d %H:%M"),
         "picks_brief": picks_brief,

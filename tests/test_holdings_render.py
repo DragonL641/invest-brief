@@ -22,11 +22,12 @@ def test_renders_stock_etf_fund_three_groups():
 
 def test_renders_key_signal_tags():
     r = HoldingResult(symbol="X", market="cn", type="stock",
-                      insider={"direction": "sell", "net_amount": -800000},
+                      insider={"direction": "sell", "net_shares": -800000},
                       price={"current": 100})
     html = render_holdings_section([r])
     assert "signal-tag" in html
     assert "减持" in html
+    assert "股" in html  # net_shares 渲染为股数单位,非金额
 
 
 def test_renders_css_bar_for_rating():

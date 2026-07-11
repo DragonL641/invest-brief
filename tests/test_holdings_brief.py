@@ -9,7 +9,7 @@ from investbrief.holdings.brief import (
 
 def test_prompt_includes_insider():
     r = HoldingResult(symbol="002371", market="cn", type="stock", name="北方华创",
-                      insider={"direction": "sell", "net_amount": -800000})
+                      insider={"direction": "sell", "net_shares": -800000})
     prompt = _build_prompt([r])
     assert "高管" in prompt or "增减持" in prompt or "减持" in prompt
 

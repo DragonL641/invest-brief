@@ -1,11 +1,10 @@
 """Holdings report pipeline: per-recipient analysis email (distinct from macro)."""
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from investbrief.core.config import load_config, CONFIG_FILE, REPORTS_DIR, DB_PATH
+from investbrief.core.timeutil import now_cn
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +55,7 @@ def run_holdings_report(args):
             h["symbol"], h["market"], h["type"], with_ai=not dry_run
         )
 
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    now = now_cn()
     data_time = now.strftime("%Y-%m-%d %H:%M")
 
     def _subset(r):
