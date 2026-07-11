@@ -14,8 +14,6 @@ from investbrief.holdings.analyzer import HoldingsAnalyzer
 def _mock_analyzer() -> HoldingsAnalyzer:
     """与 test_holdings.py 同款: __new__ 绕过 __init__, client 逐个 mock。"""
     an = HoldingsAnalyzer.__new__(HoldingsAnalyzer)
-    an._yf = MagicMock()
-    an._fh = MagicMock()
     an._ak = MagicMock()
     an._etf = MagicMock()
     an._cache = {}
@@ -59,35 +57,6 @@ def test_rating_cn_cache_hit_skips_api(fresh_cache):
     assert r1["actions"][0]["institution"] == "中信"
 
 
-def test_rating_us_cache_hit_skips_api(fresh_cache):
-    """US rating 第二次取同 symbol → rating API 只调一次; upside 仍用 live current fresh build。"""
-    an = _mock_analyzer()
-    calls = {"rec": 0}
-
-    def _count_rec(symbol):
-        calls["rec"] += 1
-        return {"latest": {"strong_buy": 0, "buy": 5, "hold": 3, "sell": 1, "strong_sell": 0,
-                           "period": "2026-07-01"},
-                "previous": None, "change": {"buy": 22.2}, "periods": []}
-
-    an._fh.get_recommendation = _count_rec
-    an._yf.get_recommendations = lambda s: None
-    an._fh.get_price_target = lambda s: {"target_mean": 165, "target_high": 180,
-                                          "target_low": 140, "number_of_analysts": 9}
-    an._yf.get_price_targets = lambda s: None
-    an._yf.get_upgrades_downgrades = lambda s: []
-
-    r1 = an._collect_rating("AAPL", "us", current=150)
-    r2 = an._collect_rating("AAPL", "us", current=165)   # price moved
-
-    assert calls["rec"] == 1, f"recommendation API 应只调 1 次, 实际 {calls['rec']}"
-    # raw rating 缓存复用 → distribution 一致
-    assert r1["distribution"]["buy"] == 5 and r2["distribution"]["buy"] == 5
-    # upside 用 live current fresh build → price 变化反映在 upside
-    assert r1["price_target"]["upside_pct"] == 10.0   # (165-150)/150
-    assert r2["price_target"]["upside_pct"] == 0.0    # (165-165)/165
-
-
 # ==================== fundamentals ====================
 
 def test_fundamentals_cn_cache_hit_skips_api(fresh_cache):
@@ -107,24 +76,6 @@ def test_fundamentals_cn_cache_hit_skips_api(fresh_cache):
     assert calls["n"] == 1, f"financial_indicators API 应只调 1 次, 实际 {calls['n']}"
     assert f1 == f2
     assert f1["roe"] == 30.0
-
-
-def test_fundamentals_us_cache_hit_skips_api(fresh_cache):
-    """US fundamentals(get_info) 第二次取 → API 只调一次。"""
-    an = _mock_analyzer()
-    calls = {"n": 0}
-
-    def _count(symbol):
-        calls["n"] += 1
-        return {"longName": "Apple", "trailingPE": 28.5, "returnOnEquity": 0.15}
-
-    an._yf.get_info = _count
-
-    i1 = an._collect_fundamentals("AAPL", "us")
-    i2 = an._collect_fundamentals("AAPL", "us")
-
-    assert calls["n"] == 1
-    assert i1["trailingPE"] == 28.5 and i2["longName"] == "Apple"
 
 
 # ==================== disabled when no init_cache ====================

@@ -27,9 +27,8 @@
       "name": "Recipient1",
       "active": true,
       "language": "zh-CN",
-      "_holdings_note": "可选字段。配置后该收件人会额外收到一封『持仓分析』邮件（per-recipient）。market∈{us,cn}，type∈{stock,etf,fund}（fund=场外基金，仅 cn）。",
+      "_holdings_note": "可选字段。配置后该收件人会额外收到一封『持仓分析』邮件（per-recipient）。market∈{cn}，type∈{stock,etf,fund}（fund=场外基金，仅 cn）。",
       "holdings": [
-        { "symbol": "AAPL", "market": "us", "type": "stock" },
         { "symbol": "600519", "market": "cn", "type": "stock" },
         { "symbol": "510300", "market": "cn", "type": "etf" },
         { "symbol": "000001", "market": "cn", "type": "fund" }

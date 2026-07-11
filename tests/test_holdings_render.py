@@ -8,15 +8,15 @@ def test_renders_stock_etf_fund_three_groups():
     results = [
         HoldingResult(symbol="002371", market="cn", type="stock", name="北方华创",
                       price={"current": 300, "change_pct": 2.3}),
-        HoldingResult(symbol="AAPL", market="us", type="stock", name="Apple",
-                      price={"current": 150, "change_pct": -1.2}),
+        HoldingResult(symbol="600519", market="cn", type="stock", name="贵州茅台",
+                      price={"current": 1680, "change_pct": -1.2}),
         HoldingResult(symbol="510300", market="cn", type="etf", name="沪深300ETF",
                       price={"current": 4.1}),
     ]
     html = render_holdings_section(results)
     assert "个股" in html
     assert "场内基金" in html
-    assert "北方华创" in html and "Apple" in html
+    assert "北方华创" in html and "贵州茅台" in html
     assert "沪深300ETF" in html
 
 
@@ -30,7 +30,7 @@ def test_renders_key_signal_tags():
 
 
 def test_renders_css_bar_for_rating():
-    r = HoldingResult(symbol="X", market="us", type="stock",
+    r = HoldingResult(symbol="600519", market="cn", type="stock",
                       rating={"distribution": {"buy": 10, "hold": 3, "sell": 1}, "total": 14},
                       price={"current": 100})
     html = render_holdings_section([r])

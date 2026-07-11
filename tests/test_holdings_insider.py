@@ -1,4 +1,4 @@
-"""insider 采集：CN=akshare major+insider（仅增/减文本 + 可选 shares）；US=yfinance insider_transactions（仅 Buy + value）。"""
+"""insider 采集：CN=akshare major+insider（仅增/减文本 + 可选 shares）。"""
 from unittest.mock import patch
 from investbrief.holdings.analyzer import HoldingsAnalyzer
 
@@ -43,23 +43,6 @@ def test_cn_insider_sell_dominant():
     assert ins["latest_date"] == "2026-06-15"
 
 
-def test_us_insider_from_yfinance():
-    """US: yfinance insider_transactions 全为 Buy，value 字段为交易金额。"""
-    a = HoldingsAnalyzer()
-    txns = [
-        {"insider": "CEO", "position": "CEO", "shares": 1000, "value": 500_000.0,
-         "transaction": "Buy", "date": "2026-06-20", "text": "Buy"},
-        {"insider": "CFO", "position": "CFO", "shares": 500, "value": 250_000.0,
-         "transaction": "Buy", "date": "2026-06-22", "text": "Buy"},
-    ]
-    with patch.object(a._yf, "get_insider_transactions", return_value=txns):
-        ins = a._collect_insider("AAPL", "us")
-    assert ins["direction"] == "buy"
-    assert ins["net_amount"] == 750_000
-    assert ins["count"] == 2
-    assert ins["latest_date"] == "2026-06-22"
-
-
 def test_insider_empty_when_no_data():
     a = HoldingsAnalyzer()
     with patch.object(a._ak, "get_major_shareholder_trades", return_value=[]), \
@@ -70,6 +53,6 @@ def test_insider_empty_when_no_data():
 
 def test_insider_empty_on_exception():
     a = HoldingsAnalyzer()
-    with patch.object(a._yf, "get_insider_transactions", side_effect=Exception("net")):
-        ins = a._collect_insider("AAPL", "us")
+    with patch.object(a._ak, "get_major_shareholder_trades", side_effect=Exception("net")):
+        ins = a._collect_insider("002371", "cn")
     assert ins == {}

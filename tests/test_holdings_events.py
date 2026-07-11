@@ -1,19 +1,5 @@
-"""events 采集：US 用 yfinance；CN 用季报规则推算。"""
-from datetime import date, timedelta
-from unittest.mock import patch
+"""events 采集：CN 用季报披露窗口规则推算。"""
 from investbrief.holdings.analyzer import HoldingsAnalyzer
-
-
-def test_us_events_from_yfinance():
-    a = HoldingsAnalyzer()
-    # yfinance get_earnings_dates 返回 [{"date": "YYYY-MM-DD"}, ...]（无 type 字段）
-    fake_dates = [{"date": (date.today() + timedelta(days=20)).isoformat()}]
-    with patch.object(a._yf, "get_earnings_dates", return_value=fake_dates):
-        ev = a._collect_events("AAPL", "us")
-    assert ev["days_to_next"] is not None
-    assert 15 <= ev["days_to_next"] <= 25
-    assert ev["next_earnings"] == fake_dates[0]["date"]
-    assert ev["is_in_window"] is False
 
 
 def test_cn_events_rule_based():
@@ -24,8 +10,23 @@ def test_cn_events_rule_based():
     assert ev["days_to_next"] >= 0
 
 
-def test_events_empty_on_failure():
+def test_cn_events_next_is_closest_window():
+    """规则推算：返回距离今天最近的季报披露窗口。"""
+    from datetime import date
     a = HoldingsAnalyzer()
-    with patch.object(a._yf, "get_earnings_dates", side_effect=Exception("net")):
-        ev = a._collect_events("AAPL", "us")
-    assert ev == {}
+    today = date.today()
+    ev = a._collect_events("002371", "cn")
+    # next_earnings 必须 >= today（未来窗口）
+    assert ev["next_earnings"] >= today.isoformat()
+    # days_to_next 与 next_earnings 一致
+    expected_days = (date.fromisoformat(ev["next_earnings"]) - today).days
+    assert ev["days_to_next"] == expected_days
+
+
+def test_events_empty_on_failure():
+    """market 非法 → analyze_one 整体降级；_collect_events 本身对 cn 不会抛。"""
+    # _collect_events 对 cn 始终能推算（无外部依赖），故此处验证调用无异常
+    a = HoldingsAnalyzer()
+    ev = a._collect_events("002371", "cn")
+    assert isinstance(ev, dict)
+    assert "next_earnings" in ev

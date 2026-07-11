@@ -27,7 +27,7 @@ def render_holdings_section(results: list[HoldingResult]) -> str:
 
     def _sort_key(r):
         chg = (r.price or {}).get("change_pct") or 0
-        return (0 if r.market == "us" else 1, -chg)
+        return -chg
 
     parts = []
     if stocks:
@@ -230,7 +230,7 @@ def _bar_html(value: float, max_val: float, width_px: int = 60) -> str:
 # ==================== 工具 ====================
 
 def _market_flag(market: str) -> str:
-    return "🇺🇸" if market == "us" else "🇨🇳"
+    return "🇨🇳"
 
 
 def _trend_class(pct) -> str:
@@ -268,17 +268,10 @@ def _pick_key_signals(r: HoldingResult) -> list[dict]:
         sigs.append({"label": f"高管增持 {_fmt_short_money(ins['net_amount'])}", "cls": "up"})
     # 2. latest rating action
     for a in (r.rating.get("actions") or [])[:1]:
-        if r.market == "us":
-            grade = a.get("to_grade", "") or ""
-            if a.get("from_grade") and a.get("to_grade"):
-                g_low = grade.lower()
-                cls = "up" if ("buy" in g_low or "outperform" in g_low or "overweight" in g_low) else "down"
-                sigs.append({"label": f"评级{a['from_grade']}→{grade}", "cls": cls})
-        else:
-            rating_txt = a.get("rating", "") or ""
-            cls = "up" if ("买" in rating_txt or "增" in rating_txt) else (
-                "down" if ("减" in rating_txt or "卖" in rating_txt) else "up")
-            sigs.append({"label": f"评级{rating_txt}", "cls": cls})
+        rating_txt = a.get("rating", "") or ""
+        cls = "up" if ("买" in rating_txt or "增" in rating_txt) else (
+            "down" if ("减" in rating_txt or "卖" in rating_txt) else "up")
+        sigs.append({"label": f"评级{rating_txt}", "cls": cls})
     # 3. RSI overbought/oversold
     rsi = (r.technicals or {}).get("rsi")
     if rsi is not None and rsi > 70:

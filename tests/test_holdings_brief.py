@@ -15,10 +15,10 @@ def test_prompt_includes_insider():
 
 
 def test_prompt_includes_events():
-    r = HoldingResult(symbol="AAPL", market="us", type="stock", name="Apple",
-                      events={"next_earnings": "2026-08-01", "days_to_next": 20})
+    r = HoldingResult(symbol="600519", market="cn", type="stock", name="贵州茅台",
+                      events={"next_earnings": "2026-08-31", "days_to_next": 20})
     prompt = _build_prompt([r])
-    assert "财报" in prompt or "2026-08-01" in prompt
+    assert "财报" in prompt or "2026-08-31" in prompt
 
 
 def test_prompt_includes_cn_activity():
@@ -29,7 +29,8 @@ def test_prompt_includes_cn_activity():
 
 
 def test_prompt_includes_forecast():
-    r = HoldingResult(symbol="AAPL", market="us", type="stock", name="Apple",
+    # forecast 维度虽 US-only 采集，但 _format_holding 仍格式化（若 dict 有值）
+    r = HoldingResult(symbol="600519", market="cn", type="stock", name="贵州茅台",
                       forecast={"eps_next": 2.1, "yoy_pct": 18.0})
     prompt = _build_prompt([r])
     assert "EPS" in prompt or "盈利" in prompt or "2.1" in prompt
@@ -71,8 +72,8 @@ def test_format_holding_includes_extended_fundamentals():
 def test_format_holding_omits_missing_extended_fundamentals():
     """C4: gross_margin/net_margin/debt_ratio 缺失时不输出(优雅降级)。"""
     r = HoldingResult(
-        symbol="AAPL", market="us", type="stock", name="Apple",
-        fundamentals={"pe": 30.0, "roe": 100.0, "revenue_growth": 10.0},
+        symbol="600519", market="cn", type="stock", name="贵州茅台",
+        fundamentals={"pe": 30.0, "roe": 30.0, "revenue_growth": 10.0},
         technicals={"ma_alignment": "bullish"},
     )
     text = _format_holding(r)
@@ -106,8 +107,9 @@ def test_fallback_bullish():
 
 
 def test_fallback_bearish():
-    r = HoldingResult(symbol="AAPL", market="us", type="stock",
-                      rating={"distribution": {"strong_sell": 3, "sell": 2, "buy": 1}},
+    # CN distribution schema: underperform/sell（strong_sell 兼容保留）
+    r = HoldingResult(symbol="600519", market="cn", type="stock",
+                      rating={"distribution": {"sell": 3, "underperform": 2, "buy": 1}},
                       technicals={"ma_alignment": "bearish"})
     assert "偏空" in _fallback_stock_conclusion(r)
 

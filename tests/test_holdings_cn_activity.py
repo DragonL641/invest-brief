@@ -4,7 +4,7 @@
   字段为 `symbol`（已标准化）+ `date`，需按 symbol 后过滤统计次数。
 - 机构调研数据源 AKShareClient.get_institutional_research(symbol, days) 已按 symbol 过滤，
   返回该股调研事件列表 [{institution, date, type, researchers}]。
-- US 市场返回 {}（不适用）。
+- 非 CN 市场（防御性）返回 {}。
 - 韧性：dragon_tiger 异常 → 降级 dt_count=0（run 级缓存吞异常，多只 CN stock 共享一次拉取）；research 异常 → 返回已采集部分。不阻塞整体分析。
 """
 from unittest.mock import patch
@@ -31,10 +31,11 @@ def test_cn_activity_counts():
     assert act["institution_research_count"] == 2
 
 
-def test_cn_activity_us_returns_empty():
-    """US 市场不适用，直接返回 {}。"""
+def test_cn_activity_non_cn_returns_empty():
+    """非 CN 市场（防御性）直接返回 {}。"""
     a = HoldingsAnalyzer()
-    assert a._collect_cn_activity("AAPL", "us") == {}
+    assert a._collect_cn_activity("XXX", "us") == {}
+    assert a._collect_cn_activity("XXX", "jp") == {}
 
 
 def test_cn_activity_resilient_on_failure():

@@ -82,9 +82,8 @@ def _format_holding(r: HoldingResult) -> str:
 def _fallback_stock_conclusion(r: HoldingResult) -> str:
     """LLM 不可用时的规则兜底（rating 分布 + technicals 趋势）。
 
-    distribution schema:
-      US: strong_buy/buy/hold/sell/strong_sell
-      CN: buy/outperform/neutral/underperform/sell
+    distribution schema: CN buy/outperform/neutral/underperform/sell
+    （strong_buy/strong_sell 兼容性保留，合计入多/空。）
     """
     rt = r.rating or {}
     tech = r.technicals or {}
@@ -115,7 +114,7 @@ def generate_stock_conclusion(r: HoldingResult) -> str:
     from investbrief.core.llm import call_claude
     from investbrief.holdings.regime_prompts import regime_hint
 
-    market_label = "A股" if r.market == "cn" else "美股"
+    market_label = "A股"
     regime = (r.technicals or {}).get("regime")
     hint = regime_hint(regime)
     regime_line = f"\n【当前市场状态：{regime}】{hint}" if hint else ""

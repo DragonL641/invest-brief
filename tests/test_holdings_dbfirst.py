@@ -79,9 +79,9 @@ def test_history_db_first_dbhit_returns_datetimeindex_aligned_with_live():
     try:
         today = date.today().isoformat()
         db.upsert_stock_df(pd.DataFrame([{
-            "market": "us", "symbol": "AMD", "date": today,
+            "market": "cn", "symbol": "600519", "date": today,
             "open": 1, "high": 2, "low": 1, "close": 1.5, "volume": 100, "amount": None}]))
-        out = az._history_db_first("us", "AMD", days=180, db=db,
+        out = az._history_db_first("cn", "600519", days=180, db=db,
                                    live_fetch=lambda s, days=180: pd.DataFrame())  # live 不应被调
         assert isinstance(out.index, pd.DatetimeIndex), "DB-hit 须返回 DatetimeIndex 对齐 live 契约"
         assert "close" in out.columns and "volume" in out.columns

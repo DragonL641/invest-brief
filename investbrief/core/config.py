@@ -21,7 +21,7 @@ API_RETRY_DELAY = 5  # seconds
 US_GDP_BASE_YEAR = 2023
 US_GDP_BASE_VALUE = 27.36  # 万亿美元
 
-_VALID_HOLDING_MARKETS = {"us", "cn"}
+_VALID_HOLDING_MARKETS = {"cn"}
 _VALID_HOLDING_TYPES = {"stock", "etf", "fund"}
 
 
@@ -96,11 +96,7 @@ def validate_holdings(holdings, email: str):
                 f"config.json recipient {email} holding type must be one of "
                 f"{sorted(_VALID_HOLDING_TYPES)}: {h}"
             )
-        # P1 market-type constraints: US supports stock only; fund is CN-only
-        if h["market"] == "us" and h["type"] != "stock":
-            raise ValueError(
-                f"config.json recipient {email} US market only supports type=stock (P1): {h}"
-            )
+        # fund is CN-only (其他 market 已被 _VALID_HOLDING_MARKETS 拦截)
         if h["type"] == "fund" and h["market"] != "cn":
             raise ValueError(
                 f"config.json recipient {email} fund type only supported for cn market: {h}"

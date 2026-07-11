@@ -13,7 +13,7 @@ def test_insider_sell_signal():
 
 
 def test_rsi_overbought_signal():
-    r = HoldingResult(symbol="AAPL", market="us", type="stock",
+    r = HoldingResult(symbol="600519", market="cn", type="stock",
                       technicals={"rsi": 75})
     sigs = _pick_key_signals(r)
     assert any("超买" in s["label"] for s in sigs)
@@ -21,7 +21,7 @@ def test_rsi_overbought_signal():
 
 
 def test_signals_capped_at_three():
-    r = HoldingResult(symbol="X", market="us", type="stock",
+    r = HoldingResult(symbol="600519", market="cn", type="stock",
                       technicals={"rsi": 75, "macd_cross": "golden"},
                       insider={"direction": "buy", "net_amount": 100},
                       events={"days_to_next": 3, "next_earnings": "2026-07-10"})
@@ -31,7 +31,7 @@ def test_signals_capped_at_three():
 
 def test_priority_insider_over_rsi():
     """减持 (priority 1) 排在 RSI超买 (priority 3) 之前。"""
-    r = HoldingResult(symbol="X", market="cn", type="stock",
+    r = HoldingResult(symbol="002371", market="cn", type="stock",
                       insider={"direction": "sell", "net_amount": -100},
                       technicals={"rsi": 75})
     sigs = _pick_key_signals(r)
@@ -39,7 +39,7 @@ def test_priority_insider_over_rsi():
 
 
 def test_empty_when_no_signals():
-    r = HoldingResult(symbol="X", market="us", type="stock")
+    r = HoldingResult(symbol="600519", market="cn", type="stock")
     assert _pick_key_signals(r) == []
 
 
@@ -48,3 +48,12 @@ def test_dragon_tiger_signal_cn():
                       cn_activity={"dragon_tiger_count": 2})
     sigs = _pick_key_signals(r)
     assert any("龙虎榜" in s["label"] for s in sigs)
+
+
+def test_cn_rating_action_signal():
+    """CN rating action：研报评级文本含「买入」→ up 信号。"""
+    r = HoldingResult(symbol="600519", market="cn", type="stock",
+                      rating={"actions": [{"institution": "中信", "rating": "买入", "date": "2026-07-01"}]})
+    sigs = _pick_key_signals(r)
+    assert any("评级" in s["label"] for s in sigs)
+    assert sigs[0]["cls"] == "up"
