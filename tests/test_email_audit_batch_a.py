@@ -105,3 +105,17 @@ def test_picks_prompt_no_hardcoded_count():
     from investbrief.picks.brief import PICKS_BRIEF_PROMPT
     assert "6 只" not in PICKS_BRIEF_PROMPT
     assert "每个市场" not in PICKS_BRIEF_PROMPT
+
+
+# ---- #9 主力资金取数失败时隐藏因子行 ----
+
+def test_main_flow_none_returns_none():
+    """raw=None → 隐藏该因子(返回 None),不再显示「—%」。"""
+    from investbrief.picks.renderer import _explain_factor
+    assert _explain_factor("main_flow", {"raw": None}, {}) is None
+
+
+def test_main_flow_with_value():
+    from investbrief.picks.renderer import _explain_factor
+    s = _explain_factor("main_flow", {"raw": 1.5}, {})
+    assert s is not None and "1.50" in s

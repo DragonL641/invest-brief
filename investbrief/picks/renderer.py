@@ -261,6 +261,8 @@ def _explain_factor(key: str, sc: dict, pick: dict) -> str | None:
     elif key == "profitability_stability":
         return f"连续盈利 {_fmt(raw)} 年"
     elif key == "main_flow":
+        if raw is None:
+            return None
         return f"近5日主力净流入占比 {_num(raw)}%"
     if isinstance(raw, (int, float)):
         return f"{_fmt_raw(raw)}(池内前 ...%)"
