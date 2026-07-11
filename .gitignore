@@ -17,3 +17,4 @@ node_modules/
 # data/*.db* 覆盖 .db 及 WAL 辅助文件(.db-shm / .db-wal / .db-journal),
 # 均为运行时本地状态(每次跑会变),不入库避免污染仓库与跨机冲突
 data/*.db*
+/config.json.bak

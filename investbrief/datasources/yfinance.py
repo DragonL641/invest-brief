@@ -24,6 +24,17 @@ def _is_rate_limited(exc: Exception) -> bool:
     return any(m in msg for m in _RATE_LIMIT_MARKERS)
 
 
+def _to_float(val) -> float | None:
+    """pandas cell → float；None / 非数 / NaN → None。get_quote 派生用。"""
+    if val is None:
+        return None
+    try:
+        v = float(val)
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(v) else v
+
+
 def _classify_economic_importance(event_name: str) -> str:
     lower = event_name.lower()
     for pattern in _HIGH_IMPORTANCE_PATTERNS:
@@ -136,31 +147,40 @@ class YFinanceClient:
     # ==================== Price ====================
 
     def get_quote(self, symbol: str) -> dict[str, Any] | None:
-        """Get current price and basic info via fast_info + history."""
+        """Current price derived from a short history window (一次请求避开 429)。
+
+        旧实现一次性读 fast_info 的 6 个属性(last_price/previous_close/day_high/
+        day_low/last_volume/market_cap),触发 yahoo "Too Many Requests",重试耗尽
+        后返回 None。改用一次 get_history(period="5d") 从 OHLCV 派生,请求次数从
+        多次降到 1。market_cap 是死端字段(下游只读 price/change_percent)且
+        analyzer.py 已有 info.get("market_cap") 兜底,故不再返回。
+
+        返回 None 兼作 yfinance 可达性探针(analyzer.py:433 据此跳过其余 endpoint)。
+        """
         if not self.enabled:
             return None
         try:
-            def _op():
-                self._throttle()
-                t = self._ticker(symbol)
-                fi = t.fast_info
-                current = float(fi.last_price) if fi.last_price else None
-                if not current:
-                    return None
-                prev = float(fi.previous_close) if fi.previous_close else current
-                change_pct = ((current - prev) / prev) * 100 if prev else 0
-                return {
-                    "price": current,
-                    "previous_close": prev,
-                    "change": round(current - prev, 4),
-                    "change_percent": round(change_pct, 2),
-                    "day_high": float(fi.day_high) if fi.day_high else None,
-                    "day_low": float(fi.day_low) if fi.day_low else None,
-                    "volume": int(fi.last_volume) if fi.last_volume else None,
-                    "market_cap": float(fi.market_cap) if fi.market_cap else None,
-                    "source": "yfinance",
-                }
-            return self._call_with_retry(_op, label=f"quote({symbol})")
+            df = self.get_history(symbol, period="5d")
+            if df is None or df.empty:
+                return None
+            last = df.iloc[-1]
+            close = _to_float(last.get("Close"))
+            if close is None:
+                return None
+            prev = _to_float(df.iloc[-2].get("Close")) if len(df) >= 2 else None
+            change = round(close - prev, 4) if prev is not None else 0.0
+            change_pct = round((close - prev) / prev * 100, 2) if prev else 0.0
+            vol = _to_float(last.get("Volume"))
+            return {
+                "price": close,
+                "previous_close": prev,
+                "change": change,
+                "change_percent": change_pct,
+                "day_high": _to_float(last.get("High")),
+                "day_low": _to_float(last.get("Low")),
+                "volume": int(vol) if vol is not None else None,
+                "source": "yfinance",
+            }
         except Exception as e:
             logger.warning(f"yfinance quote error ({symbol}): {e}")
             return None

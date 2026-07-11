@@ -121,6 +121,40 @@ def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
             return None
 
 
+# stock_us_spot_em 全量美股快照拉取的 wall-clock 上限。该接口在某些网络条件下
+# 会 hang 住不抛异常(实测 95s+),而 _with_retry / _retry_api 都无应用层超时。
+US_SPOT_TIMEOUT = 60
+
+
+def run_with_timeout(fn, *, timeout: float, label: str):
+    """在 daemon 线程里跑 fn,wall-clock 超时即抛 TimeoutError。
+
+    把"hang(不抛异常的阻塞)"转成异常,使调用方既有的 except 降级路径生效
+    (get_us_spot_df → 返回 None + 负缓存;us_data breadth → SPX 兜底)。
+
+    用 daemon 线程而非 ThreadPoolExecutor:后者的 shutdown(wait=True) 会等底层
+    线程,仍会阻塞;daemon 线程超时后主线程立即继续,底层线程泄漏但随进程退出消亡
+    (日级 cron 可接受)。
+    """
+    box: dict = {}
+
+    def _runner():
+        try:
+            box["value"] = fn()
+        except BaseException as e:  # noqa: BLE001 — 透传给主线程 re-raise
+            box["error"] = e
+
+    t = threading.Thread(target=_runner, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        logger.warning(f"{label} timed out after {timeout}s (daemon thread leaked)")
+        raise TimeoutError(f"{label} exceeded {timeout}s")
+    if "error" in box:
+        raise box["error"]
+    return box.get("value")
+
+
 def _safe_float(val) -> float | None:
     """安全转换为 float。"""
     if val is None or val == "-" or val == "":
@@ -248,7 +282,10 @@ class AKShareClient:
             return df
         if _df_cache.is_recently_failed("us_spot"):
             return None
-        df = _with_retry(lambda: ak.stock_us_spot_em(), label="stock_us_spot_em")
+        df = _with_retry(
+            lambda: run_with_timeout(
+                ak.stock_us_spot_em, timeout=US_SPOT_TIMEOUT, label="stock_us_spot_em"),
+            label="stock_us_spot_em")
         if df is not None and not df.empty:
             _df_cache.set("us_spot", df)
         else:

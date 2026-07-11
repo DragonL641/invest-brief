@@ -8,6 +8,7 @@ import urllib.request
 
 from investbrief.data.base import BaseData
 from investbrief.core.config import US_GDP_BASE_YEAR, US_GDP_BASE_VALUE
+from investbrief.datasources.akshare import US_SPOT_TIMEOUT, run_with_timeout
 from investbrief.datasources.yfinance import YFinanceClient
 import logging
 
@@ -302,7 +303,10 @@ class USData(BaseData):
 
             # Use akshare to get US stock universe and count advancers/decliners
             try:
-                df = self._retry_api(lambda: ak.stock_us_spot_em())
+                # 单次 run_with_timeout(不走 _retry_api):breadth 在 macro 关键路径,
+                # hang 时 3×60s 重试会阻塞日报 180s;此 处有 SPX 兜底,快速失败优先。
+                df = run_with_timeout(
+                    ak.stock_us_spot_em, timeout=US_SPOT_TIMEOUT, label="stock_us_spot_em")
                 if df is not None and not df.empty:
                     change_col = None
                     for col in ["涨跌幅", "changepercent", "涨跌额"]:
