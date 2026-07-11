@@ -50,7 +50,7 @@ def validate_config(config: dict):
     # Validate cron expressions for every enabled market
     markets_cfg = config.get("markets", {})
     for market, cfg in markets_cfg.items():
-        if not isinstance(cfg, dict) or not cfg.get("enabled", False):
+        if not isinstance(cfg, dict) or not cfg.get("enabled", True):
             continue
         raw = cfg.get("schedule")
         crons = []
