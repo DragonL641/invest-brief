@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from unittest.mock import MagicMock
 
 from investbrief.data.cn_data import CNData
 from investbrief.market.cn.provider import CNMarketProvider
@@ -61,13 +62,20 @@ def test_cn_monetary_contract_keys(cn_provider):
         assert k in mp
 
 
-def test_cn_asset_performance_includes_usdcny(cn_provider):
+def test_cn_asset_performance_includes_usdcny(cn_provider, monkeypatch):
+    """USDCNY point 走实时口径(与外围卡一致),change 用 DB 两期算(#3)。"""
+    from investbrief.market.cn import provider as prov
+    fake = MagicMock()
+    fake.get_fx_usdcny_realtime.return_value = 6.7989
+    monkeypatch.setattr(prov, "AKShareClient", lambda: fake)
+
     ap = cn_provider.get_asset_performance()
     names = [a["name"] for a in ap]
     assert "人民币汇率(USDCNY)" in names
     fx = next(a for a in ap if a["name"] == "人民币汇率(USDCNY)")
-    assert abs(fx["point"] - 7.25) < 1e-6
-    assert abs(fx["change"] - round((7.25 - 7.20) / 7.20 * 100, 2)) < 1e-3
+    assert abs(fx["point"] - 6.7989) < 1e-6  # 实时值,非 DB 的 7.25
+    # change = (实时 point - DB 前值 7.20) / 7.20 * 100
+    assert abs(fx["change"] - round((6.7989 - 7.20) / 7.20 * 100, 2)) < 1e-3
 
 
 def test_cn_render_section_embeds_risk_html(cn_provider):
