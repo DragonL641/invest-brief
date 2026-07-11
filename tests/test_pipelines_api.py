@@ -1,6 +1,7 @@
 """Smoke for pipelines public API."""
 from investbrief.pipelines.macro import run_macro_report
 from investbrief.pipelines.holdings import run_holdings_report
+from investbrief.pipelines.picks import run_picks_report
 from investbrief.pipelines.scheduler import run_scheduler, first_enabled_cron
 from investbrief.pipelines._send import send_report
 
@@ -8,6 +9,7 @@ from investbrief.pipelines._send import send_report
 def test_pipelines_callable():
     assert callable(run_macro_report)
     assert callable(run_holdings_report)
+    assert callable(run_picks_report)
     assert callable(run_scheduler)
     assert callable(send_report)
 
