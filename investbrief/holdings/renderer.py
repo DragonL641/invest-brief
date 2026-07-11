@@ -99,6 +99,10 @@ def _render_dimensions(r: HoldingResult) -> str:
             cells.append(f'<span class="cell"><span class="cl">均线</span> {align_cn.get(t["ma_alignment"], t["ma_alignment"])}</span>')
         if t.get("macd_cross") and t["macd_cross"] != "none":
             cells.append(f'<span class="cell"><span class="cl">MACD</span> {"金叉" if t["macd_cross"] == "golden" else "死叉"}</span>')
+        if t.get("volume_ratio") is not None:
+            cells.append(f'<span class="cell"><span class="cl">量比</span> {t["volume_ratio"]:.2f}</span>')
+        if t.get("boll_position") is not None:
+            cells.append(f'<span class="cell"><span class="cl">布林</span> {t["boll_position"]:.1f}</span>')
         if cells:
             rows.append(_dim_row("📈 技术面", "".join(cells)))
 
