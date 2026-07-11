@@ -114,6 +114,16 @@ def main():
     from investbrief.core.logging import setup_logging
     setup_logging(level=getattr(logging, args.log_level.upper(), logging.INFO))
 
+    # Friendly check: config.json must exist before any pipeline runs.
+    # Without this, load_config() raises a raw FileNotFoundError traceback.
+    from investbrief.core.config import CONFIG_FILE
+    if not CONFIG_FILE.exists():
+        logger.error(
+            "缺少 config.json — 请从 config.example.json 复制:\n"
+            "  cp config.example.json config.json"
+        )
+        sys.exit(1)
+
     if args.now or args.dry_run or args.update:
         run_once(args)
     else:

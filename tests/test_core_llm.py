@@ -75,3 +75,16 @@ def test_call_claude_success_returns_stripped_text():
         result = call_claude([{"role": "user", "content": "hi"}], max_tokens=100)
     assert result == "hello"
     assert mock_client.messages.create.call_count == 1
+
+
+# --- missing API key diagnosis tests ---
+def test_call_claude_missing_key_returns_none(monkeypatch, caplog):
+    """When neither ANTHROPIC_API_KEY nor ANTHROPIC_AUTH_TOKEN is set, call_claude
+    must log a clear diagnosis and return None (not silently build a None-key client)."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    with caplog.at_level("ERROR", logger="investbrief.core.llm"):
+        result = call_claude([{"role": "user", "content": "hi"}], max_tokens=100)
+    assert result is None
+    # get_client must not even be touched when the key is missing
+    assert any("ANTHROPIC_API_KEY" in rec.message for rec in caplog.records)

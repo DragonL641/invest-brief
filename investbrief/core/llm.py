@@ -55,6 +55,15 @@ def call_claude(
     (network/timeout/rate-limit/5xx) are retried; auth/4xx/context_window return
     None immediately.
     """
+    # Diagnose missing API key up front instead of letting get_client() silently
+    # build a None-key client that fails on first request. Keeps pipeline
+    # resilience (returns None, callers fall back) but makes the cause visible.
+    if not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("ANTHROPIC_AUTH_TOKEN"):
+        logger.error(
+            "缺少 ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN — 请在 .env 设置;"
+            "Claude 研判将降级为占位文案(报告仍会发送)"
+        )
+        return None
     from investbrief.core.llm_errors import classify_anthropic_error
     try:
         client = get_client()
