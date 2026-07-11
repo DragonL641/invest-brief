@@ -22,42 +22,12 @@ ENV_FILE = PROJECT_DIR / ".env"
 
 load_dotenv(ENV_FILE, override=False)
 
-# Auto-detect system proxy for requests (macOS only — networksetup is macOS-specific)
-if sys.platform == "darwin" and not os.environ.get("HTTPS_PROXY"):
-    import subprocess
-    try:
-        r = subprocess.run(
-            ["networksetup", "-getsecurewebproxy", "Wi-Fi"],
-            capture_output=True, text=True, timeout=3,
-        )
-        enabled = "Enabled: Yes" in r.stdout
-        if enabled:
-            host = port = ""
-            for line in r.stdout.splitlines():
-                if line.startswith("Server:"):
-                    host = line.split(":", 1)[1].strip()
-                elif line.startswith("Port:"):
-                    port = line.split(":", 1)[1].strip()
-            proxy = f"http://{host}:{port}"
-            os.environ.setdefault("HTTP_PROXY", proxy)
-            os.environ.setdefault("HTTPS_PROXY", proxy)
-    except Exception:
-        pass
-
-# CN 数据源(eastmoney/mofcom/央行/中债/统计/SGE/sina)全为境内,必须绕过系统代理直连——
-# 否则代理 SSL 劫持(SSLV3_ALERT_HANDSHAKE_FAILURE / hostname mismatch)会让 CN 数据失败
-# (社融 mofcom 即踩此坑)。境外源(FRED/IMF/tavily/Claude)不在此列,继续走系统代理。
-_CN_DATA_NO_PROXY = (
-    "eastmoney.com,push2.eastmoney.com,push2his.eastmoney.com,push2delay.eastmoney.com,"
-    "82.push2.eastmoney.com,datacenter-web.eastmoney.com,data.eastmoney.com,fund.eastmoney.com,"
-    "mofcom.gov.cn,pbc.gov.cn,stats.gov.cn,chinabond.com.cn,"
-    "sge.com.cn,sina.com.cn,finance.sina.com.cn"
-)
-_existing_no_proxy = os.environ.get("NO_PROXY", "")
-os.environ["NO_PROXY"] = (
-    f"{_existing_no_proxy},{_CN_DATA_NO_PROXY}".strip(",")
-    if _existing_no_proxy else _CN_DATA_NO_PROXY
-)
+# 所有 API 都在国内(eastmoney/央行/统计/SGE/sina + Tavily/Claude 走国内兼容端点),
+# 忽略系统/shell 代理,全部直连。原「自动检测 macOS 系统代理 + CN 域 NO_PROXY 打补丁」方式
+# 既绕弯又漏 eastmoney 子域(子域断连 RemoteDisconnected),直接清空代理 + NO_PROXY=* 最干净。
+for _k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"):
+    os.environ.pop(_k, None)
+os.environ["NO_PROXY"] = "*"
 
 # Ensure ANTHROPIC_AUTH_TOKEN is available as ANTHROPIC_API_KEY for anthropic SDK
 if not os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("ANTHROPIC_AUTH_TOKEN"):
