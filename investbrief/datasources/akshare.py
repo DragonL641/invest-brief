@@ -32,7 +32,7 @@ def _patched_session_request(self, method, url, **kwargs):
         for k, v in _DEFAULT_EM_HEADERS.items():
             headers.setdefault(k, v)
         # 禁用 keep-alive: eastmoney ~15s 空闲静默关连接,连接池复用 stale 连接会 RemoteDisconnected。
-        # 每次 fresh connection(牺牲~50ms 握手换稳定),配合 _MIN_INTERVAL=1.5s 握手开销可接受。
+        # 每次 fresh connection(牺牲~50ms 握手换稳定),配合 _MIN_INTERVAL=2.5s 握手开销可接受。
         headers.setdefault("Connection", "close")
         kwargs["headers"] = headers
     return _orig_session_request(self, method, url, **kwargs)
@@ -90,7 +90,7 @@ _df_cache = _DataFrameCache()
 # 模块级 Lock + _last_request，所有 akshare 网络调用经此。
 _throttle_lock = threading.Lock()
 _last_request = 0.0
-_MIN_INTERVAL = 1.5  # eastmoney IP 限流安全线(社区实测 QPS<=1;>3QPS 持续10min 触发24h封禁)。全局 Lock 保证并发下仍守此速率。
+_MIN_INTERVAL = 2.5  # 1.5→2.5: 10 股批量深拉仍触发 eastmoney IP 级限流,加大间隔换稳定。全局 Lock 保证并发下仍守此速率。
 
 
 def _throttle():
