@@ -119,3 +119,16 @@ def test_main_flow_with_value():
     from investbrief.picks.renderer import _explain_factor
     s = _explain_factor("main_flow", {"raw": 1.5}, {})
     assert s is not None and "1.50" in s
+
+
+# ---- #11 标题恰好一个 🎯 ----
+
+def test_picks_title_has_one_emoji():
+    """render 给 title 自带一个 🎯,模板不再叠加。"""
+    from investbrief.mail.render import render_picks_template
+    html = render_picks_template(
+        "email_picks.j2",
+        {"data_time": "2026-07-11 18:00", "picks_brief": "<p>x</p>", "picks_sections": ""},
+        "zh-CN",
+    )
+    assert html.count("🎯") == 1
