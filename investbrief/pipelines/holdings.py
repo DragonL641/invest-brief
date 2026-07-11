@@ -48,6 +48,21 @@ def run_holdings_report(args):
 
     logger.info(f"Analyzing {len(all_holdings)} unique holdings for {len(recipients)} recipient(s)")
     analyzer = HoldingsAnalyzer()
+
+    # 机构调研 run 级批量预取：N 只 CN stock 共享一次 90 天遍历（省 N×~135s）
+    cn_stock_symbols = sorted({h["symbol"] for h in all_holdings
+                               if h["market"] == "cn" and h["type"] == "stock"})
+    if cn_stock_symbols:
+        try:
+            from investbrief.datasources.akshare import AKShareClient
+            batch = AKShareClient().get_institutional_research_batch(cn_stock_symbols, days=90)
+            if batch:
+                analyzer.set_research_batch(batch)
+                logger.info(f"Prefetched institutional research batch for "
+                            f"{len(cn_stock_symbols)} CN stock(s)")
+        except Exception as e:
+            logger.warning(f"research batch prefetch failed, falling back to per-stock: {e}")
+
     by_key: dict = {}
     dry_run = getattr(args, "dry_run", False)
     for h in all_holdings:

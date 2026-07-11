@@ -73,3 +73,48 @@ def test_cn_activity_empty_data():
          patch.object(a._ak, "get_institutional_research", return_value=[]):
         act = a._collect_cn_activity("002371", "cn")
     assert act == {"dragon_tiger_count": 0, "institution_research_count": 0}
+
+
+def test_cn_activity_uses_research_batch_when_injected():
+    """set_research_batch 注入后：_fetch_cn_activity 走 batch 查表，不调 get_institutional_research。"""
+    a = HoldingsAnalyzer()
+    a._dragon_tiger_cache.clear()
+    batch = {
+        "002371": [
+            {"institution": "中信证券", "date": "2026-06-01"},
+            {"institution": "招商证券", "date": "2026-06-15"},
+            {"institution": "华泰证券", "date": "2026-06-20"},
+        ],
+    }
+    a.set_research_batch(batch)
+    with patch.object(a._ak, "get_dragon_tiger_list", return_value=[]), \
+         patch.object(a._ak, "get_institutional_research") as mock_single:
+        act = a._fetch_cn_activity("002371")
+    assert act["institution_research_count"] == 3
+    assert act["dragon_tiger_count"] == 0
+    mock_single.assert_not_called()
+
+
+def test_cn_activity_batch_missing_symbol_returns_zero():
+    """batch 已注入但 symbol 不在 batch 中 → 计数为 0，仍不调单股接口。"""
+    a = HoldingsAnalyzer()
+    a._dragon_tiger_cache.clear()
+    a.set_research_batch({"999999": [{"institution": "X", "date": "2026-06-01"}]})
+    with patch.object(a._ak, "get_dragon_tiger_list", return_value=[]), \
+         patch.object(a._ak, "get_institutional_research") as mock_single:
+        act = a._fetch_cn_activity("002371")
+    assert act["institution_research_count"] == 0
+    mock_single.assert_not_called()
+
+
+def test_cn_activity_no_batch_falls_back_to_single():
+    """未注入 batch（_research_batch=None）→ fallback 单股 get_institutional_research。"""
+    a = HoldingsAnalyzer()
+    a._dragon_tiger_cache.clear()
+    assert a._research_batch is None
+    research_data = [{"institution": "中信证券", "date": "2026-06-01"}]
+    with patch.object(a._ak, "get_dragon_tiger_list", return_value=[]), \
+         patch.object(a._ak, "get_institutional_research", return_value=research_data) as mock_single:
+        act = a._fetch_cn_activity("002371")
+    assert act["institution_research_count"] == 1
+    mock_single.assert_called_once_with("002371", days=90)

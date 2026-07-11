@@ -226,3 +226,66 @@ def test_with_ai_fills_conclusion():
         result = analyzer._with_ai(r)
     assert result.ai_conclusion == "偏多。"
     mock_gen.assert_called_once_with(r)
+
+
+# ==================== 机构调研 run 级批量预取 ====================
+
+def test_run_holdings_report_prefetches_research_batch(monkeypatch):
+    """run_holdings_report 批量路径：多 recipients/多 CN stock →
+    get_institutional_research_batch 调 1 次，每股不单独调 get_institutional_research。"""
+    from investbrief.pipelines import holdings as h_mod
+
+    recipients = [
+        {"email": "a@b.com", "name": "A", "active": True, "language": "zh-CN",
+         "holdings": [{"symbol": "600519", "market": "cn", "type": "stock"},
+                      {"symbol": "510300", "market": "cn", "type": "etf"}]},
+        {"email": "c@d.com", "name": "C", "active": True, "language": "zh-CN",
+         "holdings": [{"symbol": "002371", "market": "cn", "type": "stock"},
+                      {"symbol": "600519", "market": "cn", "type": "stock"}]},  # 600519 跨人去重
+    ]
+    monkeypatch.setattr(h_mod, "load_config", lambda: {"recipients": recipients})
+    monkeypatch.setattr("investbrief.holdings.analyzer.init_cache", lambda *a, **k: None)
+
+    batch_counter = {"n": 0}
+    single_counter = {"n": 0}
+
+    def fake_batch(self, symbols, days=7):
+        batch_counter["n"] += 1
+        return {s: [{"institution": "X", "date": "2026-06-01"}] for s in symbols}
+
+    def fake_single(self, symbol, days=7):
+        single_counter["n"] += 1
+        return []
+
+    monkeypatch.setattr(
+        "investbrief.datasources.akshare.AKShareClient.get_institutional_research_batch", fake_batch)
+    monkeypatch.setattr(
+        "investbrief.datasources.akshare.AKShareClient.get_institutional_research", fake_single)
+
+    fake_analyzer = MagicMock()
+    fake_analyzer.analyze_one = lambda *a, **k: HoldingResult(
+        symbol=a[0], market=a[1], type=a[2])
+    monkeypatch.setattr("investbrief.holdings.analyzer.HoldingsAnalyzer", lambda: fake_analyzer)
+
+    monkeypatch.setattr(h_mod, "now_cn", lambda: __import__("datetime").datetime.now())
+    monkeypatch.setattr("investbrief.holdings.brief.generate_holdings_brief",
+                        lambda sub: "<p>brief</p>")
+    monkeypatch.setattr("investbrief.holdings.renderer.render_holdings_section",
+                        lambda sub: "<div>sections</div>")
+    monkeypatch.setattr("investbrief.mail.render.render_holdings_template",
+                        lambda *a, **k: "<html></html>")
+    monkeypatch.setattr("investbrief.mail.sender.EmailSender",
+                        lambda cfg: MagicMock(send_bulk=lambda m: (2, [])))
+
+    args = MagicMock(force=False, skip_summary=True, dry_run=False)
+    h_mod.run_holdings_report(args)
+
+    # batch 只调 1 次（2 只唯一 CN stock 共享），每股不单独调
+    assert batch_counter["n"] == 1, (
+        f"batch 应只调 1 次，实际 {batch_counter['n']}")
+    assert single_counter["n"] == 0, (
+        f"批量注入后不应再调单股接口，实际 {single_counter['n']} 次")
+    # batch 结果通过 set_research_batch 注入 analyzer
+    fake_analyzer.set_research_batch.assert_called_once()
+    injected = fake_analyzer.set_research_batch.call_args[0][0]
+    assert set(injected.keys()) == {"600519", "002371"}

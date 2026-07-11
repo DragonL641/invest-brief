@@ -141,6 +141,17 @@ class HoldingsAnalyzer:
         self._cache: dict[tuple, HoldingResult] = {}
         # run 级缓存：龙虎榜是全市场数据，多只 CN stock 共享一次拉取（省 ~2min/只）
         self._dragon_tiger_cache: dict[int, list] = {}
+        # run 级缓存：机构调研批量预取结果（pipeline 注入；None → 单股 fallback）
+        self._research_batch: dict | None = None
+
+    def set_research_batch(self, batch: dict):
+        """注入 run 级机构调研批量结果（pipeline 在分析前一次拉取注入）。
+
+        batch: {symbol -> list[research_item]}，结构与 get_institutional_research 单股返回一致。
+        注入后 _fetch_cn_activity 走 batch 查表，不再每股调 get_institutional_research。
+        未注入（None）→ fallback 原单股路径（analyze_one/测试兼容）。
+        """
+        self._research_batch = batch
 
     def analyze(self, holdings: list[dict]) -> list[HoldingResult]:
         """分析一组 holdings（[{symbol,market,type}]），同标的只查一次。"""
@@ -285,10 +296,15 @@ class HoldingsAnalyzer:
         try:
             dragon = self._get_dragon_tiger_cached(30)
             dt_count = sum(1 for d in dragon if str(d.get("symbol", "")) == str(symbol))
-            research = self._ak.get_institutional_research(symbol, days=90) or []
+            if self._research_batch is not None:
+                # run 级批量已预取（pipeline 注入）：直接查表，省每股 90 次 API
+                research = self._research_batch.get(symbol, [])
+            else:
+                # fallback：单股路径（analyze_one/测试）
+                research = self._ak.get_institutional_research(symbol, days=90) or []
             return {
                 "dragon_tiger_count": dt_count,
-                "institution_research_count": len(research),
+                "institution_research_count": len(research or []),
             }
         except Exception as e:
             logger.warning(f"cn_activity fetch failed for {symbol}: {e}")
