@@ -10,14 +10,13 @@ from __future__ import annotations
 
 from investbrief.risk.config import (
     CN_ALL_INDICATORS,
-    US_ALL_INDICATORS,
     GOLD_ALL_INDICATORS,
 )
 
 
 # === Indicator metadata: key → {name, scale, unit, explain, description, thresholds} ===
 _INDICATOR_META = {}
-for _d in (CN_ALL_INDICATORS, US_ALL_INDICATORS, GOLD_ALL_INDICATORS):
+for _d in (CN_ALL_INDICATORS, GOLD_ALL_INDICATORS):
     for _k, _v in _d.items():
         _INDICATOR_META[_k] = {
             "name": _v.get("name", _k),

@@ -4,8 +4,8 @@ import pandas as pd
 import pytest
 
 from investbrief.risk.config import (
-    CN_ALL_INDICATORS, US_ALL_INDICATORS, MARKET_STATE_MAP,
-    COMMON_INDICATORS, CN_INDICATORS, US_INDICATORS,
+    CN_ALL_INDICATORS, MARKET_STATE_MAP,
+    COMMON_INDICATORS, CN_INDICATORS,
 )
 from investbrief.core.scoring import (
     moving_average, normalize_score, percentile_rank,
@@ -24,18 +24,12 @@ class TestConfig:
     # pledge_ratio removal (margin 已覆盖杠杆) cut a further 0.08:
     # 1.26 -> 1.07 -> 0.99 -> 0.91 (CN_TOTAL), 1.17 -> 0.98 -> 0.90 -> 0.82 (CN_SPECIFIC).
     CN_TOTAL = 0.91  # was 0.99 before pledge_ratio removal
-    US_TOTAL = 1.10  # was 1.00 before B1 added market_breadth (+0.10)
     COMMON_TOTAL = 0.09
     CN_SPECIFIC_TOTAL = 0.82  # was 0.90 before pledge_ratio removal
-    US_SPECIFIC_TOTAL = 1.01  # was 0.91
 
     def test_cn_weights_documented(self):
         total = sum(ind["weight"] for ind in CN_ALL_INDICATORS.values())
         assert abs(total - self.CN_TOTAL) < 0.001, f"CN weights sum to {total}, expected {self.CN_TOTAL}"
-
-    def test_us_weights_documented(self):
-        total = sum(ind["weight"] for ind in US_ALL_INDICATORS.values())
-        assert abs(total - self.US_TOTAL) < 0.001, f"US weights sum to {total}, expected {self.US_TOTAL}"
 
     def test_common_weights_sum(self):
         total = sum(ind["weight"] for ind in COMMON_INDICATORS.values())
@@ -44,10 +38,6 @@ class TestConfig:
     def test_cn_specific_weights_sum(self):
         total = sum(ind["weight"] for ind in CN_INDICATORS.values())
         assert abs(total - self.CN_SPECIFIC_TOTAL) < 0.001
-
-    def test_us_specific_weights_sum(self):
-        total = sum(ind["weight"] for ind in US_INDICATORS.values())
-        assert abs(total - self.US_SPECIFIC_TOTAL) < 0.001
 
     def test_market_state_has_six_entries(self):
         assert len(MARKET_STATE_MAP) == 6
@@ -59,7 +49,7 @@ class TestConfig:
     def test_all_thresholds_are_numeric(self):
         # 纯分位指标(market_breadth/real_yield)无固定阈值,
         # 由 percentile_score_from_series 算分; 这里只校验声明了 thresholds 的指标。
-        for indicators in [CN_ALL_INDICATORS, US_ALL_INDICATORS]:
+        for indicators in [CN_ALL_INDICATORS]:
             for key, ind in indicators.items():
                 thresholds = ind.get("thresholds", {})
                 if not thresholds:

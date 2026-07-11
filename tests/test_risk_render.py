@@ -1,4 +1,4 @@
-from investbrief.risk.config import US_ALL_INDICATORS
+from investbrief.risk.config import CN_ALL_INDICATORS
 from investbrief.risk.render import (
     _fmt_value,
     _fmt_num,
@@ -8,7 +8,7 @@ from investbrief.risk.render import (
 )
 
 
-def _score(total, dims, indicators=None, market="us"):
+def _score(total, dims, indicators=None, market="cn"):
     return {
         "total_score": total, "state": "测试状态", "crash_prob": "N/A",
         "expected_return": "N/A", "action": "测试操作",
@@ -46,20 +46,20 @@ def test_render_risk_card_structure():
     s = _score(
         62.4,
         {"估值风险": 7.85, "技术面风险": 1.36},
-        {"index_pe": {"score": 9.5, "value": 28.0}},
+        {"broad_erp": {"score": 9.5, "value": 1.5}},
     )
     html = render_risk_card(s)
     assert "62.4" in html  # total score rendered (no trailing zero)
     assert "测试状态" in html and "测试操作" in html
     # readable name shown instead of cryptic key
-    assert US_ALL_INDICATORS["index_pe"]["name"] in html
-    # value rendered with 2 decimals (scale=1, unit="")
-    assert "28.00" in html
+    assert CN_ALL_INDICATORS["broad_erp"]["name"] in html
+    # value rendered with 2 decimals (broad_erp scale=1 unit=% → 1.50%)
+    assert "1.50" in html
     # value→score relationship markers
     assert "→" in html
     assert "/10" in html
     # key no longer leaks to card surface
-    assert "index_pe " not in html
+    assert "broad_erp " not in html
     # dimension bars removed
     assert "估值风险" not in html
     assert "技术面风险" not in html
@@ -81,17 +81,17 @@ def test_render_risk_card_indicator_shows_explain_algo_warning_pct():
     s = _score(
         70.0,
         {},
-        {"index_pe": {"score": 9.5, "value": 26.61, "percentile": 95.0}},
-        market="us",
+        {"broad_erp": {"score": 9.5, "value": 1.5, "percentile": 95.0}},
+        market="cn",
     )
     html = render_risk_card(s)
-    meta = US_ALL_INDICATORS["index_pe"]
+    meta = CN_ALL_INDICATORS["broad_erp"]
     assert meta["explain"] in html            # explain text
     assert meta["description"] in html        # algorithm basis
     assert "算法" in html
-    # 警戒: us threshold = 28, scale=1, unit="" → 28.00
+    # 警戒: cn threshold = 1.5, scale=1, unit="%" → 1.50%
     assert "警戒" in html
-    assert "28.00" in html
+    assert "1.50" in html
     # 历史分位: pct=95 → 高位 + 95%
     assert "历史" in html
     assert "高位" in html
@@ -103,16 +103,16 @@ def test_render_risk_card_sorted_by_score_desc():
         50.0,
         {},
         {
-            "index_pe": {"score": 9.5, "value": 28.0},      # highest
-            "vix": {"score": 2.0, "value": 15.0},           # lowest
-            "credit_spread": {"score": 6.0, "value": 0.01},  # middle
+            "broad_erp": {"score": 9.5, "value": 1.5},        # highest
+            "market_breadth": {"score": 2.0, "value": 0.5},   # lowest
+            "margin_growth": {"score": 6.0, "value": 0.1},    # middle
         },
-        market="us",
+        market="cn",
     )
     html = render_risk_card(s)
-    name_high = US_ALL_INDICATORS["index_pe"]["name"]
-    name_mid = US_ALL_INDICATORS["credit_spread"]["name"]
-    name_low = US_ALL_INDICATORS["vix"]["name"]
+    name_high = CN_ALL_INDICATORS["broad_erp"]["name"]
+    name_mid = CN_ALL_INDICATORS["margin_growth"]["name"]
+    name_low = CN_ALL_INDICATORS["market_breadth"]["name"]
     # indices must appear in descending-score order
     assert html.index(name_high) < html.index(name_mid) < html.index(name_low)
 

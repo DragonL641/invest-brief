@@ -31,7 +31,7 @@ def _db_has_data() -> bool:
 pytestmark = pytest.mark.skipif(not _db_has_data(), reason="needs P1-populated data/macro_data.db")
 
 
-@pytest.mark.parametrize("market, cls", [("cn", CNData), ("us", USData), ("gold", GoldData)])
+@pytest.mark.parametrize("market, cls", [("cn", CNData), ("gold", GoldData)])
 def test_calculate_score_real_db(market, cls):
     """calculate_score 端到端：结构正确 + 分数在 0-100 + 维度非全 5.0（确实在算）。"""
     ds = cls()

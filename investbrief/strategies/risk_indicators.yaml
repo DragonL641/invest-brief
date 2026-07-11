@@ -74,68 +74,6 @@ cn:
     unit: "%"
     explain: "低=广度收缩=顶部前兆"
 
-us:
-  index_pe:
-    name: 指数PE
-    weight: 0.31
-    category: valuation
-    thresholds: {us: 28}
-    low_thresholds: {us: 15}
-    description: "美股SPY trailing PE"
-    scale: 1
-    unit: ""
-    explain: "高=估值贵=风险"
-  sp500_erp:
-    name: 标普500 ERP
-    weight: 0.15
-    category: valuation
-    thresholds: {us: 2.0}
-    low_thresholds: {us: 5.0}
-    invert: true
-    description: "(1/标普500PE) - 10Y国债, 高=股便宜=低风险(与A股ERP同口径)"
-    scale: 1
-    unit: "%"
-    explain: "高=股便宜=低风险"
-  credit_spread:
-    name: 信用利差
-    weight: 0.20
-    category: liquidity
-    thresholds: {us: 0.05}
-    low_thresholds: {us: -0.02}
-    description: "HYG价格相对国债的偏离"
-    scale: 100
-    unit: "%"
-    explain: "扩大=资金逃风险"
-  yield_curve_inversion:
-    name: 收益率曲线倒挂
-    weight: 0.14
-    category: macro
-    thresholds: {us: 0.5}
-    low_thresholds: {us: -0.5}
-    description: "10年期 - 3个月期利差"
-    scale: 1
-    unit: "%"
-    explain: "倒挂(负值)=衰退信号"
-  vix:
-    name: VIX恐慌指数
-    weight: 0.11
-    category: sentiment
-    thresholds: {us: 30}
-    low_thresholds: {us: 12}
-    description: "VIX收盘值"
-    scale: 1
-    unit: ""
-    explain: "高=市场恐慌"
-  market_breadth:
-    name: 市场宽度
-    weight: 0.10
-    category: sentiment
-    invert: true
-    description: "上涨家数占比(0-1)近10年分位, 低广度+指数高位=顶部前兆"
-    scale: 100
-    unit: "%"
-    explain: "低=广度收缩=顶部前兆"
-
 gold:
   gold_gdp_ratio:
     name: 黄金GDP占比

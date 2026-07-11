@@ -18,7 +18,6 @@ from investbrief.core.strategy_loader import load_strategy
 _INDICATORS = load_strategy("risk_indicators")
 COMMON_INDICATORS = _INDICATORS["common"]
 CN_INDICATORS = _INDICATORS["cn"]  # 仍被 tests/test_risk_config.py 引用
-US_INDICATORS = _INDICATORS["us"]  # 仍被 tests/test_risk_config.py 引用
 
 
 def load_indicators(group: str) -> dict:
@@ -28,41 +27,35 @@ def load_indicators(group: str) -> dict:
     """
     if group == "gold":
         return _INDICATORS.get("gold", {})
-    if group in ("cn", "us"):
+    if group == "cn":
         return {**COMMON_INDICATORS, **_INDICATORS.get(group, {})}
     return {}
 
 
 # 长期保留: risk/render.py 的 NAME_MAP 等仍按市场引用这些别名
 CN_ALL_INDICATORS = load_indicators("cn")
-US_ALL_INDICATORS = load_indicators("us")
 GOLD_ALL_INDICATORS = load_indicators("gold")
 
 # === Five Dimensions for Radar Chart ===
 FIVE_DIMENSIONS = {
     "估值风险": {
         "cn": ["broad_erp", "structural_divergence"],
-        "us": ["index_pe", "sp500_erp"],
         "gold": ["gold_gdp_ratio", "gold_real_price"],
     },
     "技术面风险": {
         "cn": ["ma50_deviation", "volume_shrinkage"],
-        "us": ["ma50_deviation", "volume_shrinkage"],
         "gold": ["gold_ma200_deviation"],
     },
     "流动性风险": {
         "cn": ["margin_growth", "margin_level"],
-        "us": ["credit_spread"],
         "gold": [],
     },
     "情绪面风险": {
         "cn": ["market_breadth"],
-        "us": ["vix", "market_breadth"],
         "gold": [],
     },
     "宏观基本面风险": {
         "cn": [],
-        "us": ["yield_curve_inversion"],
         "gold": ["real_yield"],
     },
 }
