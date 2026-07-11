@@ -57,3 +57,28 @@ def test_stop_level_uses_ma_when_uptrend():
         risk={"stop_break_ma20": True, "stop_max_dd": 0.05})
     assert stop < 7.59
     assert stop == round(min(7.42, 7.59 * 0.95), 2)  # 7.21
+
+
+# ---- #3 USDCNY 大类资产卡与外围卡统一实时口径 ----
+
+def test_usdcny_point_uses_realtime(monkeypatch):
+    """大类资产卡 USDCNY 用实时值(与外围卡一致),非 DB 落库快照。"""
+    import pandas as pd
+    from investbrief.market.cn import provider as prov
+
+    fake_ak = MagicMock()
+    fake_ak.get_fx_usdcny_realtime.return_value = 6.7989
+    monkeypatch.setattr(prov, "AKShareClient", lambda: fake_ak)
+    monkeypatch.setattr(prov.CNMarketProvider, "get_indices", lambda self: [])
+
+    class FakeData:
+        def query(self, *a, **k):
+            return pd.DataFrame([
+                {"date": "2026-07-10", "value": 6.77},
+                {"date": "2026-07-09", "value": 6.78},
+            ])
+
+    p = prov.CNMarketProvider(data=FakeData())
+    assets = p.get_asset_performance()
+    fx = [a for a in assets if "USDCNY" in a["name"]][0]
+    assert fx["point"] == 6.7989  # 实时,非 DB 的 6.77

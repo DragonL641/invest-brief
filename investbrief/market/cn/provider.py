@@ -11,6 +11,7 @@ import pandas as pd
 
 from investbrief.market.base import MarketProvider
 from investbrief.data.cn_data import CNData
+from investbrief.datasources.akshare import AKShareClient
 
 logger = logging.getLogger(__name__)
 
@@ -112,18 +113,26 @@ class CNMarketProvider(MarketProvider):
 
     def get_asset_performance(self) -> list[dict[str, Any]]:
         assets = self.get_indices()
-        # USDCNY 存于 macro_data（无 code 列，不走 latest_bars），按日期取最近两期算 change
+        # USDCNY:统一用实时口径(与 market/overseas.py 外围卡一致);失败回退 DB 最新值。
+        point = None
+        try:
+            point = AKShareClient().get_fx_usdcny_realtime()
+        except Exception as e:
+            logger.warning(f"USDCNY realtime failed: {e}")
+        # change 用 DB 最近两期算(实时接口无前值);实时失败时 point 也回退 DB 最新。
         fx_rows = self.data.query(
             "SELECT date, value FROM macro_data WHERE indicator='USDCNY' AND country='global' "
             "ORDER BY date DESC LIMIT 2"
         )
-        if not fx_rows.empty:
+        if point is None and not fx_rows.empty:
             point = float(fx_rows.iloc[0]["value"])
-            change = 0.0
-            if len(fx_rows) > 1:
-                prev = float(fx_rows.iloc[1]["value"])
-                change = round((point - prev) / prev * 100, 2) if prev else 0.0
-            assets.append({"name": "人民币汇率(USDCNY)", "point": point, "change": change})
+        if point is None:
+            return assets
+        change = 0.0
+        if not fx_rows.empty and len(fx_rows) > 1:
+            prev = float(fx_rows.iloc[1]["value"])
+            change = round((point - prev) / prev * 100, 2) if prev else 0.0
+        assets.append({"name": "人民币汇率(USDCNY)", "point": point, "change": change})
         return assets
 
     def fetch_all(self) -> dict[str, Any]:
@@ -136,7 +145,6 @@ class CNMarketProvider(MarketProvider):
 
     def get_sentiment(self) -> dict:
         """A 股 QVIX 恐慌指数(50ETF/300ETF)。失败键为 None。"""
-        from investbrief.datasources.akshare import AKShareClient
         try:
             return AKShareClient().get_cn_qvix()
         except Exception as e:
