@@ -50,8 +50,8 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     turnover_col = next((c for c in ("成交额", "amount", "turnover") if c in candidates_df.columns), None)
     if turnover_col:
         candidates_df = candidates_df.sort_values(by=turnover_col, ascending=False)
-    # run 开始时 limit_hits=0 → 基线 cap;动态收缩靠 futures 循环早停(见下)。
-    effective_cap = _candidate_cap_for_run(profile_name, 0)
+    # 基线 cap 作为候选池;动态收缩靠 futures 循环早停(见下)。
+    effective_cap = _candidate_cap(profile_name)
     candidates_df = candidates_df.head(effective_cap)
 
     u = prof.get("universe", {})
@@ -131,8 +131,8 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
         futures = [ex.submit(_process_candidate, row) for _, row in rows]
         for fut in futures:
             r = fut.result()
-            # 空返回计数 ≥ 第二档阈值(限流代理信号累积)→ cancel 未启动 future + break,保速度
-            if limit_hits["n"] >= _RATE_LIMIT_DOWNGRADE_THRESHOLDS[1]:
+            # 空返回计数 ≥ 早停阈值(限流代理信号累积)→ cancel 未启动 future + break,保速度
+            if limit_hits["n"] >= _RATE_LIMIT_EARLY_STOP_HITS:
                 for f in futures:
                     f.cancel()
                 logger.warning(
@@ -328,28 +328,11 @@ def _candidate_cap(profile_name: str) -> int:
     return {"swing": 30, "medium": 40, "long": 30}.get(profile_name, 30)
 
 
-# 限流降档:build_picks_for_profile 内 _process_candidate 把"空返回"作为限流
+# 限流早停:build_picks_for_profile 内 _process_candidate 把"空返回"作为限流
 # 代理信号(数据层 fetch_history 限流时吞异常返回空 df),累加 limit_hits;
-# 超阈值则收缩有效 cap。两档:(10 次 → 中档, 25 次 → 底档)。
-# limit_hits 是原始"空返回"计数(线程安全累加),非档位索引。
-_RATE_LIMIT_DOWNGRADE_THRESHOLDS = (10, 25)
-_CAP_LADDER = (20, 10)  # 限流收缩档(base→20→10);base 缩小后从 (30,15) 降到 (20,10)
-
-
-def _candidate_cap_for_run(profile_name: str, limit_hits: int) -> int:
-    """根据当前 run 内观察到的"空返回"(限流代理)计数,返回收缩后的有效 cap。
-
-    基线复用 _candidate_cap(唯一真相源),未知 profile fallback 30 由其保证。
-    - limit_hits < 10  → 基线 (_candidate_cap: swing/long=30, medium=40)
-    - 10 ≤ limit_hits < 25 → 中档 (20)
-    - limit_hits ≥ 25 → 底档 (10)
-    """
-    base = _candidate_cap(profile_name)
-    if limit_hits < _RATE_LIMIT_DOWNGRADE_THRESHOLDS[0]:
-        return base
-    if limit_hits < _RATE_LIMIT_DOWNGRADE_THRESHOLDS[1]:
-        return _CAP_LADDER[0]
-    return _CAP_LADDER[1]
+# 超 25 次则 futures 循环 cancel 未启动 future + break,保速度。
+# limit_hits 是原始"空返回"计数(线程安全累加)。
+_RATE_LIMIT_EARLY_STOP_HITS = 25
 
 
 def _history_days(profile_name: str) -> int:
