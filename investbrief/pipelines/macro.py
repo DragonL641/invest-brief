@@ -92,6 +92,11 @@ def run_macro_report(args):
     logger.info(f"Enabled markets: {market_codes}")
     providers = {code: create_provider(code) for code in market_codes}
 
+    # 空守卫:所有市场禁用(us 排除后)→ providers 空 → next(iter(...)) 会抛 StopIteration
+    if not providers:
+        logger.warning("No enabled market providers, skipping macro report.")
+        return
+
     # refresh（并行; 单市场失败不阻塞, get_* 回退库内最新值）
     from concurrent.futures import ThreadPoolExecutor
 

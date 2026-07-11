@@ -112,3 +112,12 @@ def test_news_one_provider_failure_does_not_block_others(monkeypatch, capsys):
     data = json.loads(capsys.readouterr().out)
     # gold 的新闻应仍在(cn 失败不中断收集)
     assert any(n.get("title") == "news-gold" for n in data["news"])
+
+
+def test_run_macro_empty_markets_no_crash(monkeypatch):
+    """所有市场禁用(或仅 us 启用后被排除)→ providers 空 → 不抛 StopIteration,早返回。"""
+    # enabled_market_codes 返回空列表
+    monkeypatch.setattr(macro, "enabled_market_codes", lambda cfg: [])
+    monkeypatch.setattr(macro, "load_config", lambda: {"recipients": [{"active": True}]})
+    # 不应抛异常;run_macro_report 应 logger.warning 后 return
+    macro.run_macro_report(_run_args())
