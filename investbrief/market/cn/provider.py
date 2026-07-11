@@ -134,11 +134,41 @@ class CNMarketProvider(MarketProvider):
             "economic_calendar": get_upcoming_events(),
         }
 
+    def get_sentiment(self) -> dict:
+        """A 股 QVIX 恐慌指数(50ETF/300ETF)。失败键为 None。"""
+        from investbrief.datasources.akshare import AKShareClient
+        try:
+            return AKShareClient().get_cn_qvix()
+        except Exception as e:
+            logger.warning(f"CN QVIX fetch failed: {e}")
+            return {"qvix_50": None, "qvix_300": None}
+
+    def _render_sentiment(self, sentiment: dict | None) -> str:
+        """渲染 A 股 QVIX 恐慌情绪小卡。无数据/None 返回空串。"""
+        if not sentiment:
+            return ""
+        q50 = sentiment.get("qvix_50")
+        q300 = sentiment.get("qvix_300")
+        if q50 is None and q300 is None:
+            return ""
+        def _row(label, val):
+            return f'<div class="metric"><span class="label">{label}:</span> {val:.2f}</div>' if val else ""
+        rows = _row("50ETF QVIX", q50) + _row("300ETF QVIX", q300)
+        if not rows:
+            return ""
+        return (
+            '<div class="card"><div class="card-header" style="padding:12px 15px;background:#f8f9fa;'
+            'border-bottom:1px solid #e9ecef;font-weight:600;">😱 A股恐慌指数(QVIX)</div>'
+            '<div class="card-body" style="padding:15px;">'
+            '<div class="metrics-row" style="display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:#555;">'
+            f'{rows}</div></div></div>'
+        )
+
     # ==================== Rendering ====================
 
     def render_section(self, data: dict[str, Any], config: dict[str, Any], *,
                        macro_summary: str | None = None, risk_html: str = "",
-                       regime_html: str = "") -> str:
+                       regime_html: str = "", sentiment: dict | None = None) -> str:
         """渲染 A 股市场宏观区块。
 
         Macro view: ② economic calendar, ③ monetary policy, ④ asset performance.
@@ -164,6 +194,7 @@ class CNMarketProvider(MarketProvider):
         </div>
       </div>
       {monetary_html}
+      {self._render_sentiment(sentiment)}
       {econ_html}
       {regime_html}
       {risk_html}
