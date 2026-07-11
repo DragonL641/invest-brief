@@ -123,7 +123,7 @@ class FactorCache:
             logger.warning(f"FactorCache get_history parse failed ({key}): {e}")
             return None
 
-    def set_history(self, key: str, df: "pd.DataFrame", ttl_days: float = 1.0):
+    def set_history(self, key: str, df: pd.DataFrame, ttl_days: float = 1.0):
         """缓存日K DataFrame(CSV 编码)。空 df / 失败静默跳过。"""
         if self._conn is None or df is None or df.empty:
             return

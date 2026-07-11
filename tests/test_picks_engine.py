@@ -155,7 +155,6 @@ def test_neutralization_only_fundamental_category():
         _cand("Y2", {"quality": 40.0, "momentum_60d_ex5": 100.0}, "Y"),
     ]
     res = engine.rank_picks(cands, profile, market="cn")
-    by_sym = {r["symbol"]: r for r in res}
     # momentum 不中性化: Y1=Y2=100 → 都拿 100th pct;X1=X2=0 → 都拿低 pct
     # quality 中性化: X1=10,X2=0,Y1=10,Y2=0 → X1=Y1 高 pct;X2=Y2 低 pct
     # 综合两因子的对称性: X1 和 Y1 都得到 (quality高 + momentum低) 或 (quality低 + momentum高)

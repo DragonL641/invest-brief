@@ -15,6 +15,8 @@ jobs:
         run: uv sync --frozen
       - name: Lint (ruff — pyproject select: E9/F/UP)
         run: uv run ruff check .
+      - name: Domain boundary check (market/risk/core 互不 import)
+        run: uv run python scripts/check_domain_boundary.py
       - name: Type check (pyright, non-blocking — 现有存量警告多，先采集不阻断)
         run: uv run pyright || true
       - name: Run tests

@@ -18,7 +18,7 @@ _cache: FactorCache | None = None
 
 # 日K 历史的进程内缓存(同一次运行内复用,如 _enrich 二次拉取)。
 # 进 FactorCache 的 history 存储(TTL=1 天,CSV 编码)负责跨日复用;_hist_mem 只管单次运行。
-_hist_mem: dict[str, "pd.DataFrame"] = {}
+_hist_mem: dict[str, pd.DataFrame] = {}
 
 
 def init_cache(path: str):
