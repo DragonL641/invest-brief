@@ -1,8 +1,6 @@
 """Macro report pipeline: fetch US+CN+Gold macro data, Claude synthesis, render, send."""
 import json
 import logging
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from investbrief.core.config import load_config, REPORTS_DIR, CONFIG_FILE, enabled_market_codes
 from investbrief.core.timeutil import now_cn
@@ -220,7 +218,7 @@ def run_macro_report(args):
         sections.append(p.render_section(market_macro[code], render_config, **kwargs))
     market_section_html = "".join(sections)
 
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    now = now_cn()
     report_data = {
         "subject": f"【宏观经济日报】{now.strftime('%Y年%m月%d日')}",
         "data_time": now.strftime("%Y-%m-%d %H:%M"),
