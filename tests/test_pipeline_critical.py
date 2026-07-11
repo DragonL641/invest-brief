@@ -46,7 +46,6 @@ def test_send_report_handles_partial_failure(monkeypatch):
 
     # send_report imports these inside the function, so patch at the source module
     import investbrief.mail.render as report_mod
-    monkeypatch.setattr(report_mod, "load_template", lambda: "<html></html>")
     monkeypatch.setattr(report_mod, "render_template", lambda tpl, data, lang: "<html></html>")
 
     send_report({"subject": "s", "market_section_html": ""}, config, recipients)
