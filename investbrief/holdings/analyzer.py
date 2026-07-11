@@ -393,7 +393,7 @@ class HoldingsAnalyzer:
                 "date": flow.get("date"),
             },
             technicals=_extract_technicals(data.get("history")),
-            news=_extract_news(data.get("news")),
+            news=_extract_news(data.get("news"), symbol=symbol, name=quote.get("name") or symbol),
             events=data.get("events") or {},
             insider=data.get("insider") or {},
             cn_activity=data.get("cn_activity") or {},
@@ -538,31 +538,55 @@ def _extract_technicals(hist) -> dict:
     }
 
 
-def _extract_news(items) -> list:
-    """标准化新闻列表为 [{title, date, source}]，最多 3 条。
+def _normalize_title(t: str) -> str:
+    """标题归一化用于去重:去空格/标点(保留中文+字母+数字),取前 15 字。"""
+    import re
+    return re.sub(r"[^一-龥A-Za-z0-9]", "", str(t))[:15]
 
-    date 兼容 Unix 时间戳（int/float）和日期字符串。
+
+def _extract_news(items, symbol="", name="", limit=3, max_days=7) -> list:
+    """标准化新闻列表,带三重过滤:相关性(标题含 symbol/name)+ 去重 + 时效(近 max_days 天)。
+
+    全部过期则放宽 window(避免空)。date 兼容 Unix 时间戳与日期字符串。
     """
     if not items:
         return []
     from datetime import datetime as _dt
-    out = []
-    for n in items[:3]:
-        raw = n.get("date")
-        if raw is None:
-            raw = n.get("datetime")
-        date_str = ""
+    today = _dt.now().date()
+    seen = set()
+    in_window, all_kept = [], []
+    for n in items:
+        title = str(n.get("title") or n.get("headline", ""))
+        if not title:
+            continue
+        # 相关性:标题需含 symbol 或 name(给定任一时;都空则跳过该过滤)
+        if (symbol or name) and (symbol not in title) and (name not in title):
+            continue
+        # 去重:归一化标题前 15 字比对
+        key = _normalize_title(title)
+        if key in seen:
+            continue
+        seen.add(key)
+        # date(兼容时间戳/字符串)
+        raw = n.get("date") or n.get("datetime")
+        date_obj, date_str = None, ""
         if raw:
             if isinstance(raw, (int, float)):
                 try:
-                    date_str = _dt.fromtimestamp(int(raw)).strftime("%Y-%m-%d")
+                    d = _dt.fromtimestamp(int(raw))
+                    date_obj, date_str = d.date(), d.strftime("%Y-%m-%d")
                 except (ValueError, OSError):
                     date_str = str(raw)[:10]
             else:
                 date_str = str(raw)[:10]
-        out.append({
-            "title": str(n.get("title") or n.get("headline", "")),
-            "date": date_str,
-            "source": str(n.get("source", "")),
-        })
-    return out
+                try:
+                    date_obj = _dt.strptime(date_str, "%Y-%m-%d").date()
+                except ValueError:
+                    pass
+        rec = {"title": title, "date": date_str, "source": str(n.get("source", ""))}
+        all_kept.append((date_obj, rec))
+        if date_obj is None or (today - date_obj).days <= max_days:
+            in_window.append((date_obj, rec))
+    pool = in_window if in_window else all_kept  # 全过期则放宽
+    pool.sort(key=lambda x: x[0] or _dt.min.date(), reverse=True)
+    return [r for _, r in pool][:limit]
