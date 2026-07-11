@@ -26,19 +26,41 @@ class MarketProvider(ABC):
 
     @abstractmethod
     def get_indices(self) -> list[dict[str, Any]]:
-        """获取主要指数行情。"""
+        """获取主要指数行情。
+
+        返回 ``list[dict]``,每项代表一个指数。CN 是参考实现,每项键集合为
+        ``{name, symbol, point, change, change_amt, amount}``:
+        ``change`` 为百分比涨跌幅(已 ×100),``change_amt`` 为绝对变动,
+        ``amount`` 可为 None。轻量市场(如 gold)可不实现,返回 ``[]``。
+        """
 
     @abstractmethod
     def get_monetary_policy(self) -> dict[str, Any]:
-        """货币政策与利率（宏观板块③）。"""
+        """货币政策与利率（宏观板块③）。
+
+        返回 ``dict``,键为指标短名、值为数值或 None(指标缺失时必须保留键、值为 None,
+        以保证 render 层稳定)。CN 是参考实现,键集合为
+        ``{lpr_1y, lpr_5y, m2_yoy, m1_yoy, social_financing, cn_10y_yield, cpi_yoy, gdp_yoy}``。
+        轻量市场(如 gold)可不实现,返回 ``{}``。
+        """
 
     @abstractmethod
     def get_asset_performance(self) -> list[dict[str, Any]]:
-        """大类资产表现（宏观板块④）。"""
+        """大类资产表现（宏观板块④）。
+
+        返回 ``list[dict]``,每项至少含 ``{name, point, change}``(``change`` 为百分比);
+        复用指数行情的市场(如 CN)其指数类项另带 ``symbol/change_amt/amount``。
+        轻量市场(如 gold)可不实现,返回 ``[]``。
+        """
 
     @abstractmethod
     def render_section(self, data: dict[str, Any], config: dict[str, Any], **kwargs) -> str:
-        """渲染该市场的 HTML 区块。"""
+        """渲染该市场的 HTML 区块。
+
+        ``kwargs`` 用于跨域注入(cross-domain data-only handoff):pipeline 预先调算好
+        ``risk_html=``(P4 风险卡片 HTML)与 ``regime_html=``(经济四象限卡片 HTML),
+        由本方法嵌入到 section 末尾。``config`` 至少含 ``color_up``/``color_down``
+        (CN 红涨绿跌惯例)。轻量市场(如 gold)的 ``render_section`` 可仅透传 ``risk_html``。"""
 
     def refresh(self, force: bool = False) -> None:
         """增量取数落盘。子类覆盖(US/CN 用 is_fresh 守门, Gold 直调 update)。默认空。"""

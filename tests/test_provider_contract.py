@@ -10,7 +10,9 @@ import pytest
 from unittest.mock import MagicMock
 
 from investbrief.data.cn_data import CNData
+from investbrief.data.gold_data import GoldData
 from investbrief.market.cn.provider import CNMarketProvider
+from investbrief.market.gold.provider import GoldMarketProvider
 
 
 @pytest.fixture
@@ -160,3 +162,49 @@ def test_cn_monetary_renders_cpi_gdp():
         assert "CPI同比" in html and "0.30%" in html
         assert "GDP同比" in html
         data.close()
+
+
+# ==================== Gold provider 返回 shape 契约 ====================
+# GoldMarketProvider 是轻量市场: 不在大类资产/货币政策常规 macro 板块,
+# get_indices/get_monetary_policy/get_asset_performance 返回稳定空结构;
+# render_section 仅透传 pipeline 注入的 risk_html(gold section 由 macro.py
+# 调算 render_gold_section 后注入,见 base.py ABC docstring)。
+# 下列测试锁定这些「空但稳定」的返回值,gold 结构若被改成有值或键集合变化时会被捕获。
+
+@pytest.fixture
+def gold_provider():
+    with tempfile.TemporaryDirectory() as d:
+        db_path = str(Path(d) / "t.db")
+        data = GoldData(db_path=db_path)
+        p = GoldMarketProvider(data=data)
+        yield p
+        data.close()
+
+
+def test_gold_indices_contract_empty(gold_provider):
+    """gold 不参与指数行情板块:get_indices 必须稳定返回空 list。"""
+    assert gold_provider.get_indices() == []
+
+
+def test_gold_monetary_contract_empty(gold_provider):
+    """gold 不参与货币政策板块:get_monetary_policy 必须稳定返回空 dict
+    (而非 None / 部分键),以保证 fetch_all / render 层的空值分支稳定。"""
+    mp = gold_provider.get_monetary_policy()
+    assert mp == {}
+    assert isinstance(mp, dict)
+
+
+def test_gold_asset_performance_contract_empty(gold_provider):
+    """gold 的资产表现走 risk_html 注入而非 get_asset_performance:稳定返回空 list。"""
+    ap = gold_provider.get_asset_performance()
+    assert ap == []
+    assert isinstance(ap, list)
+
+
+def test_gold_render_section_passthrough_risk_html(gold_provider):
+    """gold render_section 是透传:输出 == 注入的 risk_html,且不接受 regime_html。"""
+    marker = "<gold-risk-section/>"
+    html = gold_provider.render_section({}, {}, risk_html=marker)
+    assert html == marker
+    # 无 risk_html 时返回空串,保证 pipeline 在 gold risk 计算失败时 section 消失而非报错
+    assert gold_provider.render_section({}, {}) == ""
