@@ -25,9 +25,15 @@ _orig_session_request = requests.Session.request
 
 def _patched_session_request(self, method, url, **kwargs):
     if "eastmoney.com" in url:
+        # HTTP 层全局节流: 所有 eastmoney 请求(裸调/重试/_with_retry)统一守 _MIN_INTERVAL,
+        # 确保不超 eastmoney 的 1 QPS 安全线。不依赖每个调用点记得节流。
+        _throttle()
         headers = kwargs.get("headers") or {}
         for k, v in _DEFAULT_EM_HEADERS.items():
             headers.setdefault(k, v)
+        # 禁用 keep-alive: eastmoney ~15s 空闲静默关连接,连接池复用 stale 连接会 RemoteDisconnected。
+        # 每次 fresh connection(牺牲~50ms 握手换稳定),配合 _MIN_INTERVAL=1.5s 握手开销可接受。
+        headers.setdefault("Connection", "close")
         kwargs["headers"] = headers
     return _orig_session_request(self, method, url, **kwargs)
 
@@ -84,7 +90,7 @@ _df_cache = _DataFrameCache()
 # 模块级 Lock + _last_request，所有 akshare 网络调用经此。
 _throttle_lock = threading.Lock()
 _last_request = 0.0
-_MIN_INTERVAL = 0.3  # seconds between akshare requests (~3.3 QPS 上限)
+_MIN_INTERVAL = 1.5  # eastmoney IP 限流安全线(社区实测 QPS<=1;>3QPS 持续10min 触发24h封禁)。全局 Lock 保证并发下仍守此速率。
 
 
 def _throttle():
@@ -99,16 +105,15 @@ def _throttle():
 
 
 def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
-    """运行 akshare 调用，带随机退避 + 最后一次长退避 + 全局节流。
+    """运行 akshare 调用，带随机退避 + 最后一次长退避。
 
-    _throttle 控主动速率(每次 fn() 前)；随机退避控失败恢复(eastmoney 限流时)。
-    随机延时（uniform base_delay~2x × attempt）规避 eastmoney 节奏识别；
+    主动节流由 _patched_session_request 在 HTTP 层统一处理(eastmoney 域名);
+    这里只管失败恢复: 随机延时(uniform base_delay~2x × attempt)规避 eastmoney 节奏识别,
     最后一次重试前 max(delay, 10s) 给限流窗口冷却。
-    成功返回 fn() 结果（可能为 None/空 df）；全部失败返回 None 并记录 warning。
+    成功返回 fn() 结果(可能为 None/空 df);全部失败返回 None 并记录 warning。
     """
     for attempt in range(attempts):
         try:
-            _throttle()
             return fn()
         except Exception as e:
             if attempt < attempts - 1:
@@ -752,7 +757,10 @@ class AKShareClient:
         """
         try:
             market = "sh" if symbol.startswith("6") else "sz"
-            df = ak.stock_individual_fund_flow(stock=symbol, market=market)
+            df = _with_retry(
+                lambda: ak.stock_individual_fund_flow(stock=symbol, market=market),
+                label=f"fund_flow({symbol})",
+            )
             if df is None or df.empty:
                 return None
             r = df.iloc[-1]
@@ -777,7 +785,10 @@ class AKShareClient:
         """
         try:
             market = "sh" if symbol.startswith("6") else "sz"
-            df = ak.stock_individual_fund_flow(stock=symbol, market=market)
+            df = _with_retry(
+                lambda: ak.stock_individual_fund_flow(stock=symbol, market=market),
+                label=f"fund_flow_history({symbol})",
+            )
             if df is None or df.empty:
                 return None
             return df.tail(days).reset_index(drop=True)
