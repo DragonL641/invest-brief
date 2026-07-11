@@ -132,3 +132,14 @@ def test_picks_title_has_one_emoji():
         "zh-CN",
     )
     assert html.count("🎯") == 1
+
+
+# ---- #13 标普点数用默认深色,不随涨跌染色 ----
+
+def test_sp500_point_neutral_color():
+    """标普点数 cell 不含涨跌色;涨跌色只给独立的「标普涨跌」格。"""
+    from investbrief.market.overseas import render_overseas_card
+    html = render_overseas_card({"sp500": {"point": 7575.39, "change": 0.42}})
+    # change>0 → sp_color=#e74c3c(红);点数区(标普500 到 标普涨跌 之间)不应被染红
+    point_block = html.split("标普500")[1].split("标普涨跌")[0]
+    assert "#e74c3c" not in point_block

@@ -66,7 +66,7 @@ def render_overseas_card(data: dict[str, Any]) -> str:
     cells = "".join([
         _cell("美联储利率", fed, "%"),
         _cell("美债10Y", us_10y, "%"),
-        _cell("标普500", sp_point, "", sp_color),
+        _cell("标普500", sp_point),
         # 标普涨跌单独一格
         f'<div class="asset-card" style="background:#f8f9fa;border-radius:8px;padding:12px 10px;'
         f'text-align:center;margin:4px;"><div style="font-size:12px;color:#7f8c8d;margin-bottom:4px;">标普涨跌</div>'
