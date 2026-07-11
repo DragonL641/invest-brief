@@ -1,5 +1,5 @@
 # investbrief/picks/brief.py
-"""6 只 Top1 的 Claude 综合研判(1 次调用)。失败/空 → 占位。"""
+"""各持仓周期 Top1 的 Claude 综合研判(1 次调用)。失败/空 → 占位。"""
 from __future__ import annotations
 import json
 import logging
@@ -10,10 +10,10 @@ from investbrief.picks.factors import FACTOR_LABELS
 
 logger = logging.getLogger(__name__)
 
-PICKS_BRIEF_PROMPT = """你是宏观+量化视角的投资分析师。下面是今日量化选股引擎选出的 6 只 Top1
-(每个持仓周期 × 每个市场各 1 只)。请基于这些标的给出一段综合研判:
+PICKS_BRIEF_PROMPT = """你是宏观+量化视角的投资分析师。下面是今日量化选股引擎选出的 Top1 标的
+(每个持仓周期各 1 只,标的数量以下方列表为准)。请基于这些标的给出一段综合研判:
 1) 整体市场偏好(引擎在这天偏向什么风格/行业/市值)
-2) 6 只的共性逻辑(若有)
+2) 这些标的的共性逻辑(若有)
 3) 主要风险提示
 严格只输出 JSON: {"brief": "<p>...一段 html...</p>"}
 """

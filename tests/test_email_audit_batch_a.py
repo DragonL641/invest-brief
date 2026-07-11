@@ -96,3 +96,12 @@ def test_roe_low_pct_not_amplified():
     assert _pct(out["roe"]) == "+1.3%"
     # 正常值(>1.5)行为不变
     assert _normalize_cn_fund({"roe": 6.2})["roe"] == 0.062
+
+
+# ---- #5 简报 prompt 不再硬编码数量 ----
+
+def test_picks_prompt_no_hardcoded_count():
+    """prompt 不含「6 只」「每个市场」,数量以注入的标的列表为准。"""
+    from investbrief.picks.brief import PICKS_BRIEF_PROMPT
+    assert "6 只" not in PICKS_BRIEF_PROMPT
+    assert "每个市场" not in PICKS_BRIEF_PROMPT
