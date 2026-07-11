@@ -1,6 +1,12 @@
 # tests/test_pipeline_cache.py
 """pipeline 日级缓存集成：命中跳过 build、miss 写缓存、--force 强制。"""
+from datetime import datetime
 from unittest.mock import MagicMock
+
+
+def _frozen_now():
+    """冻结到 2026-07-10 09:00 (Asia/Shanghai),供 monkeypatch pipeline 的 now_cn。"""
+    return datetime(2026, 7, 10, 9, 0)
 
 
 def _fake_recipients():
@@ -22,7 +28,7 @@ def test_picks_cache_hit_skips_build(tmp_path, monkeypatch):
         def now(cls, tz=None):
             from datetime import datetime
             return datetime(2026, 7, 10, 9, 0)
-    monkeypatch.setattr(picks_mod, "datetime", _FakeDT)
+    monkeypatch.setattr(picks_mod, "now_cn", _frozen_now)
 
     monkeypatch.setattr(picks_mod, "load_config",
                         lambda: {"recipients": _fake_recipients()})
@@ -77,7 +83,7 @@ def test_picks_cache_miss_writes_cache(tmp_path, monkeypatch):
     from investbrief.pipelines import picks as picks_mod
 
     monkeypatch.setattr(mail_cache, "CACHE_DIR", tmp_path)
-    monkeypatch.setattr(picks_mod, "datetime", _FakeDT)
+    monkeypatch.setattr(picks_mod, "now_cn", _frozen_now)
     _mock_miss_path(monkeypatch, picks_mod)
 
     args = MagicMock(force=False, skip_summary=True, dry_run=False, preview=False)
@@ -93,7 +99,7 @@ def test_picks_force_skips_cache_even_when_hit(tmp_path, monkeypatch):
 
     monkeypatch.setattr(mail_cache, "CACHE_DIR", tmp_path)
     mail_cache.set_cache("picks_2026-07-10", "<html>STALE</html>")
-    monkeypatch.setattr(picks_mod, "datetime", _FakeDT)
+    monkeypatch.setattr(picks_mod, "now_cn", _frozen_now)
 
     build_called = {"n": 0}
     def fake_build(*a, **k):
@@ -126,7 +132,7 @@ def test_picks_cache_hit_dry_run_still_builds_no_send(tmp_path, monkeypatch, cap
 
     monkeypatch.setattr(mail_cache, "CACHE_DIR", tmp_path)
     mail_cache.set_cache("picks_2026-07-10", "<html>STALE</html>")
-    monkeypatch.setattr(picks_mod, "datetime", _FakeDT)
+    monkeypatch.setattr(picks_mod, "now_cn", _frozen_now)
 
     build_called = {"n": 0}
     def fake_build(*a, **k):
@@ -304,7 +310,7 @@ def test_holdings_cache_hit_per_recipient_skips_analysis(tmp_path, monkeypatch):
     monkeypatch.setattr(mail_cache, "CACHE_DIR", tmp_path)
 
     # 冻结日期到 2026-07-10（holdings 用 datetime.now(ZoneInfo) 算 today；模块级 datetime）
-    monkeypatch.setattr(h_mod, "datetime", _FakeDT)
+    monkeypatch.setattr(h_mod, "now_cn", _frozen_now)
 
     recipients = [
         {"email": "a@b.com", "name": "A", "active": True, "language": "zh-CN",
@@ -357,7 +363,7 @@ def test_holdings_cache_miss_writes_per_recipient(tmp_path, monkeypatch):
     from investbrief.pipelines import holdings as h_mod
 
     monkeypatch.setattr(mail_cache, "CACHE_DIR", tmp_path)
-    monkeypatch.setattr(h_mod, "datetime", _FakeDT)
+    monkeypatch.setattr(h_mod, "now_cn", _frozen_now)
 
     recipients = [{"email": "a@b.com", "name": "A", "active": True, "language": "zh-CN",
                    "holdings": [{"symbol": "AMD", "market": "us", "type": "stock"}]}]
@@ -389,7 +395,7 @@ def test_holdings_force_skips_cache_even_when_hit(tmp_path, monkeypatch):
     from investbrief.pipelines import holdings as h_mod
 
     monkeypatch.setattr(mail_cache, "CACHE_DIR", tmp_path)
-    monkeypatch.setattr(h_mod, "datetime", _FakeDT)
+    monkeypatch.setattr(h_mod, "now_cn", _frozen_now)
 
     recipients = [{"email": "a@b.com", "name": "A", "active": True, "language": "zh-CN",
                    "holdings": [{"symbol": "AMD", "market": "us", "type": "stock"}]}]
