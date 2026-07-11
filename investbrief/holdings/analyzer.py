@@ -328,10 +328,15 @@ class HoldingsAnalyzer:
         return self._build_cn_rating(raw.get("summary"), raw.get("reports"))
 
     def _fetch_rating_raw(self, symbol: str, market: str) -> dict:
-        """拉 CN 评级原始 API 响应(akshare)。返回可 JSON 序列化的 bundle。"""
+        """拉 CN 评级原始 API 响应(akshare)。返回可 JSON 序列化的 bundle。
+
+        stock_research_report_em 只拉一次:get_research_report_df 取 df 后共享给
+        get_analyst_rating_summary / get_research_reports(解析逻辑不变,只去重数据源)。
+        """
+        df = self._ak.get_research_report_df(symbol)
         d = self._parallel({
-            "summary": lambda: self._ak.get_analyst_rating_summary(symbol),
-            "reports": lambda: self._ak.get_research_reports(symbol, limit=5),
+            "summary": lambda: self._ak.get_analyst_rating_summary(symbol, df=df),
+            "reports": lambda: self._ak.get_research_reports(symbol, limit=5, df=df),
         })
         return {"summary": d.get("summary"), "reports": d.get("reports")}
 

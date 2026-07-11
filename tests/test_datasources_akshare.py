@@ -150,3 +150,54 @@ def test_get_stock_quote_name_none_when_all_df_miss(monkeypatch):
     q = client.get_stock_quote("999999")
     assert q is not None
     assert q["name"] is None
+
+
+def test_research_report_df_shared_calls_api_once(monkeypatch):
+    """P1-2 回归: summary + reports 共享同一 df 时, stock_research_report_em 只被调一次。"""
+    from investbrief.datasources.akshare import AKShareClient
+
+    calls = {"n": 0}
+
+    def fake_em(symbol):
+        calls["n"] += 1
+        return pd.DataFrame([
+            {"报告名称": "Q2 业绩前瞻", "东财评级": "买入", "机构": "中信",
+             "日期": "2026-07-01", "盈利预测-收益2026": 42.0,
+             "盈利预测-市盈率2026": 30.5},
+            {"报告名称": "维持增持", "东财评级": "增持", "机构": "华泰",
+             "日期": "2026-06-20", "盈利预测-收益2026": 41.0,
+             "盈利预测-市盈率2026": 31.0},
+        ])
+
+    monkeypatch.setattr("investbrief.datasources.akshare.ak.stock_research_report_em", fake_em)
+    client = AKShareClient()
+
+    # 共享 df 流程: get_research_report_df 拉一次 → 传给两个方法
+    df = client.get_research_report_df("600519")
+    assert df is not None
+    summary = client.get_analyst_rating_summary("600519", df=df)
+    reports = client.get_research_reports("600519", limit=5, df=df)
+
+    assert calls["n"] == 1, f"stock_research_report_em 应只调 1 次, 实际 {calls['n']}"
+    assert summary is not None and summary["buy"] == 1 and summary["total_reports_all"] == 2
+    assert len(reports) == 2 and reports[0]["institution"] == "中信"
+
+
+def test_research_reports_fallback_fetches_when_no_df(monkeypatch):
+    """向后兼容: get_research_reports 不传 df 时自行调 get_research_report_df(仍只拉一次)。"""
+    from investbrief.datasources.akshare import AKShareClient
+
+    calls = {"n": 0}
+
+    def fake_em(symbol):
+        calls["n"] += 1
+        return pd.DataFrame([
+            {"报告名称": "点评", "东财评级": "买入", "机构": "中信", "日期": "2026-07-01"},
+        ])
+
+    monkeypatch.setattr("investbrief.datasources.akshare.ak.stock_research_report_em", fake_em)
+    client = AKShareClient()
+
+    reports = client.get_research_reports("600519", limit=5)  # 不传 df
+    assert calls["n"] == 1, f"fallback 路径应拉 1 次, 实际 {calls['n']}"
+    assert len(reports) == 1 and reports[0]["rating"] == "买入"

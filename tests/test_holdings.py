@@ -66,8 +66,8 @@ def test_config_rejects_missing_field():
 def test_analyze_cn_stock_mock():
     an = _mock_analyzer()
     an._ak.get_stock_quote = lambda s: {"name": "贵州茅台", "price": 1680, "change_pct": -0.5, "pe": 30.0}
-    an._ak.get_analyst_rating_summary = lambda s: {"buy": 8, "outperform": 2, "total_reports": 10, "total_reports_all": 25, "institutions": 6, "change": {"buy": 5.0}, "days": 90}
-    an._ak.get_research_reports = lambda s, limit=5: [{"institution": "中信", "rating": "买入", "date": "2026-07-01"}]
+    an._ak.get_analyst_rating_summary = lambda s, df=None: {"buy": 8, "outperform": 2, "total_reports": 10, "total_reports_all": 25, "institutions": 6, "change": {"buy": 5.0}, "days": 90}
+    an._ak.get_research_reports = lambda s, limit=5, df=None: [{"institution": "中信", "rating": "买入", "date": "2026-07-01"}]
     an._ak.get_financial_indicators = lambda s: {"roe": 30.0, "gross_margin": 90.0}
     an._ak.get_stock_fund_flow = lambda s: {"main_net": 50000000, "main_pct": 2.5}
     r = an.analyze_one("600519", "cn", "stock")
@@ -122,8 +122,8 @@ def test_analyze_resilience_on_exception():
     an = _mock_analyzer()
     # quote 抛异常 → price 维度降级，但 rating/fundamentals 走缓存独立可用
     an._ak.get_stock_quote = MagicMock(side_effect=RuntimeError("network"))
-    an._ak.get_analyst_rating_summary = lambda s: {"buy": 5, "total_reports": 5}
-    an._ak.get_research_reports = lambda s, limit=5: []
+    an._ak.get_analyst_rating_summary = lambda s, df=None: {"buy": 5, "total_reports": 5}
+    an._ak.get_research_reports = lambda s, limit=5, df=None: []
     an._ak.get_financial_indicators = lambda s: {"roe": 30.0}
     r = an.analyze_one("600519", "cn", "stock")
     assert r.error == ""  # quote 失败但其它维度可用，整体未失败

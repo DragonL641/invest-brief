@@ -359,10 +359,31 @@ class AKShareClient:
 
     # ---- 研报与财务 ----
 
-    def get_research_reports(self, symbol: str, limit: int = 10) -> list[dict[str, Any]]:
-        """获取个股研报列表。"""
+    def get_research_report_df(self, symbol: str) -> pd.DataFrame | None:
+        """单次拉取个股研报 DataFrame(ak.stock_research_report_em,带 retry)。
+
+        供 get_research_reports / get_analyst_rating_summary 共享同一份 df,
+        避免两个方法各自拉同一 API(经 throttle 各 ~1.5s)。
+        """
+        df = _with_retry(
+            lambda: ak.stock_research_report_em(symbol=symbol),
+            label=f"stock_research_report_em({symbol})",
+        )
+        if df is None or df.empty:
+            return None
+        return df
+
+    def get_research_reports(
+        self, symbol: str, limit: int = 10, *, df: pd.DataFrame | None = None,
+    ) -> list[dict[str, Any]]:
+        """获取个股研报列表。
+
+        df: 可选预取的 stock_research_report_em DataFrame(来自 get_research_report_df)。
+        传入则直接解析、不再拉 API; 不传则自行调 get_research_report_df(向后兼容)。
+        """
         try:
-            df = ak.stock_research_report_em(symbol=symbol)
+            if df is None:
+                df = self.get_research_report_df(symbol)
             if df is None or df.empty:
                 return []
             df = df.head(limit)
@@ -398,14 +419,20 @@ class AKShareClient:
                 counts[en] += 1
         return counts
 
-    def get_analyst_rating_summary(self, symbol: str, days: int = 90) -> dict[str, Any] | None:
+    def get_analyst_rating_summary(
+        self, symbol: str, days: int = 90, *, df: pd.DataFrame | None = None,
+    ) -> dict[str, Any] | None:
         """汇总近 `days` 天研报评级分布 + 盈利预测一致预期 + 评级变化（vs 上一 `days` 周期）。
 
         akshare 帧顺序不稳定，先解析日期+排序。`change` 是各评级桶占比的 pct-point
         变化（正=近期更偏多）。盈利预测一致预期仍用全量数据。
+
+        df: 可选预取的 stock_research_report_em DataFrame(来自 get_research_report_df)。
+        传入则直接解析、不再拉 API; 不传则自行调 get_research_report_df(向后兼容)。
         """
         try:
-            df = ak.stock_research_report_em(symbol=symbol)
+            if df is None:
+                df = self.get_research_report_df(symbol)
             if df is None or df.empty:
                 return None
 

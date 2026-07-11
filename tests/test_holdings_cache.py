@@ -35,13 +35,13 @@ def test_rating_cn_cache_hit_skips_api(fresh_cache):
     an = _mock_analyzer()
     calls = {"summary": 0, "reports": 0}
 
-    def _count_summary(symbol):
+    def _count_summary(symbol, df=None):
         calls["summary"] += 1
         return {"buy": 8, "outperform": 2, "total_reports": 10,
                 "total_reports_all": 25, "institutions": 6,
                 "change": {"buy": 5.0}, "days": 90}
 
-    def _count_reports(symbol, limit=5):
+    def _count_reports(symbol, limit=5, df=None):
         calls["reports"] += 1
         return [{"institution": "中信", "rating": "买入", "date": "2026-07-01"}]
 
