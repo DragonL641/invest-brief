@@ -41,8 +41,8 @@ uv run pytest tests/test_strategy_loader.py -v      # strategy YAML loader
 uv run pytest tests/test_pipeline_critical.py -v    # critical-path (Claude fallback / send resilience / cron)
 uv run pytest tests/test_holdings.py -v             # per-recipient holdings pipeline
 
-# Lint (CI selects fatal errors only — E9/F7/F82/F811; no style enforcement)
-uv run ruff check --select E9,F7,F82,F811 .
+# Lint (CI: ruff select E9/F/UP — 致命错误 + pyflakes + pyupgrade;见 pyproject.toml)
+uv run ruff check .
 
 # Docker
 docker compose up --build                # Local: build scheduler from source
@@ -101,10 +101,8 @@ Key symbols (all Claude calls go through `core.llm.call_claude`; client via `cor
 
 `investbrief/risk/` — market-cycle risk scoring (ported from StockCycleRiskDetector; that project's core). Produces a 0-100 risk score per market (cn/gold;us 指示器组已在 cn-pivot 中删除) from five weighted dimensions, with a state label and recommended action. **Tracking signal, not a prediction** — surfaced to Claude as context, never as a standalone buy/sell rule. **Indicator definitions (weights / thresholds / invert / scale / explain) are externalized to `strategies/risk_indicators.yaml`** — change thresholds by editing the YAML, no Python changes; loaded at runtime by `core/strategy_loader.py:load_strategy` (see Strategy files above).
 
-- `models.py` — `RiskModel(data_source)`: aggregates the six indicators; `calculate_score(market, date=None)` → `{total_score, state, risk_level, crash_prob, expected_return, action, dimensions, indicators}`. Gold uses `GoldIndicator` alone;cn uses valuation+technical+liquidity+sentiment+macro。
+- `models.py` — `RiskModel(data_source, indicators)`: indicators 由 pipeline 注入(各市场 `market/<mkt>/indicators.py` 工厂装配,见 `pipelines/macro.py:_build_indicators`);`calculate_score(market, date=None)` → `{total_score, state, risk_level, crash_prob, expected_return, action, dimensions, indicators}`. cn 含 valuation+technical+liquidity+sentiment+macro 维度;gold 用 gold_indicators。
 - `config.py` — `MARKET_STATE_MAP` (score→state, 人读, used for report rendering) **and** `RISK_LEVEL_MAP` + `score_to_risk_level()` (score→`low`/`moderate`/`high`/`extreme`, used for decision branches / Claude prompt / future alert thresholds — two separate vocabularies kept apart on purpose). `FIVE_DIMENSIONS` (radar weights), `*_ALL_INDICATORS` (loaded from `strategies/risk_indicators.yaml` via `load_strategy`;`*_US_ALL_INDICATORS` 已删除,只保留 cn/gold), `BACKTEST_BUY_THRESHOLD=20` / `SELL_THRESHOLD=70`。
-- `indicators/` — `base.py` (`BaseIndicator` ABC) + `valuation.py`/`technical.py`/`liquidity.py`/`sentiment.py`/`macro.py`/`gold.py`. Each reads series from the P1 data layer.
-- `calc_utils.py` — `percentile_rank` and z-score helpers.
 - `render.py` — `render_risk_card(score_data)` (CN card, injected into `MarketProvider.render_section` via `risk_html=`) + `render_gold_section(score_data)` (appended to `market_section_html`).
 
 In the pipeline: `_safe_risk_score` wraps `calculate_score` (returns `{}` on failure → empty card, pipeline never blocks); scores are also serialized into the Claude context via `serialize_macro_context`. Preview without email: `scripts/preview_p4_risk.py`. Tests: `tests/test_risk_*.py`.
@@ -158,7 +156,7 @@ DB at `data/macro_data.db` (gitignored; parent dir auto-created by `BaseData.con
 | `market/` | `overseas.py` | **外围环境卡**(cn-pivot 新增)— `fetch_overseas_data(ak_client)` + `render_overseas_card(data)`:美联储利率(静态常量)/美债10Y/标普500/USDCNY,全 akshare,零 yfinance。由 `pipelines/macro.py` 置顶插入 sections |
 | `market/cn/` | `provider.py` / `calendar.py` / `news.py` / `indicators.py` | `CNMarketProvider` — akshare macro (indices, LPR/M2/社融/国债, USDCNY); A-share calendar (LPR/PMI/CPI/PPI/M2); A-share news;`indicators.py` 承载 CN 专属计算(如 QVIX) |
 | `market/gold/` | `provider.py` / `indicators.py` | `GoldMarketProvider` — 黄金 section(akshare SGE 价格 + FRED M2/CPI);`render_section` 透传(gold 的 risk_html 已包含 `render_gold_section` 输出) |
-| `risk/` | `models.py` / `config.py` / `calc_utils.py` / `render.py` / `indicators/` | **Market-cycle risk model** (P4) — `RiskModel.calculate_score` for **cn/gold**(us 已删); 5 weighted dimensions; `state` (人读) + `risk_level` (low/moderate/high/extreme); indicators loaded from `strategies/risk_indicators.yaml`; see Risk Model above |
+| `risk/` | `models.py` / `config.py` / `render.py` | **Market-cycle risk model** (P4) — `RiskModel.calculate_score` for **cn/gold**(us 已删); 5 weighted dimensions; `state` (人读) + `risk_level` (low/moderate/high/extreme); indicators loaded from `strategies/risk_indicators.yaml`; see Risk Model above |
 | `regime/` | `engine.py` / `config.py` / `render.py` | **Economic-quadrant regime** — `RegimeEngine.judge` (Browne growth×通胀); reads GDP+CPI from `macro_data`;pipeline 只对 cn 调用; see Regime model above |
 | `holdings/` | `analyzer.py` / `brief.py` / `renderer.py` / `regime_prompts.py` + `etf/{analyzer,engine,indicators}` | **Holdings email pipeline** — per-recipient analysis (**CN only**: stock/etf/fund); `_with_ai`/`generate_stock_conclusion` adds Claude single-stock brief (`_fallback_stock_conclusion` rule-based on failure); `_extract_technicals` produces 18 technical fields; `regime_prompts.py` injects the **per-holding technical regime** hint; the former `etf/rules.json` is externalized to `strategies/etf_rules.yaml` |
 | `mail/` | `sender.py` | `EmailSender` — SMTP with retry; `send` + `send_bulk(messages)→(sent, failed)` (one connection for N recipients) |
@@ -199,7 +197,7 @@ The **holdings email** (`mail/templates/email_holdings.j2`, separate from macro)
 ## CI/CD
 
 ### PR Check (`.github/workflows/pr-check.yml`)
-`pull_request` to main → `uv sync --frozen` (lockfile consistency) + `uv run ruff check --select E9,F7,F82,F811 .` (fatal errors only — `[tool.ruff]` rule set is intentionally empty, no style enforcement, avoids taste debates) + `uv run pytest tests/ -q -m "not network"` (real-API tests excluded via the `network` marker).
+`pull_request` to main → `uv sync --frozen` (lockfile consistency) + `uv run ruff check .` (pyproject select E9/F/UP: 致命错误 + pyflakes + pyupgrade) + `uv run pytest tests/ -q -m "not network"` (real-API tests excluded via the `network` marker). + `uv run python scripts/check_domain_boundary.py` (域边界 lint).
 
 ### Docker Publish (`.github/workflows/docker-publish.yml`)
 `push` to main → builds ONE multi-arch (amd64+arm64) image: `ghcr.io/dragonl641/invest-brief` (scheduler). Trivy scan + SARIF.
