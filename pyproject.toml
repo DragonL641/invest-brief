@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Personalized investment briefing via email"
 requires-python = ">=3.10"
 dependencies = [
-    "yfinance>=1.3.0",
     "requests>=2.32.0",
     "anthropic>=0.90.0,<1.0",
     "python-dotenv>=1.0.0",
@@ -13,7 +12,7 @@ dependencies = [
     "jinja2>=3.1.0",
     "json-repair>=0.30.0",
     "pyyaml>=6.0",
-    # 直接 import 的传递依赖需显式声明（PEP 621）：避免上游 akshare/yfinance 改动导致 ImportError
+    # 直接 import 的传递依赖需显式声明（PEP 621）：避免上游 akshare 改动导致 ImportError
     "pandas>=2.0",
     "numpy>=1.24",
 ]
