@@ -114,14 +114,14 @@ def run_macro_report(args):
             "economic_calendar": p.get_economic_calendar(),
         }
 
-    # news（各市场 get_news 合并; gold 默认返回空）
+    # news（各市场 get_news 合并; gold 默认返回空; 单 provider 失败不影响其它）
     news = []
-    try:
-        for code, p in providers.items():
+    for code, p in providers.items():
+        try:
             news += p.get_news(config, NEWS_LIMIT)
-        news = news[:NEWS_LIMIT]
-    except Exception as e:
-        logger.warning(f"News fetch failed: {e}")
+        except Exception as e:
+            logger.warning(f"News fetch for {code} failed: {e}")
+    news = news[:NEWS_LIMIT]
 
     # risk（每市场用自己的 indicators 实例注入 RiskModel）
     from investbrief.risk.models import RiskModel
