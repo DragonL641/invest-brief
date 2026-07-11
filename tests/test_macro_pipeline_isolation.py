@@ -47,11 +47,20 @@ def _run_args(**kw):
 
 
 def test_pipeline_iterates_all_enabled_markets(monkeypatch, capsys):
+    """us 由外围卡替代(不渲染 us section);cn/gold 正常遍历。"""
     captured = _stub_providers(monkeypatch, ["us", "cn", "gold"])
     monkeypatch.setattr(macro, "load_config", lambda: {"recipients": [{"active": True}]})
+    # stub overseas fetch(避免 network)
+    import investbrief.market.overseas as overseas_mod
+    monkeypatch.setattr(overseas_mod, "fetch_overseas_data",
+                        lambda ak: {"fed_rate": 5.25, "us_10y": 4.56,
+                                    "sp500": {"point": 7575, "change": 0.4}, "usdcny": 7.18})
     macro.run_macro_report(_run_args())
     data = json.loads(capsys.readouterr().out)
     rendered_codes = [c for c, _, _ in captured["rendered"]]
-    assert rendered_codes == ["us", "cn", "gold"]
-    assert set(captured["news"]) == {"us", "cn", "gold"}
-    assert data["market_section_html"] == "<section-us/><section-cn/><section-gold/>"
+    assert rendered_codes == ["cn", "gold"]           # us 排除(外围卡替代)
+    assert set(captured["news"]) == {"cn", "gold"}     # us news 也不取
+    html = data["market_section_html"]
+    assert "外围环境" in html                           # 外围卡置顶
+    assert "<section-cn/>" in html and "<section-gold/>" in html
+    assert "<section-us/>" not in html                 # us 不再渲染

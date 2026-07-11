@@ -89,7 +89,7 @@ def run_macro_report(args):
     skip_summary = getattr(args, "skip_summary", False)
 
     # 遍历 enabled markets —— 消除硬编码 us/cn/gold 流程
-    market_codes = enabled_market_codes(config)
+    market_codes = [c for c in enabled_market_codes(config) if c != "us"]  # us 由外围卡替代(Task 13 删 us provider)
     logger.info(f"Enabled markets: {market_codes}")
     providers = {code: create_provider(code) for code in market_codes}
 
@@ -156,7 +156,23 @@ def run_macro_report(args):
             regime_data[code] = _safe_regime_judge(regime_engine, code)
             regime_html[code] = render_regime_card(regime_data[code])
 
-    # Claude ①⑥（仍传 us/cn macro + 全市场 risk/regime）
+    # 外围环境卡(全 akshare,替换原 US section)
+    from investbrief.datasources.akshare import AKShareClient
+    from investbrief.market.overseas import fetch_overseas_data, render_overseas_card
+    try:
+        overseas_data = fetch_overseas_data(AKShareClient())
+        overseas_html = render_overseas_card(overseas_data)
+    except Exception as e:
+        logger.warning(f"Overseas card failed: {e}")
+        overseas_data, overseas_html = {}, ""
+    overseas_for_claude = {
+        "美联储利率": overseas_data.get("fed_rate"),
+        "美债10Y": overseas_data.get("us_10y"),
+        "标普500": (overseas_data.get("sp500") or {}).get("point"),
+        "USDCNY": overseas_data.get("usdcny"),
+    }
+
+    # Claude ①⑥（传外围 + cn macro + 全市场 risk/regime）
     if skip_summary:
         logger.info("Skipping Claude brief (--skip-summary)")
         macro_summary = "<p>（已跳过 AI 研判）</p>"
@@ -165,7 +181,7 @@ def run_macro_report(args):
         logger.info("Generating macro brief via Claude (①⑥)")
         from investbrief.market.macro_brief import generate_macro_brief
         macro_summary, risk_outlook = generate_macro_brief(
-            market_macro.get("us", {}), market_macro.get("cn", {}), news,
+            overseas_for_claude, market_macro.get("cn", {}), news,
             risk_scores=risk_scores, regime_data=regime_data)
 
     # Research views (sell-side market commentary) — Tavily fetch + Claude synthesis
@@ -188,12 +204,15 @@ def run_macro_report(args):
             logger.warning(f"Research views failed: {e}")
 
     # render sections（按 market_codes 顺序; gold 的 risk_html 已是 render_gold_section 输出, gold.render_section 透传返回）
-    sections = []
+    sections = [overseas_html] if overseas_html else []
     for code, p in providers.items():
-        sections.append(p.render_section(
-            market_macro[code], render_config,
-            risk_html=risk_html.get(code, ""),
-            regime_html=regime_html.get(code, "")))
+        kwargs = dict(risk_html=risk_html.get(code, ""), regime_html=regime_html.get(code, ""))
+        if code == "cn" and hasattr(p, "get_sentiment"):
+            try:
+                kwargs["sentiment"] = p.get_sentiment()
+            except Exception as e:
+                logger.warning(f"CN sentiment fetch failed: {e}")
+        sections.append(p.render_section(market_macro[code], render_config, **kwargs))
     market_section_html = "".join(sections)
 
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
