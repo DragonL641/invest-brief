@@ -5,6 +5,7 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -22,7 +23,7 @@ from investbrief.picks import brief as _brief
 
 logger = logging.getLogger(__name__)
 
-_CACHE_PATH = str(DB_PATH).replace("macro_data.db", "picks_cache.db")
+_CACHE_PATH = str(Path(DB_PATH).with_name("picks_cache.db"))
 _PROFILES = ("swing", "medium", "long")
 
 # 候选股深拉并发度:对齐 holdings/analyzer.py(2),更高会触发 eastmoney 限流。

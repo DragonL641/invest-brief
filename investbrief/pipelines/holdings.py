@@ -2,13 +2,14 @@
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from investbrief.core.config import load_config, CONFIG_FILE, REPORTS_DIR, DB_PATH
 
 logger = logging.getLogger(__name__)
 
-_CACHE_PATH = str(DB_PATH).replace("macro_data.db", "holdings_cache.db")
+_CACHE_PATH = str(Path(DB_PATH).with_name("holdings_cache.db"))
 
 
 def run_holdings_report(args):
