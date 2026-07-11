@@ -1,6 +1,7 @@
 """A-share data acquisition using akshare."""
 
 from datetime import datetime, timedelta
+import re
 import akshare as ak
 import pandas as pd
 from investbrief.data.base import BaseData
@@ -93,16 +94,25 @@ class CNData(BaseData):
 
     def _update_cpi(self):
         try:
-            df = self._retry_api(lambda: ak.macro_china_cpi_yearly())
+            # 国家统计局月度 CPI(同比),数据更新到上个月;比 macro_china_cpi_yearly
+            # (英为财情源,滞后到 2025-08)更及时。
+            df = self._retry_api(lambda: ak.macro_china_cpi())
             rows = []
             for _, row in df.iterrows():
-                if pd.notna(row["今值"]):
-                    rows.append({
-                        "indicator": "CPI",
-                        "country": "cn",
-                        "date": str(row["日期"]),
-                        "value": float(row["今值"]),
-                    })
+                month = str(row.get("月份", ""))  # "2026年06月份"
+                yoy = row.get("全国-同比增长")
+                if yoy is None or pd.isna(yoy):
+                    continue
+                m = re.match(r"(\d{4})年(\d{1,2})月份", month)
+                if not m:
+                    continue
+                date = f"{m.group(1)}-{int(m.group(2)):02d}"
+                rows.append({
+                    "indicator": "CPI",
+                    "country": "cn",
+                    "date": date,
+                    "value": float(yoy),
+                })
             if rows:
                 cpi_df = pd.DataFrame(rows)
                 self.upsert_df("macro_data", cpi_df)
