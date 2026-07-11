@@ -121,3 +121,19 @@ def test_run_macro_empty_markets_no_crash(monkeypatch):
     monkeypatch.setattr(macro, "load_config", lambda: {"recipients": [{"active": True}]})
     # 不应抛异常;run_macro_report 应 logger.warning 后 return
     macro.run_macro_report(_run_args())
+
+
+def test_dry_run_writes_preview_macro_html(monkeypatch, tmp_path, capsys):
+    """--dry-run 也应写 preview_macro.html(此前只在非 dry-run 路径写)。"""
+    _stub_providers(monkeypatch, ["cn", "gold"])
+    monkeypatch.setattr(macro, "load_config", lambda: {"recipients": [{"active": True}]})
+    _patch_overseas(monkeypatch)
+    monkeypatch.setattr(macro, "REPORTS_DIR", tmp_path)
+    macro.run_macro_report(_run_args())
+    # preview 文件应存在且非空
+    preview = tmp_path / "preview_macro.html"
+    assert preview.exists()
+    assert preview.stat().st_size > 0
+    # stdout JSON 仍正常输出
+    data = json.loads(capsys.readouterr().out)
+    assert "market_section_html" in data

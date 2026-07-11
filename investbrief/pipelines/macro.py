@@ -235,6 +235,16 @@ def run_macro_report(args):
 
     if getattr(args, "dry_run", False):
         logger.info("Dry run - outputting report data to stdout")
+        # dry-run 也写 preview,方便本地查看渲染效果(不写邮件缓存)
+        try:
+            from investbrief.mail.render import render_template
+            REPORTS_DIR.mkdir(exist_ok=True)
+            preview_html = render_template("email_base.j2", report_data, "zh-CN")
+            preview_path = REPORTS_DIR / "preview_macro.html"
+            preview_path.write_text(preview_html, encoding="utf-8")
+            logger.info(f"Preview saved to {preview_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save preview: {e}")
         print(json.dumps(report_data, ensure_ascii=False, indent=2, default=str))
         # Release SQLite connections (each provider holds one)
         try:
