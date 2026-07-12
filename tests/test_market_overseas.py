@@ -23,10 +23,11 @@ def test_render_overseas_card_missing_metric_degrades():
 
 
 def test_render_overseas_card_sp500_change_color():
-    """标普涨为红(A股配色:红涨),跌为绿。"""
+    """标普涨为红(A股配色:红涨),跌为绿。涨跌色由 .pos/.neg class 控制(styles.css)。"""
     up = render_overseas_card({"fed_rate": 5.0, "us_10y": 4.0, "sp500": {"point": 100, "change": 1.5}, "usdcny": 7.0})
     down = render_overseas_card({"fed_rate": 5.0, "us_10y": 4.0, "sp500": {"point": 100, "change": -1.5}, "usdcny": 7.0})
-    assert "#e74c3c" in up and "#27ae60" in down
+    assert '"stat-value pos"' in up      # 涨 → 红
+    assert '"stat-value neg"' in down    # 跌 → 绿
 
 
 class _StubAKClient:

@@ -90,25 +90,27 @@ def test_cn_render_section_embeds_risk_html(cn_provider):
     assert html.find("<!--RISK-MARKER-->") < last_close
 
 
-def _asset_card_open_tag(html: str) -> str:
-    """提取首个 asset-card 的开标签（含 style 属性），用于断言内联样式。"""
-    start = html.find('class="asset-card"')
-    assert start != -1, "render_section 未产出 asset-card"
+def _first_stat_open_tag(html: str) -> str:
+    """提取首个 stat 卡片开标签，用于断言结构。"""
+    start = html.find('class="stat"')
+    assert start != -1, "render_section 未产出 stat 卡片"
     return html[start:html.find(">", start) + 1]
 
 
 def test_cn_asset_card_has_inline_margin_spacing(cn_provider):
-    """大类资产卡片间距必须由每个 card 的 inline margin 提供，不能只靠
+    """大类资产卡片间距由 styles.py 的 .stat { margin: 4px } 提供，stat-grid 不依赖
     flex gap —— 多数邮件客户端（Gmail 移动端/Outlook/网易QQ邮箱）忽略 flex gap，
-    导致灰底卡片贴合粘成一团（见 issue: 大类资产卡片粘在一起）。"""
+    间距必须靠 .stat margin 才不粘成一团（见 issue: 大类资产卡片粘在一起）。"""
     data = {"asset_performance": [{"name": "上证指数", "symbol": "000001", "point": 3000.0,
                                     "change": 0.0, "change_amt": 0.0, "amount": None}]}
     html = cn_provider.render_section(data, {"color_up": "#e74c3c", "color_down": "#27ae60"})
-    tag = _asset_card_open_tag(html)
-    assert "margin" in tag, "asset-card 缺少 inline margin，间距会因 gap 被忽略而消失"
-    grid_start = html.find('class="asset-grid"')
+    assert 'class="stat-grid"' in html
+    tag = _first_stat_open_tag(html)
+    assert 'class="stat"' in tag
+    # stat-grid 容器不依赖 inline gap（class 化，间距走 .stat margin）
+    grid_start = html.find('class="stat-grid"')
     grid_tag = html[grid_start:html.find(">", grid_start) + 1]
-    assert "gap" not in grid_tag, "asset-grid 不应再依赖 gap（改用 card margin）"
+    assert "gap" not in grid_tag, "stat-grid 不应依赖 gap（间距走 .stat margin）"
 
 
 def test_cn_monetary_render_formats_to_2dp(cn_provider):

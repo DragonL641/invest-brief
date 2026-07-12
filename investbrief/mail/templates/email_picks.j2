@@ -3,81 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>股票推荐</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { font-family: {{font_family}}; background: #f5f5f5; margin: 0; padding: 16px; color: #2c3e50; }
-    .container { max-width: 620px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-    .header { background: linear-gradient(135deg, #1f3a5f, #2c5282); color: #fff; padding: 24px 20px; text-align: center; }
-    .header h1 { margin: 0 0 6px 0; font-size: 22px; font-weight: 600; }
-    .header p { margin: 0; opacity: 0.85; font-size: 12px; }
-    .disclaimer-top { background: #fff8e1; color: #8d6e00; font-size: 12px; padding: 10px 16px; line-height: 1.5; border-bottom: 1px solid #ffe082; }
-    .section { padding: 16px; }
-    .brief-box { background: #f8f9fa; border-left: 3px solid #1f3a5f; border-radius: 6px; padding: 12px 14px; font-size: 13px; line-height: 1.6; color: #2c3e50; margin-bottom: 6px; }
-    .brief-box p { margin: 0 0 6px 0; } .brief-box p:last-child { margin: 0; }
-    .profile-title { font-size: 15px; font-weight: 600; color: #1f3a5f; padding-bottom: 6px; border-bottom: 2px solid #e9ecef; margin: 18px 0 8px 0; }
-    .profile-title:first-child { margin-top: 0; }
-    .card { background: #fff; border: 1px solid #e8ecf0; border-radius: 10px; margin: 12px 0; box-shadow: 0 2px 8px rgba(31,58,95,0.06); }
-    .card.empty { text-align: center; color: #b0b8bf; padding: 18px; font-size: 13px; background: #fafbfc; border: 1px dashed #d5dbdb; }
-    .card-head { padding: 11px 14px; border-bottom: 1px solid #f0f2f5; overflow: hidden; }
-    .card-name { font-size: 15px; font-weight: 600; color: #2c3e50; }
-    .card-sym { color: #95a5a6; font-size: 12px; margin-left: 5px; font-weight: 400; }
-    .mkt-badge { display: inline-block; color: #fff; font-size: 10px; padding: 1px 7px; border-radius: 9px; margin-left: 6px; vertical-align: middle; }
-    .price-row { display:flex; gap:14px; flex-wrap:wrap; padding:8px 14px; background:#f8f9fa; border-top:1px solid #eef1f5; border-bottom:1px solid #eef1f5; margin-bottom:6px; }
-    .pl { font-size:13px; }
-    .pl-l { color:#95a5a6; font-size:10px; margin-right:3px; }
-    .factor-list { padding:4px 10px; background:#fafbfc; border-radius:6px; margin:4px 0; }
-    .factor-row { display:flex; gap:6px; padding:3px 0; align-items:baseline; border-bottom:1px solid #f5f5f5; }
-    .factor-row:last-child { border-bottom:none; }
-    .fl-name { color:#7f8c8d; font-size:12px; min-width:72px; flex-shrink:0; }
-    .fl-explain { font-size:12px; }
-    .card-body { padding: 11px 14px; }
-    .signal-row { margin-bottom: 9px; }
-    .signal-tag { display: inline-block; padding: 3px 9px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-right: 5px; margin-bottom: 3px; }
-    .tag-up { background: #fdeaea; color: {{color_up}}; }
-    .tag-down { background: #e8f5e8; color: {{color_down}}; }
-    .tag-warn { background: #fef5e7; color: #d68910; }
-    .tag-neutral { background: #eef0f2; color: #7f8c8d; }
-    .dim-row { display: table; width: 100%; padding: 5px 0; border-bottom: 1px solid #f8f9fa; font-size: 12.5px; }
-    .dim-row:last-child { border-bottom: none; }
-    .dim-name { display: table-cell; width: 64px; color: #95a5a6; font-weight: 500; vertical-align: top; }
-    .dim-cells { display: table-cell; vertical-align: top; color: #34495e; }
-    .cell { display: inline-block; margin-right: 11px; margin-bottom: 3px; }
-    .cell .cl { color: #b0b8bf; font-size: 10px; margin-right: 2px; }
-    .pos { color: {{color_up}}; font-weight: 600; } .neg { color: {{color_down}}; font-weight: 600; }
-    .logic-box { margin-top: 9px; padding: 9px 11px; background: #fef9e7; border-left: 3px solid #f1c40f; border-radius: 4px; font-size: 12px; line-height: 1.55; color: #6b5b00; }
-    .logic-box b { color: #5a4a00; }
-    .logic-box ul { margin: 4px 0 0; padding-left: 16px; } .logic-box li { margin-bottom: 2px; }
-    .footer { padding: 14px 16px; text-align: center; color: #95a5a6; font-size: 11px; background: #f8f9fa; line-height: 1.6; }
-    @media (max-width: 600px) {
-      body { padding: 8px; }
-      .header h1 { font-size: 19px; }
-      .section { padding: 12px; }
-      .dim-row { display: block; }
-      .dim-name { display: block; width: auto; margin-bottom: 2px; }
-      .dim-cells { display: block; }
-    }
-  </style>
+  <title>{{title}}</title>
+  <style>{{base_css}}</style>
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <h1>{{title}}</h1>
-      <p>{{date}} · {{data_time_label}} {{data_time}}</p>
+    <div class="masthead">
+      <div class="masthead-brand">STOCK PICKS</div>
+      <h1 class="masthead-title">{{title}}</h1>
+      <div class="masthead-date">{{date}} · {{data_time_label}} {{data_time}}</div>
     </div>
-    <div class="disclaimer-top">
-      ⚠️ 本邮件为量化选股<b>跟踪信号</b>,非投资建议。模型基于历史规律,不预测未来。投资有风险,决策请自行判断。
-    </div>
+
+    <div class="notice">本邮件为量化选股<b>跟踪信号</b>，非投资建议。模型基于历史规律，不预测未来。投资有风险，决策请自行判断。</div>
+
     {% if picks_brief %}
     <div class="section">
+      <div class="section-head">
+        <span class="kicker">MARKET READ</span>
+        <h2 class="section-title">综合研判</h2>
+      </div>
       <div class="brief-box">{{picks_brief}}</div>
     </div>
     {% endif %}
+
     <div class="section">
+      <div class="section-head">
+        <span class="kicker">SELECTIONS</span>
+        <h2 class="section-title">本期选股</h2>
+      </div>
       {{picks_sections}}
     </div>
+
     <div class="footer">
-      {{disclaimer}}<br>数据源:akshare · {{generated_by}} · {{generated_at}}
+      {{disclaimer}}<br>
+      数据源 akshare · {{generated_by}} · {{generated_at}}
     </div>
   </div>
 </body>

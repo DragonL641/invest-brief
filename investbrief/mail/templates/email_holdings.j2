@@ -1,90 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    * { box-sizing: border-box; }
-    body { font-family: {{font_family}}; background: #f5f5f5; margin: 0; padding: 20px; color: #2c3e50; }
-    .container { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-    .header { background: linear-gradient(135deg, #1f3a5f, #2c5282); color: #fff; padding: 28px 20px; text-align: center; }
-    .header h1 { margin: 0 0 8px 0; font-size: 26px; font-weight: 600; }
-    .header p { margin: 0; opacity: 0.85; font-size: 13px; }
-    .section { padding: 20px; border-bottom: 1px solid #eee; }
-    .section:last-child { border-bottom: none; }
-    .section h2 { margin: 0 0 15px 0; font-size: 18px; color: #2c3e50; font-weight: 600; }
-    .group-title { margin: 18px 0 8px 0; font-size: 15px; color: #1f3a5f; font-weight: 600; padding-bottom: 6px; border-bottom: 2px solid #e9ecef; }
-    .group-title:first-child { margin-top: 0; }
-    .stock-up { color: {{color_up}}; font-weight: 600; }
-    .stock-down { color: {{color_down}}; font-weight: 600; }
-    .stock-neutral { color: #7f8c8d; }
-    /* 卡片 */
-    .card { background: #fff; border: 1px solid #e9ecef; border-radius: 8px; margin: 10px 0; }
-    .card-head { padding: 12px 15px; border-bottom: 1px solid #f0f2f5; overflow: hidden; }
-    .card-name { font-size: 15px; font-weight: 600; color: #2c3e50; }
-    .card-meta { float: right; font-size: 12px; color: #7f8c8d; font-weight: 400; }
-    .card-body { padding: 12px 15px; }
-    /* 关键信号 tag */
-    .signal-row { margin-bottom: 10px; overflow: hidden; }
-    .signal-tag { display: inline-block; padding: 3px 9px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-right: 6px; margin-bottom: 3px; }
-    .signal-tag-up { background: #fdeaea; color: {{color_up}}; }
-    .signal-tag-down { background: #e8f5e8; color: {{color_down}}; }
-    .signal-tag-warn { background: #fef5e7; color: #d68910; }
-    /* 维度表格行 */
-    .dims { font-size: 13px; }
-    .dim-row { display: table; width: 100%; padding: 5px 0; border-bottom: 1px solid #f8f9fa; }
-    .dim-row:last-child { border-bottom: none; }
-    .dim-name { display: table-cell; width: 110px; color: #5a6c7d; font-weight: 500; vertical-align: top; }
-    .dim-cells { display: table-cell; vertical-align: top; }
-    .cell { display: inline-block; margin-right: 12px; margin-bottom: 3px; color: #34495e; }
-    .cell .cl { color: #95a5a6; font-size: 11px; margin-right: 3px; }
-    .news-item { font-size: 12px; padding: 2px 0; color: #2c3e50; }
-    .news-date { color: #bdc3c7; font-size: 11px; margin-left: 4px; }
-    /* CSS bar 图表 */
-    .bar-track { display: inline-block; height: 6px; background: #ecf0f1; border-radius: 3px; vertical-align: middle; margin-left: 4px; overflow: hidden; }
-    .bar-fill-neutral { display: block; height: 6px; background: #95a5a6; border-radius: 3px; }
-    .bar-fill-up { background: {{color_up}}; }
-    .bar-fill-down { background: {{color_down}}; }
-    /* AI 研判 */
-    .ai-box { margin-top: 10px; padding: 10px 12px; background: #f8f9fa; border-left: 3px solid #1f3a5f; border-radius: 4px; font-size: 13px; line-height: 1.5; color: #2c3e50; }
-    .summary-box { background: #f8f9fa; border-radius: 8px; padding: 15px; font-size: 14px; line-height: 1.6; }
-    .summary-box p { margin: 0 0 8px 0; }
-    .summary-box strong { color: #1f3a5f; }
-    .no-data { text-align: center; color: #bdc3c7; padding: 16px; font-size: 13px; }
-    .footer { padding: 18px 20px; text-align: center; color: #95a5a6; font-size: 11px; background: #f8f9fa; }
-    @media (max-width: 600px) {
-      body { padding: 10px; }
-      .header h1 { font-size: 22px; }
-      .section { padding: 14px; }
-      .card-meta { float: none; display: block; margin-top: 3px; }
-      .dim-row { display: block; }
-      .dim-name { display: block; width: auto; margin-bottom: 3px; }
-      .dim-cells { display: block; }
-    }
-  </style>
+  <title>{{title}}</title>
+  <style>{{base_css}}</style>
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <h1>{{title}}</h1>
-      <p>{{date}} | {{data_time_label}}: {{data_time}}</p>
+    <div class="masthead">
+      <div class="masthead-brand">PORTFOLIO BRIEF</div>
+      <h1 class="masthead-title">{{title}}</h1>
+      <div class="masthead-date">{{date}} · {{data_time_label}} {{data_time}}</div>
     </div>
 
     <!-- 持仓组合研判（Claude） -->
     <div class="section">
-      <h2>🎯 持仓组合研判</h2>
+      <div class="section-head">
+        <span class="kicker">PORTFOLIO VIEW</span>
+        <h2 class="section-title">持仓组合研判</h2>
+      </div>
       <div class="summary-box">{{holdings_summary}}</div>
     </div>
 
-    <!-- 持仓标的卡片（renderer 生成） -->
+    <!-- 持仓标的卡片 -->
     <div class="section">
-      <h2>📋 标的明细</h2>
+      <div class="section-head">
+        <span class="kicker">HOLDINGS</span>
+        <h2 class="section-title">标的明细</h2>
+      </div>
       {{holdings_sections}}
     </div>
 
     <div class="footer">
-      <p>{{disclaimer}}</p>
-      <p style="margin:10px 0 0 0;">{{generated_by}} | {{generated_at}}</p>
+      {{disclaimer}}<br>
+      {{generated_by}} · {{generated_at}}
     </div>
   </div>
 </body>

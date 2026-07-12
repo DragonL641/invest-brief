@@ -10,7 +10,7 @@ from investbrief.picks.factors import FACTOR_LABELS
 from investbrief.core.textfmt import md_inline as _md
 
 _PROFILE_TITLE = {"swing": "波段 · 2周~3个月", "medium": "中长线 · 3个月~1年", "long": "长线 · 1年~5年+"}
-_MARKET_BADGE = {"cn": ("A股", "#e74c3c")}
+_MARKET_BADGE = {"cn": "A股"}
 
 
 # ---------- 格式化 ----------
@@ -87,7 +87,7 @@ def _signals(pick: dict) -> str:
     if not tags:
         return ""
     return '<div class="signal-row">' + "".join(
-        f'<span class="signal-tag tag-{cls}">{txt}</span>' for txt, cls in tags) + '</div>'
+        f'<span class="signal-tag signal-tag-{cls}">{txt}</span>' for txt, cls in tags) + '</div>'
 
 
 # ---------- 量化因子行(一行一个因子 + 右边解释) ----------
@@ -312,9 +312,9 @@ def _ret(v) -> str:
 # ---------- 卡片 ----------
 def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> str:
     if pick is None:
-        mkt = _MARKET_BADGE.get(market, ("", ""))[0]
+        mkt = _MARKET_BADGE.get(market, "")
         return f'<div class="card empty">{mkt}本期无符合条件标的</div>'
-    mkt_label, mkt_color = _MARKET_BADGE.get(pick.get("market"), ("", "#95a5a6"))
+    mkt_label = _MARKET_BADGE.get(pick.get("market"), "")
     comp = pick.get("composite", 0)
 
     dims = "".join(d for d in [
@@ -331,7 +331,7 @@ def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> 
         items = "".join(f"<li>{x}</li>" for x in logic_lines)
         logic_html = f'<div class="logic-box"><b>买入逻辑</b><ul>{items}</ul></div>'
     ai = pick.get("ai_conclusion")
-    ai_html = f'<div class="logic-box" style="background:#f8f9fa;border-left-color:#1f3a5f;color:#2c3e50;"><b>🤖 综合研判</b><div style="margin-top:4px;">{_md(ai)}</div></div>' if ai else ""
+    ai_html = f'<div class="ai-box"><span class="ai-label">综合研判</span>{_md(ai)}</div>' if ai else ""
 
     kl = pick.get("key_levels") or {}
     price_row = f'''<div class="price-row">
@@ -342,10 +342,10 @@ def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> 
 <span class="pl neg"><span class="pl-l">止损</span>{_fmt(pick.get("stop_level"))}</span>
 </div>'''
 
-    return f'''<div class="card" style="border-left-color:{mkt_color};">
+    return f'''<div class="card">
   <div class="card-head">
-    <span class="card-name">{pick.get("name","")}</span><span class="card-sym">{pick.get("symbol","")}</span><span class="mkt-badge" style="background:{mkt_color};">{mkt_label}</span>
-    <span style="float:right;color:#95a5a6;font-size:11px;">分 {_num(comp,0)}</span>
+    <span class="card-name">{pick.get("name","")}</span><span class="card-sym">{pick.get("symbol","")}</span><span class="mkt-badge">{mkt_label}</span>
+    <span class="card-score">分 <b>{_num(comp,0)}</b></span>
   </div>
   {price_row}
   <div class="card-body">

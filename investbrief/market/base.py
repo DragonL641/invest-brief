@@ -78,21 +78,15 @@ class MarketProvider(ABC):
         rows = ""
         for e in calendar:
             importance = e.get("importance", "medium")
-            badge_color = "#e74c3c" if importance == "high" else "#f39c12"
+            badge_cls = "badge-high" if importance == "high" else "badge-med"
             days = e["days_away"]
-            rows += f'''
-      <tr>
-        <td>{e["name"]}</td>
-        <td>{e["date"]}</td>
-        <td><span style="background:{badge_color}; color:#fff; padding:2px 6px; border-radius:3px; font-size:11px;">{days}天后</span></td>
-      </tr>'''
-        return f'''
-      <div class="card">
-        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">🏛️ 经济日历</div>
-        <div class="card-body">
-          <table>
-<thead><tr><th>事件</th><th>日期</th><th>倒计时</th></tr></thead>
-<tbody>{rows}</tbody>
-</table>
-        </div>
-      </div>'''
+            rows += (
+                f'<tr><td>{e["name"]}</td><td>{e["date"]}</td>'
+                f'<td><span class="badge {badge_cls}">{days}天后</span></td></tr>'
+            )
+        return (
+            '<div class="card"><div class="card-head">经济日历</div>'
+            '<div class="card-body"><table>'
+            '<thead><tr><th>事件</th><th>日期</th><th>倒计时</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table></div></div>'
+        )

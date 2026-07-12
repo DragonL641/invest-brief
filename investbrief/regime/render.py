@@ -16,14 +16,12 @@ _CELLS = [
 
 
 def _cell(name: str, favors: str, is_current: bool) -> str:
-    style = ("background:#e8f4f8;border:2px solid #2980b9;"
-             if is_current
-             else "background:#f8f9fa;border:1px solid #e9ecef;")
-    star = " ★" if is_current else ""
+    cls = "regime-cell regime-cell-current" if is_current else "regime-cell"
+    star = '<span class="regime-star">★</span>' if is_current else ""
     return (
-        f'<td style="{style}padding:10px;text-align:center;width:42%;vertical-align:middle;">'
-        f'<div style="font-size:14px;font-weight:700;color:#2c3e50;">{name}{star}</div>'
-        f'<div style="font-size:11px;color:#7f8c8d;margin-top:3px;">占优:{favors}</div>'
+        f'<td class="{cls}">'
+        f'<div class="regime-name">{name}{star}</div>'
+        f'<div class="regime-favors">占优 · {favors}</div>'
         f'</td>'
     )
 
@@ -49,12 +47,11 @@ def render_regime_card(data: dict) -> str:
         growth_tag = "增长 ↑" if row_idx == 0 else "增长 ↓"
         cells = "".join(_cell(name, favors, name == current) for name, favors in row_cells)
         rows_html += (
-            f'<tr><td style="font-size:11px;color:#95a5a6;vertical-align:middle;'
-            f'width:16%;">{growth_tag}</td>{cells}</tr>'
+            f'<tr><td class="regime-axis">{growth_tag}</td>{cells}</tr>'
         )
 
     # 判定依据行
-    parts = [f'当前:<b style="color:#2c3e50;">{current}</b> · 置信度 {confidence}%']
+    parts = [f'当前 <b>{current}</b> · 置信度 {confidence}%']
     if "GDP_YOY" in inds:
         try:
             parts.append(f'GDP同比 {inds["GDP_YOY"]:+.1f}% · 增长{growth_label}')
@@ -76,17 +73,14 @@ def render_regime_card(data: dict) -> str:
     basis = " · ".join(parts)
 
     return (
-        '<div style="margin-top:12px;padding:12px;background:#f8f9fa;'
-        'border-radius:8px;border:1px solid #e9ecef;">'
-        '<div style="margin-bottom:8px;font-size:12px;color:#7f8c8d;font-weight:600;">'
-        '🌐 宏观环境四象限</div>'
-        '<table width="100%" cellpadding="0" cellspacing="6" '
-        'style="border-collapse:separate;">'
-        '<tr><td style="width:16%;"></td>'
-        '<td style="font-size:11px;color:#95a5a6;text-align:center;width:42%;">通胀 ↓</td>'
-        '<td style="font-size:11px;color:#95a5a6;text-align:center;width:42%;">通胀 ↑</td></tr>'
+        '<div class="regime-wrap">'
+        '<div class="regime-label">宏观环境四象限 · REGIME</div>'
+        '<table class="regime-table">'
+        '<tr><td></td>'
+        '<td class="regime-col-head">通胀 ↓</td>'
+        '<td class="regime-col-head">通胀 ↑</td></tr>'
         f'{rows_html}'
         '</table>'
-        f'<div style="margin-top:8px;font-size:12px;color:#555;line-height:1.5;">{basis}</div>'
+        f'<div class="regime-basis">{basis}</div>'
         '</div>'
     )

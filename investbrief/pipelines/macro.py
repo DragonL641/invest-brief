@@ -199,7 +199,10 @@ def run_macro_report(args):
                 if inner:
                     research_views_html = (
                         '<div class="section">'
-                        '<h2 style="margin:0 0 15px 0;font-size:18px;color:#2c3e50;">🏦 卖方机构观点</h2>'
+                        '<div class="section-head">'
+                        '<span class="kicker">SELL-SIDE VIEWS</span>'
+                        '<h2 class="section-title">卖方机构观点</h2>'
+                        '</div>'
                         f'<div class="summary-box">{inner}</div>'
                         '</div>'
                     )

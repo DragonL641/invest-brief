@@ -42,9 +42,10 @@ def test_card_has_matrix_labels_and_quadrants():
 
 def test_current_quadrant_highlighted_with_star():
     html = render_regime_card(_data(quadrant="滞胀"))
-    # 当前象限带 ★,且高亮样式(主题蓝)
-    assert "滞胀 ★" in html
-    assert "#2980b9" in html  # 当前格边框色
+    # 当前象限带 ★(regime-star span),高亮用 regime-cell-current class(色在 styles.css)
+    assert "滞胀" in html
+    assert "regime-star" in html
+    assert "regime-cell-current" in html
 
 
 def test_confidence_and_indicators_shown():
@@ -61,10 +62,11 @@ def test_neutral_quadrant_no_star_on_others():
 
 
 def test_does_not_use_price_colors():
-    # 配色不使用涨跌红绿,避免和 P4 风险色冲突
+    # 配色不使用涨跌红绿,避免和 P4 风险色冲突(全 class 化,HTML 无涨跌色 inline)
     html = render_regime_card(_data())
-    # 当前格用主题蓝(#2980b9),不用红(#e74c3c)/绿(#27ae60)作为高亮
-    assert "background:#e8f4f8" in html  # 浅蓝底
+    assert "regime-cell-current" in html   # 当前格高亮 class(强调色在 styles.css)
+    for c in ("#e74c3c", "#27ae60", "#c0392b", "#2d8659"):
+        assert c not in html
 
 
 def test_cn_credit_axis_shown_when_present():

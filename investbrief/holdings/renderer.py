@@ -9,7 +9,8 @@
 - 场外基金卡片（_render_fund_card：净值/收益/规模/经理/评级）
 - AI 结论 box
 
-CSS class（signal-tag-* / bar-* / dim-* / cell / cl / ai-box / group-title）由模板 Task 12 定义。
+CSS class（signal-tag-* / bar-* / dim-* / cell / cl / ai-box / group-title）由
+mail/styles.py 统一定义（编辑研报风）。
 """
 from investbrief.core.textfmt import md_inline
 from investbrief.holdings.analyzer import HoldingResult
@@ -18,7 +19,7 @@ _TYPE_CN = {"stock": "股票", "etf": "ETF", "fund": "基金"}
 
 
 def render_holdings_section(results: list[HoldingResult]) -> str:
-    """三层层级渲染：📈 个股 / 📊 场内基金 / 💰 场外基金。无该类型则整组省略。"""
+    """三层层级渲染：个股 / 场内基金 / 场外基金。无该类型则整组省略。"""
     if not results:
         return '<div class="no-data">暂无持仓数据</div>'
     stocks = [r for r in results if r.type == "stock"]
@@ -31,13 +32,13 @@ def render_holdings_section(results: list[HoldingResult]) -> str:
 
     parts = []
     if stocks:
-        parts.append(f'<h3 class="group-title">📈 个股（{len(stocks)} 只）</h3>')
+        parts.append(f'<h3 class="group-title">个股 · {len(stocks)} 只</h3>')
         parts += [_render_card(r) for r in sorted(stocks, key=_sort_key)]
     if etfs:
-        parts.append(f'<h3 class="group-title">📊 场内基金（{len(etfs)} 只）</h3>')
+        parts.append(f'<h3 class="group-title">场内基金 · {len(etfs)} 只</h3>')
         parts += [_render_card(r) for r in sorted(etfs, key=_sort_key)]
     if funds:
-        parts.append(f'<h3 class="group-title">💰 场外基金（{len(funds)} 只）</h3>')
+        parts.append(f'<h3 class="group-title">场外基金 · {len(funds)} 只</h3>')
         parts += [_render_fund_card(r) for r in sorted(funds, key=_sort_key)]
     if not (stocks or etfs or funds):
         parts.append('<div class="no-data">暂无持仓数据</div>')
@@ -53,7 +54,7 @@ def _render_card(r: HoldingResult) -> str:
     p = r.price or {}
     cur = p.get("current")
     cur_txt = f'<strong>{_fmt_num(cur)}</strong>' if cur is not None else ""
-    head = (f'<div class="card-head"><span class="card-name">{_market_flag(r.market)} {name}</span>'
+    head = (f'<div class="card-head"><span class="card-name">{name}</span>'
             f'<span class="card-meta">{r.symbol} · {_TYPE_CN.get(r.type, r.type)} · {cur_txt} '
             f'<span class="{_trend_class(chg)}">{_fmt_pct(chg)}</span></span></div>')
     if r.error:
@@ -62,14 +63,14 @@ def _render_card(r: HoldingResult) -> str:
     sig_html = '<div class="signal-row">' + "".join(
         f'<span class="signal-tag signal-tag-{s["cls"]}">{s["label"]}</span>' for s in sigs) + '</div>' if sigs else ""
     dims = _render_dimensions(r)
-    ai = f'<div class="ai-box">🤖 {md_inline(r.ai_conclusion)}</div>' if r.ai_conclusion else ""
+    ai = f'<div class="ai-box"><span class="ai-label">AI 研判</span>{md_inline(r.ai_conclusion)}</div>' if r.ai_conclusion else ""
     return f'<div class="card">{head}<div class="card-body">{sig_html}{dims}{ai}</div></div>'
 
 
 # ==================== 维度表格行 ====================
 
 def _render_dimensions(r: HoldingResult) -> str:
-    """维度表格行：每个维度一行 emoji+name+对齐数据。缺数据维度省略。"""
+    """维度表格行：每个维度一行 name+对齐数据。缺数据维度省略。"""
     rows = []
 
     # 估值基本面
@@ -85,7 +86,7 @@ def _render_dimensions(r: HoldingResult) -> str:
             if pg is not None:
                 cells = (cells + _cells([("净利%", pg, 1)])) if "净利%" not in cells else cells
         if cells:
-            rows.append(_dim_row("📊 估值基本面", cells))
+            rows.append(_dim_row("估值基本面", cells))
 
     # 技术面
     t = r.technicals
@@ -104,7 +105,7 @@ def _render_dimensions(r: HoldingResult) -> str:
         if t.get("boll_position") is not None:
             cells.append(f'<span class="cell"><span class="cl">布林</span> {t["boll_position"]:.1f}</span>')
         if cells:
-            rows.append(_dim_row("📈 技术面", "".join(cells)))
+            rows.append(_dim_row("技术面", "".join(cells)))
 
     # ETF 估值溢价 + 命中信号(ETF 无 fundamentals/technicals,单独维度)
     if r.type == "etf":
@@ -120,7 +121,7 @@ def _render_dimensions(r: HoldingResult) -> str:
             if name:
                 etf_cells.append(f'<span class="cell"><span class="cl">{name}</span> {sig_cn}</span>')
         if etf_cells:
-            rows.append(_dim_row("📊 溢价与信号", "".join(etf_cells)))
+            rows.append(_dim_row("溢价与信号", "".join(etf_cells)))
 
     # 资金筹码
     fl = r.flow
@@ -141,7 +142,7 @@ def _render_dimensions(r: HoldingResult) -> str:
         if rc:
             cells.append(f'<span class="cell"><span class="cl">机构调研</span>×{rc}</span>')
         if cells:
-            rows.append(_dim_row("💰 资金筹码", "".join(cells)))
+            rows.append(_dim_row("资金筹码", "".join(cells)))
 
     # 机构态度
     rt = r.rating
@@ -157,7 +158,7 @@ def _render_dimensions(r: HoldingResult) -> str:
             cls = "stock-up" if pt["upside_pct"] > 0 else "stock-down"
             cells.append(f'<span class="cell"><span class="cl">目标空间</span> <span class="{cls}">{pt["upside_pct"]:+.0f}%</span></span>')
         if cells:
-            rows.append(_dim_row("🏛 机构态度", "".join(cells)))
+            rows.append(_dim_row("机构态度", "".join(cells)))
 
     # 事件日历
     ev = r.events
@@ -166,14 +167,14 @@ def _render_dimensions(r: HoldingResult) -> str:
         cells = []
         if ev.get("next_earnings"):
             days = ev.get("days_to_next")
-            warn = ' ⚠️' if days is not None and days <= 7 else ''
+            warn = ' · 临近' if days is not None and days <= 7 else ''
             cells.append(f'<span class="cell"><span class="cl">财报</span> {ev["next_earnings"]}{warn}</span>')
         if ins.get("direction") and ins.get("direction") != "flat":
             cls = "stock-up" if ins["direction"] == "buy" else "stock-down"
             verb = "增持" if ins["direction"] == "buy" else "减持"
             cells.append(f'<span class="cell"><span class="cl">高管{verb}</span> <span class="{cls}">{_fmt_short_money(ins.get("net_shares", 0))}股</span></span>')
         if cells:
-            rows.append(_dim_row("📅 事件日历", "".join(cells)))
+            rows.append(_dim_row("事件日历", "".join(cells)))
 
     # 盈利预估
     fc = r.forecast
@@ -182,14 +183,14 @@ def _render_dimensions(r: HoldingResult) -> str:
         if fc.get("yoy_pct") is not None:
             cls = "stock-up" if fc["yoy_pct"] > 0 else "stock-down"
             cells.append(f'<span class="cell"><span class="cl">同比</span> <span class="{cls}">{fc["yoy_pct"]:+.0f}%</span></span>')
-        rows.append(_dim_row("🌐 盈利预估", "".join(cells)))
+        rows.append(_dim_row("盈利预估", "".join(cells)))
 
     # 新闻
     if r.news:
         items = "".join(
             f'<div class="news-item">• {(n.get("title", ""))[:50]} <span class="news-date">{str(n.get("date", ""))[:10]}</span></div>'
             for n in r.news[:3])
-        rows.append(f'<div class="dim-row"><span class="dim-name">📰 新闻</span><div class="dim-cells">{items}</div></div>')
+        rows.append(f'<div class="dim-row"><span class="dim-name">新闻</span><div class="dim-cells">{items}</div></div>')
 
     return f'<div class="dims">{"".join(rows)}</div>' if rows else ""
 
@@ -201,7 +202,7 @@ def _render_fund_card(r: HoldingResult) -> str:
     name = r.name or r.symbol
     p = r.price or {}
     chg = p.get("change_pct")
-    head = (f'<div class="card-head"><span class="card-name">💰 {name}</span>'
+    head = (f'<div class="card-head"><span class="card-name">{name}</span>'
             f'<span class="card-meta">{r.symbol} · 基金 · 单位净值 <strong>{_fmt_num(p.get("current"))}</strong> '
             f'<span class="{_trend_class(chg)}">{_fmt_pct(chg)}</span></span></div>')
     if r.error:
@@ -219,8 +220,8 @@ def _render_fund_card(r: HoldingResult) -> str:
         v = (fm or {}).get(key)
         if v is not None:
             cells.append(f'<span class="cell"><span class="cl">{label}</span> {v}</span>')
-    dims = f'<div class="dims"><div class="dim-row"><span class="dim-name">📋 概况</span><div class="dim-cells">{"".join(cells)}</div></div></div>' if cells else ""
-    ai = f'<div class="ai-box">🤖 {md_inline(r.ai_conclusion)}</div>' if r.ai_conclusion else ""
+    dims = f'<div class="dims"><div class="dim-row"><span class="dim-name">概况</span><div class="dim-cells">{"".join(cells)}</div></div></div>' if cells else ""
+    ai = f'<div class="ai-box"><span class="ai-label">AI 研判</span>{md_inline(r.ai_conclusion)}</div>' if r.ai_conclusion else ""
     return f'<div class="card">{head}<div class="card-body">{dims}{ai}</div></div>'
 
 
@@ -244,13 +245,14 @@ def _bar_html(value: float, max_val: float, width_px: int = 60) -> str:
     if max_val <= 0 or value is None:
         return ""
     pct = min(100, max(0, abs(value) / max_val * 100))
-    return f'<span class="bar-track" style="width:{width_px}px;"><span class="bar-fill-neutral" style="width:{pct:.0f}%;"></span></span>'
+    return f'<span class="bar-track" style="width:{width_px}px;"><span class="bar-fill" style="width:{pct:.0f}%;"></span></span>'
 
 
 # ==================== 工具 ====================
 
 def _market_flag(market: str) -> str:
-    return "🇨🇳"
+    """保留兼容（编辑研报风不用国旗 emoji，恒返回空串）。"""
+    return ""
 
 
 def _trend_class(pct) -> str:

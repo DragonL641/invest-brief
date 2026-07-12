@@ -121,17 +121,18 @@ def test_main_flow_with_value():
     assert s is not None and "1.50" in s
 
 
-# ---- #11 标题恰好一个 🎯 ----
+# ---- #11 标题纯文字（编辑研报风，无 emoji） ----
 
-def test_picks_title_has_one_emoji():
-    """render 给 title 自带一个 🎯,模板不再叠加。"""
+def test_picks_title_has_no_emoji():
+    """编辑研报风：title 纯文字，render 不再给 title 叠加 emoji。"""
     from investbrief.mail.render import render_picks_template
     html = render_picks_template(
         "email_picks.j2",
         {"data_time": "2026-07-11 18:00", "picks_brief": "<p>x</p>", "picks_sections": ""},
         "zh-CN",
     )
-    assert html.count("🎯") == 1
+    assert "🎯" not in html
+    assert "股票推荐" in html
 
 
 # ---- #13 标普点数用默认深色,不随涨跌染色 ----

@@ -55,7 +55,7 @@ def test_two_market_risk_cards_render():
     # Gold section header present
     assert "黄金" in gold_html
     # Each of the two cards renders its risk-card headline
-    assert combined.count("📈 周期风险") >= 2
+    assert combined.count("周期风险") >= 2
 
     cn.data.close()
     gold_data.close()

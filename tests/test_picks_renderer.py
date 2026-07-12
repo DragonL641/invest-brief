@@ -58,12 +58,11 @@ def test_card_head_has_price_levels_row():
 
 
 def test_composite_score_deemphasized():
-    """综合分弱化(小号灰色,不再是显眼大号彩色)。"""
+    """综合分弱化(card-score class:小号灰色,不再是显眼大号彩色)。"""
     html = renderer.render_pick_card(_sample_pick(), "swing", "cn")
     assert "72.3" in html or "72" in html     # 综合分仍显示
-    # 不应再有显眼 score-num 大号(弱化:小号灰色)
-    assert 'class="score-num"' not in html          # 旧显眼 class 没了
-    assert "font-size:11px" in html or "#95a5a6" in html  # 新弱化样式在
+    assert 'class="score-num"' not in html         # 旧显眼 class 没了
+    assert 'class="card-score"' in html            # 新弱化 class(色/字号在 styles.css)
 
 
 def test_no_standalone_price_dim():

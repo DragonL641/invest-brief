@@ -1,9 +1,10 @@
 """
 Email report template-rendering library.
 
-Renders Jinja2 templates (macro / holdings) into Chinese-only email HTML.
+Renders Jinja2 templates (macro / holdings / picks) into Chinese-only email HTML.
 
-Public API: load_template(), render_template(), render_holdings_template().
+Public API: load_template(), render_template(), render_holdings_template(),
+render_picks_template().
 """
 
 from investbrief.core.timeutil import now_cn
@@ -12,6 +13,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from investbrief.core.textfmt import md_inline
+from investbrief.mail.styles import BASE_CSS, COLOR_UP, COLOR_DOWN, FONT_FAMILY
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -27,14 +29,14 @@ _env = Environment(
 
 
 # ============================================================================
-# Language Configuration (minimal - only styling)
+# Language Configuration (single source of truth: investbrief/mail/styles.py)
 # ============================================================================
 
 # Chinese-only styling (red=up, green=down per 中国惯例)
 LANGUAGE_CONFIG = {
-    'font_family': "'Microsoft YaHei', 'PingFang SC', sans-serif",
-    'color_up': '#e74c3c',
-    'color_down': '#27ae60',
+    'font_family': FONT_FAMILY,
+    'color_up': COLOR_UP,
+    'color_down': COLOR_DOWN,
 }
 
 
@@ -56,15 +58,15 @@ def load_template(name: str = "email_base.j2") -> str:
 # ============================================================================
 
 def build_news_html(news_items):
-    """Build news items HTML - content from JSON"""
+    """Build news items HTML - content from JSON. Editorial style (见 styles.py)."""
     html = ''
     for i, item in enumerate(news_items, 1):
         title = item.get('title', '')
         url = item.get('url', '')
         if url:
-            title_html = f'<a href="{url}" target="_blank" style="color:#2980b9; text-decoration:underline; font-weight:600;">{title}</a>'
+            title_html = f'<a href="{url}" target="_blank">{title}</a>'
         else:
-            title_html = f'<span style="font-weight:600; color:#2c3e50;">{title}</span>'
+            title_html = title
 
         summary = item.get('summary', '')
         if len(summary) > 200:
@@ -73,14 +75,15 @@ def build_news_html(news_items):
 
         tag_html = ''
         if item.get('tag'):
-            tag_html = f' <span style="background:#e8f4f8;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">{item["tag"]}</span>'
+            tag_html = f'<span class="news-tag">{item["tag"]}</span>'
 
-        html += f'''
-<div class="news-item" style="padding:12px 0; border-bottom:1px solid #f0f0f0;">
-    <div style="font-size:14px; margin-bottom:5px;">{i}. {title_html}{tag_html}</div>
-    <div style="font-size:13px; color:#6c757d; line-height:1.6;">{summary}</div>
-    <div style="font-size:12px; color:#adb5bd; margin-top:5px;">{item.get('source', '')} · {item.get('time', '')}</div>
-</div>'''
+        html += (
+            f'<div class="news-item">'
+            f'<div class="news-title">{i}. {title_html}{tag_html}</div>'
+            f'<div class="news-summary">{summary}</div>'
+            f'<div class="news-meta">{item.get("source", "")} · {item.get("time", "")}</div>'
+            f'</div>'
+        )
     return html
 
 
@@ -89,9 +92,10 @@ def build_news_html(news_items):
 # ============================================================================
 
 def _base_context(language: str, data: dict, title: str, disclaimer: str) -> dict:
-    """Shared context for both macro and holdings templates."""
+    """Shared context for macro / holdings / picks templates."""
     cfg = get_config(language)
     return {
+        'base_css': BASE_CSS,
         'font_family': cfg['font_family'],
         'color_up': cfg['color_up'],
         'color_down': cfg['color_down'],
@@ -108,8 +112,8 @@ def _base_context(language: str, data: dict, title: str, disclaimer: str) -> dic
 def render_template(template_name: str, data: dict, language: str) -> str:
     """Render the macro email template. First arg is the template NAME (not loaded string)."""
     ctx = _base_context(
-        language, data, '🗓️ 宏观经济日报',
-        '⚠️ 免责声明：本报告仅供参考，不构成投资建议。投资有风险，入市需谨慎。',
+        language, data, '宏观经济日报',
+        '免责声明：本报告仅供参考，不构成投资建议。投资有风险，入市需谨慎。',
     )
     news = data.get('news') or data.get('global_news') or []
     ctx.update({
@@ -117,7 +121,7 @@ def render_template(template_name: str, data: dict, language: str) -> str:
         'risk_outlook': data.get('risk_outlook') or '<p>—</p>',
         'market_sections': data.get('market_section_html', ''),
         'research_views': data.get('research_views') or '',
-        'global_news_title': '📰 重要新闻',
+        'global_news_title': '重要新闻',
         'global_news': build_news_html(news[:5]),
     })
     return _env.get_template(template_name).render(**ctx)
@@ -126,8 +130,8 @@ def render_template(template_name: str, data: dict, language: str) -> str:
 def render_holdings_template(template_name: str, data: dict, language: str) -> str:
     """Render the per-recipient holdings email template. First arg is the template NAME."""
     ctx = _base_context(
-        language, data, '📊 持仓分析',
-        '⚠️ 免责声明：本报告仅供参考，不构成投资建议。数据来自公开渠道，可能存在延迟或误差。',
+        language, data, '持仓分析',
+        '免责声明：本报告仅供参考，不构成投资建议。数据来自公开渠道，可能存在延迟或误差。',
     )
     ctx.update({
         'holdings_summary': data.get('holdings_summary') or '<p>暂无组合研判。</p>',
@@ -139,8 +143,8 @@ def render_holdings_template(template_name: str, data: dict, language: str) -> s
 def render_picks_template(template_name: str, data: dict, language: str) -> str:
     """Render the stock-picks recommendation email template. First arg is the template NAME."""
     ctx = _base_context(
-        language, data, '🎯 股票推荐',
-        '⚠️ 免责声明:本邮件为量化跟踪信号,非投资建议。模型基于历史规律,不预测未来。',
+        language, data, '股票推荐',
+        '免责声明：本邮件为量化跟踪信号，非投资建议。模型基于历史规律，不预测未来。',
     )
     ctx.update({
         'picks_brief': data.get('picks_brief') or '<p>本期暂无综合研判。</p>',

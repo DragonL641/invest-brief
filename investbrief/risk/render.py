@@ -12,6 +12,7 @@ from investbrief.risk.config import (
     CN_ALL_INDICATORS,
     GOLD_ALL_INDICATORS,
 )
+from investbrief.mail.styles import INK_3
 
 
 # === Indicator metadata: key → {name, scale, unit, explain, description, thresholds} ===
@@ -113,7 +114,7 @@ def render_risk_card(score_data: dict) -> str:
     # 每条指标 2-line block
     indicators_html = ""
     for key, ind, ind_score_f in items:
-        ind_color = _risk_color(ind_score_f * 10) if ind_score_f is not None else "#7f8c8d"
+        ind_color = _risk_color(ind_score_f * 10) if ind_score_f is not None else INK_3
         meta = _INDICATOR_META.get(
             key,
             {"name": key, "scale": 1.0, "unit": "", "explain": "",
@@ -143,27 +144,24 @@ def render_risk_card(score_data: dict) -> str:
 
         line2 = " · ".join(parts)
         indicators_html += (
-            '<div style="margin-bottom:8px;">'
-            '<div style="font-size:12px;color:#555;line-height:1.4;">'
-            f'<span style="display:inline-block;width:96px;vertical-align:top;color:#34495e;">{name}</span>'
-            f'<span style="display:inline-block;width:80px;vertical-align:top;">{val_str}</span>'
-            f'<span style="vertical-align:top;">→ 风险 <b style="color:{ind_color};">{score_txt}/10</b></span>'
+            '<div class="ind">'
+            '<div class="ind-line">'
+            f'<span class="ind-name">{name}</span>'
+            f'<span class="ind-val">{val_str}</span>'
+            f'<span>→ 风险 <b style="color:{ind_color};">{score_txt}/10</b></span>'
             '</div>'
-            f'<div style="font-size:11px;color:#95a5a6;padding-left:8px;margin-top:2px;line-height:1.4;">{line2}</div>'
+            f'<div class="ind-explain">{line2}</div>'
             '</div>'
         )
 
     return (
-        '<div style="margin-top:8px;padding:10px 12px;background:#f8f9fa;'
-        'border-radius:8px;border:1px solid #e9ecef;">'
-        '<div style="margin-bottom:6px;font-size:12px;color:#7f8c8d;font-weight:600;">'
-        '📈 周期风险</div>'
-        '<div style="margin-bottom:6px;">'
-        f'<span style="font-size:26px;font-weight:700;color:{color};line-height:1;'
-        f'vertical-align:middle;">{score_str}</span>'
-        '<span style="font-size:12px;color:#95a5a6;margin-left:2px;vertical-align:middle;">/100</span>'
+        '<div class="risk-wrap">'
+        '<div class="risk-label">周期风险 · CYCLE RISK</div>'
+        '<div class="risk-score-row">'
+        f'<span class="risk-score" style="color:{color};">{score_str}</span>'
+        '<span class="risk-score-out">/ 100</span>'
         '</div>'
-        f'<div style="margin-bottom:8px;font-size:12px;color:#555;">'
+        '<div class="risk-state">'
         f'<b style="color:{color};">{state}</b>'
         + (f' · {action}' if action else '')
         + '</div>'
@@ -185,12 +183,12 @@ def render_gold_section(score_data: dict) -> str:
         return ""
     return (
         '<div class="section">'
-        '<div class="country-header" style="background-color:#b8860b; color:#ffffff; '
-        'padding:15px 20px; margin-bottom:15px;">'
-        '<h3 style="margin:0; font-size:16px; color:#ffffff;">🥇 黄金市场</h3>'
+        '<div class="section-head">'
+        '<span class="kicker">GOLD</span>'
+        '<h2 class="section-title">黄金市场</h2>'
         '</div>'
         '<div class="card">'
-        '<div class="card-body" style="padding:15px;">'
+        '<div class="card-body">'
         f'{card}'
         '</div></div></div>'
     )

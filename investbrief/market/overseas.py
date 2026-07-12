@@ -11,10 +11,6 @@ logger = logging.getLogger(__name__)
 # 联邦基金利率目标区间上限(FOMC 调整时更新)
 FED_FUNDS_RATE = 5.25
 
-# A 股配色:红涨绿跌
-_COLOR_UP = "#e74c3c"
-_COLOR_DOWN = "#27ae60"
-
 
 def fetch_overseas_data(ak_client, fed_rate: float = FED_FUNDS_RATE) -> dict[str, Any]:
     """从 akshare 组装外围卡数据。任一接口失败该键为 None(渲染降级)。
@@ -42,12 +38,12 @@ def fetch_overseas_data(ak_client, fed_rate: float = FED_FUNDS_RATE) -> dict[str
 
 
 def _fmt_change(change: float | None) -> tuple[str, str]:
-    """涨跌幅 → (显示文本, 颜色)。"""
+    """涨跌幅 → (显示文本, css class)。class 命中 styles.py 的 .pos/.neg/.neutral。"""
     if change is None:
-        return ("-", "#7f8c8d")
+        return ("-", "neutral")
     sign = "+" if change > 0 else ""
-    color = _COLOR_UP if change > 0 else _COLOR_DOWN if change < 0 else "#7f8c8d"
-    return (f"{sign}{change:.2f}%", color)
+    cls = "pos" if change > 0 else "neg" if change < 0 else "neutral"
+    return (f"{sign}{change:.2f}%", cls)
 
 
 def render_overseas_card(data: dict[str, Any]) -> str:
@@ -58,35 +54,37 @@ def render_overseas_card(data: dict[str, Any]) -> str:
     usdcny = data.get("usdcny")
 
     sp_point = sp.get("point") if isinstance(sp, dict) else None
-    sp_chg_txt, sp_color = _fmt_change(sp.get("change") if isinstance(sp, dict) else None)
+    sp_chg_txt, sp_cls = _fmt_change(sp.get("change") if isinstance(sp, dict) else None)
 
-    def _cell(label: str, value, suffix: str = "", color: str = "#2c3e50") -> str:
-        val_str = f"{value:.2f}{suffix}" if isinstance(value, (int, float)) else "-"
-        return (f'<div class="asset-card" style="background:#f8f9fa;border-radius:8px;'
-                f'padding:12px 10px;text-align:center;margin:4px;">'
-                f'<div style="font-size:12px;color:#7f8c8d;margin-bottom:4px;">{label}</div>'
-                f'<div style="font-size:18px;font-weight:bold;color:{color};">{val_str}</div></div>')
+    def _cell(label: str, value, suffix: str = "", value_class: str = "") -> str:
+        if isinstance(value, (int, float)):
+            val_str = f"{value:.2f}{suffix}"
+        else:
+            val_str = str(value) if value is not None else "-"
+        cls = f" {value_class}" if value_class else ""
+        return (
+            f'<div class="stat"><div class="stat-label">{label}</div>'
+            f'<div class="stat-value{cls}">{val_str}</div></div>'
+        )
 
     cells = "".join([
         _cell("美联储利率", fed, "%"),
         _cell("美债10Y", us_10y, "%"),
         _cell("标普500", sp_point),
-        # 标普涨跌单独一格
-        f'<div class="asset-card" style="background:#f8f9fa;border-radius:8px;padding:12px 10px;'
-        f'text-align:center;margin:4px;"><div style="font-size:12px;color:#7f8c8d;margin-bottom:4px;">标普涨跌</div>'
-        f'<div style="font-size:18px;font-weight:bold;color:{sp_color};">{sp_chg_txt}</div></div>',
+        _cell("标普涨跌", sp_chg_txt, value_class=sp_cls),
         _cell("美元/人民币", usdcny),
     ])
 
     return f'''
     <div class="section">
-      <div class="country-header" style="background-color:#2c3e50; color:#ffffff; padding:15px 20px; margin-bottom:15px;">
-        <h3 style="margin:0; font-size:16px; color:#ffffff;">🌐 外围环境</h3>
+      <div class="section-head">
+        <span class="kicker">OVERSEAS</span>
+        <h2 class="section-title">外围环境</h2>
       </div>
       <div class="card">
-        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">影响 A 股的外围信号</div>
+        <div class="card-head">影响 A 股的外围信号</div>
         <div class="card-body">
-          <div class="asset-grid" style="display:flex;flex-wrap:wrap;">{cells.strip()}</div>
+          <div class="stat-grid">{cells}</div>
         </div>
       </div>
     </div>'''

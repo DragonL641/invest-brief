@@ -166,11 +166,10 @@ class CNMarketProvider(MarketProvider):
         if not rows:
             return ""
         return (
-            '<div class="card"><div class="card-header" style="padding:12px 15px;background:#f8f9fa;'
-            'border-bottom:1px solid #e9ecef;font-weight:600;">😱 A股恐慌指数(QVIX)</div>'
-            '<div class="card-body" style="padding:15px;">'
-            '<div class="metrics-row" style="display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:#555;">'
-            f'{rows}</div></div></div>'
+            '<div class="card"><div class="card-head">A股恐慌指数 QVIX</div>'
+            '<div class="card-body">'
+            f'<div class="metrics-row">{rows}</div>'
+            '</div></div>'
         )
 
     # ==================== Rendering ====================
@@ -192,12 +191,13 @@ class CNMarketProvider(MarketProvider):
 
         return f'''
     <div class="section">
-      <div class="country-header" style="background-color:#c0392b; color:#ffffff; padding:15px 20px; margin-bottom:15px;">
-        <h3 style="margin:0; font-size:16px; color:#ffffff;">{self.flag} {self.country_name}</h3>
+      <div class="section-head">
+        <span class="kicker">CHINA · A-SHARES</span>
+        <h2 class="section-title">{self.country_name}</h2>
       </div>
 
       <div class="card">
-        <div class="card-header" style="padding:12px 15px; background:#f8f9fa; border-bottom:1px solid #e9ecef; font-weight:600;">📊 大类资产</div>
+        <div class="card-head">大类资产</div>
         <div class="card-body">
           {indices_html}
         </div>
@@ -236,11 +236,10 @@ class CNMarketProvider(MarketProvider):
         if not rows:
             return ""
         return (
-            '<div class="card"><div class="card-header" style="padding:12px 15px;background:#f8f9fa;'
-            'border-bottom:1px solid #e9ecef;font-weight:600;">🏦 货币政策与利率</div>'
-            '<div class="card-body" style="padding:15px;">'
-            '<div class="metrics-row" style="display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:#555;">'
-            f'{"".join(rows)}</div></div></div>'
+            '<div class="card"><div class="card-head">货币政策与利率</div>'
+            '<div class="card-body">'
+            f'<div class="metrics-row">{"".join(rows)}</div>'
+            '</div></div>'
         )
 
     def _render_indices_table(
@@ -254,27 +253,20 @@ class CNMarketProvider(MarketProvider):
         for idx in indices:
             change = idx.get("change") or 0
             change_str = f"+{change:.2f}%" if change > 0 else f"{change:.2f}%"
-            color = (
-                config.get("color_up", "#e74c3c") if change > 0
-                else config.get("color_down", "#27ae60") if change < 0
-                else "#7f8c8d"
-            )
+            delta_cls = "pos" if change > 0 else "neg" if change < 0 else "neutral"
             point = idx.get("point", 0)
             amount = idx.get("amount")
-            amount_str = (f'<div style="font-size:11px;color:#999;margin-top:6px;">额 {self._format_amount(amount)}</div>'
-                          if amount else "")
-            cards += f'''
-        <div class="asset-card" style="background:#f8f9fa;border-radius:8px;padding:12px 10px;text-align:center;margin:4px;">
-          <div style="font-size:12px;color:#7f8c8d;margin-bottom:4px;">{idx['name']}</div>
-          <div style="font-size:18px;font-weight:bold;color:#2c3e50;">{point:,.2f}</div>
-          <div style="font-size:14px;font-weight:bold;color:{color};">{change_str}</div>
-          {amount_str}
-        </div>'''
+            amount_str = f'<div class="stat-sub">额 {self._format_amount(amount)}</div>' if amount else ""
+            cards += (
+                f'<div class="stat">'
+                f'<div class="stat-label">{idx["name"]}</div>'
+                f'<div class="stat-value">{point:,.2f}</div>'
+                f'<div class="stat-delta {delta_cls}">{change_str}</div>'
+                f'{amount_str}'
+                f'</div>'
+            )
 
-        return f'''
-      <div class="asset-grid" style="display:flex;flex-wrap:wrap;">
-        {cards.strip()}
-      </div>'''
+        return f'<div class="stat-grid">{cards}</div>'
 
     # ==================== Utilities ====================
 
