@@ -1,5 +1,6 @@
 """Tavily Search API Client."""
 import logging
+import time
 from typing import Any
 
 import requests
@@ -33,6 +34,7 @@ class TavilyClient:
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}"
             }
+            t0 = time.perf_counter()
             response = requests.post(
                 f"{self.BASE_URL}/search",
                 json=payload,
@@ -40,9 +42,15 @@ class TavilyClient:
                 timeout=30
             )
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            n_results = len(data.get("results", [])) if isinstance(data, dict) else 0
+            logger.info(
+                f"tavily ok query={str(payload.get('query', ''))[:40]!r} "
+                f"results={n_results} elapsed={(time.perf_counter() - t0) * 1000:.0f}ms"
+            )
+            return data
         except requests.exceptions.RequestException as e:
-            logger.warning(f"Tavily API error: {e}")
+            logger.warning(f"Tavily API error: {e}", exc_info=True)
             return None
 
     def search_news(self, query: str, max_results: int = 10, days: int = 7) -> list[dict[str, Any]] | None:

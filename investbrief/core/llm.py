@@ -81,14 +81,27 @@ def call_claude(
         kwargs["temperature"] = temperature
 
     for attempt in range(max_retries + 1):
+        t0 = time.perf_counter()
         try:
             resp = client.messages.create(**kwargs)
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            # usage 在 GLM 兼容端点可能缺失 / 测试 mock 为 MagicMock → 非 int 显示为 '?'
+            usage = getattr(resp, "usage", None)
+            in_tok = getattr(usage, "input_tokens", None)
+            out_tok = getattr(usage, "output_tokens", None)
+            logger.info(
+                f"claude ok model={kwargs['model']} "
+                f"in={in_tok if isinstance(in_tok, int) else '?'} "
+                f"out={out_tok if isinstance(out_tok, int) else '?'} "
+                f"elapsed={elapsed_ms:.0f}ms"
+            )
             return (resp.content[0].text or "").strip()
         except Exception as e:
             err = classify_anthropic_error(e)
             if not err.retryable or attempt >= max_retries:
                 logger.warning(
-                    f"Claude call failed [{err.code}] (attempt {attempt+1}/{max_retries+1}): {e}"
+                    f"Claude call failed [{err.code}] (attempt {attempt+1}/{max_retries+1}): {e}",
+                    exc_info=True,
                 )
                 return None
             delay = min(30.0, (2 ** attempt) + random.uniform(0, 1))

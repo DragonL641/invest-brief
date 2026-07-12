@@ -140,7 +140,15 @@ def _record_em_outcome(success: bool):
             return
         _em_consecutive_fail += 1
         if _em_consecutive_fail >= _EM_BAN_THRESHOLD:
+            # 连续失败期间每次都会进此分支; 用「当前未处于封禁窗口」判据,
+            # 只在「新进入封禁」时 INFO 一次, 避免重复刷屏。
+            newly_banned = time.monotonic() >= _em_ban_until
             _em_ban_until = time.monotonic() + _EM_BAN_DURATION
+            if newly_banned:
+                logger.info(
+                    f"eastmoney banned: {_em_consecutive_fail} consecutive failures, "
+                    f"short-circuiting all eastmoney requests for {_EM_BAN_DURATION}s"
+                )
 
 
 def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
@@ -153,8 +161,14 @@ def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
     _EMBanned(eastmoney 封禁窗口)→ 立即返回 None, 不重试(连接注定失败, 省退避)。
     """
     for attempt in range(attempts):
+        t0 = time.perf_counter()
         try:
-            return fn()
+            result = fn()
+            logger.debug(
+                f"akshare ok label={label} "
+                f"elapsed={(time.perf_counter() - t0) * 1000:.0f}ms"
+            )
+            return result
         except _EMBanned:
             return None
         except Exception as e:
@@ -162,9 +176,16 @@ def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
                 delay = random.uniform(base_delay, base_delay * 2) * (attempt + 1)
                 if attempt == attempts - 2:
                     delay = max(delay, 10.0)
+                logger.debug(
+                    f"akshare retry label={label} attempt={attempt + 1}/{attempts} "
+                    f"delay={delay:.1f}s: {e}"
+                )
                 time.sleep(delay)
                 continue
-            logger.warning(f"AKShare {label} failed after {attempts} attempts: {e}")
+            logger.warning(
+                f"AKShare {label} failed after {attempts} attempts: {e}",
+                exc_info=True,
+            )
             return None
 
 
