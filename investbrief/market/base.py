@@ -1,12 +1,9 @@
 """Market provider abstract base class."""
 
-import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
 from investbrief.data.base import BaseData
-
-logger = logging.getLogger(__name__)
 
 
 class MarketProvider(ABC):

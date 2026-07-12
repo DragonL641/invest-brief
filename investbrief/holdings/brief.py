@@ -5,12 +5,9 @@
 
 复用 core.llm.get_client（不内联构造 anthropic 客户端，遵循项目约定）。
 """
-import logging
 
 from investbrief.core.textfmt import md_inline
 from investbrief.holdings.analyzer import HoldingResult
-
-logger = logging.getLogger(__name__)
 
 
 def generate_holdings_brief(results: list[HoldingResult]) -> str:

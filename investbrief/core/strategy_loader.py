@@ -3,13 +3,10 @@
 Strategy files live in investbrief/strategies/. They are static after startup,
 so lru_cache is safe. Call load_strategy.cache_clear() in tests if you mutate.
 """
-import logging
 from functools import cache
 from pathlib import Path
 
 import yaml
-
-logger = logging.getLogger(__name__)
 
 STRATEGIES_DIR = Path(__file__).resolve().parent.parent / "strategies"
 

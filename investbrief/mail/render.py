@@ -5,7 +5,6 @@ Renders Jinja2 templates (macro / holdings) into Chinese-only email HTML.
 
 Public API: load_template(), render_template(), render_holdings_template().
 """
-import logging
 
 from investbrief.core.timeutil import now_cn
 from pathlib import Path
@@ -13,8 +12,6 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from investbrief.core.textfmt import md_inline
-
-logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
