@@ -4,15 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{title}}</title>
-  <style>{{base_css}}</style>
+  <style>{{media_css}}</style>
 </head>
 <body>
   <div class="container">
-    <div class="masthead">
-      <div class="masthead-brand">PORTFOLIO BRIEF</div>
-      <h1 class="masthead-title">{{title}}</h1>
-      <div class="masthead-date">{{date}} · {{data_time_label}} {{data_time}}</div>
-    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="width:100%;">
+      <tr><td class="masthead" bgcolor="#1a1f2e">
+        <div class="masthead-brand">PORTFOLIO BRIEF</div>
+        <h1 class="masthead-title">{{title}}</h1>
+        <div class="masthead-date">{{date}} · {{data_time_label}} {{data_time}}</div>
+      </td></tr>
+    </table>
 
     <!-- 持仓组合研判（Claude） -->
     <div class="section">

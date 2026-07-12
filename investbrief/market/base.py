@@ -6,6 +6,24 @@ from typing import Any
 from investbrief.data.base import BaseData
 
 
+def stat_grid_html(cells: list[str], per_row: int = 3) -> str:
+    """td 字符串列表 → ``<table class=stat-grid>`` 多列网格。
+
+    Outlook 桌面对 table 布局支持最完美（flex 失效），间距走 cellspacing HTML 属性
+    （Outlook 100% 读，比 CSS border-spacing 稳）。
+    """
+    rows = "".join("<tr>" + "".join(cells[i:i + per_row]) + "</tr>"
+                   for i in range(0, len(cells), per_row))
+    return f'<table class="stat-grid" width="100%" cellpadding="0" cellspacing="6" border="0">{rows}</table>'
+
+
+def metrics_table_html(cells: list[str], per_row: int = 4) -> str:
+    """td 字符串列表 → ``<table class=metrics-row>`` 指标 chip 网格。"""
+    rows = "".join("<tr>" + "".join(cells[i:i + per_row]) + "</tr>"
+                   for i in range(0, len(cells), per_row))
+    return f'<table class="metrics-row" width="100%" cellpadding="0" cellspacing="6" border="0">{rows}</table>'
+
+
 class MarketProvider(ABC):
     """各市场数据获取和渲染的统一接口。"""
 
@@ -86,7 +104,7 @@ class MarketProvider(ABC):
             )
         return (
             '<div class="card"><div class="card-head">经济日历</div>'
-            '<div class="card-body"><table>'
+            '<div class="card-body"><table class="cal-table" width="100%" cellpadding="0" cellspacing="0" border="0">'
             '<thead><tr><th>事件</th><th>日期</th><th>倒计时</th></tr></thead>'
             f'<tbody>{rows}</tbody></table></div></div>'
         )

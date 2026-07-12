@@ -4,15 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{title}}</title>
-  <style>{{base_css}}</style>
+  <style>{{media_css}}</style>
 </head>
 <body>
   <div class="container">
-    <div class="masthead">
-      <div class="masthead-brand">STOCK PICKS</div>
-      <h1 class="masthead-title">{{title}}</h1>
-      <div class="masthead-date">{{date}} · {{data_time_label}} {{data_time}}</div>
-    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="width:100%;">
+      <tr><td class="masthead" bgcolor="#1a1f2e">
+        <div class="masthead-brand">STOCK PICKS</div>
+        <h1 class="masthead-title">{{title}}</h1>
+        <div class="masthead-date">{{date}} · {{data_time_label}} {{data_time}}</div>
+      </td></tr>
+    </table>
 
     <div class="notice">本邮件为量化选股<b>跟踪信号</b>，非投资建议。模型基于历史规律，不预测未来。投资有风险，决策请自行判断。</div>
 

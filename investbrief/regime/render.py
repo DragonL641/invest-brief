@@ -75,7 +75,7 @@ def render_regime_card(data: dict) -> str:
     return (
         '<div class="regime-wrap">'
         '<div class="regime-label">宏观环境四象限 · REGIME</div>'
-        '<table class="regime-table">'
+        '<table class="regime-table" width="100%" cellpadding="0" cellspacing="6" border="0">'
         '<tr><td></td>'
         '<td class="regime-col-head">通胀 ↓</td>'
         '<td class="regime-col-head">通胀 ↑</td></tr>'

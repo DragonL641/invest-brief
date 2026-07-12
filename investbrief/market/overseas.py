@@ -6,6 +6,8 @@
 import logging
 from typing import Any
 
+from investbrief.market.base import stat_grid_html
+
 logger = logging.getLogger(__name__)
 
 # 联邦基金利率目标区间上限(FOMC 调整时更新)
@@ -47,7 +49,7 @@ def _fmt_change(change: float | None) -> tuple[str, str]:
 
 
 def render_overseas_card(data: dict[str, Any]) -> str:
-    """渲染外围环境紧凑卡片。缺失指标降级为 '-'。"""
+    """渲染外围环境紧凑卡片。缺失指标降级为 '-'。布局用 table(Outlook 兼容)。"""
     fed = data.get("fed_rate")
     us_10y = data.get("us_10y")
     sp = data.get("sp500") or {}
@@ -63,17 +65,18 @@ def render_overseas_card(data: dict[str, Any]) -> str:
             val_str = str(value) if value is not None else "-"
         cls = f" {value_class}" if value_class else ""
         return (
-            f'<div class="stat"><div class="stat-label">{label}</div>'
-            f'<div class="stat-value{cls}">{val_str}</div></div>'
+            f'<td class="stat" valign="top"><div class="stat-label">{label}</div>'
+            f'<div class="stat-value{cls}">{val_str}</div></td>'
         )
 
-    cells = "".join([
+    cells = [
         _cell("美联储利率", fed, "%"),
         _cell("美债10Y", us_10y, "%"),
         _cell("标普500", sp_point),
         _cell("标普涨跌", sp_chg_txt, value_class=sp_cls),
         _cell("美元/人民币", usdcny),
-    ])
+    ]
+    grid = stat_grid_html(cells, per_row=3)
 
     return f'''
     <div class="section">
@@ -84,7 +87,7 @@ def render_overseas_card(data: dict[str, Any]) -> str:
       <div class="card">
         <div class="card-head">影响 A 股的外围信号</div>
         <div class="card-body">
-          <div class="stat-grid">{cells}</div>
+          {grid}
         </div>
       </div>
     </div>'''

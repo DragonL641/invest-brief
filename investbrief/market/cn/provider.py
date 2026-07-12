@@ -9,7 +9,7 @@ from typing import Any
 
 import pandas as pd
 
-from investbrief.market.base import MarketProvider
+from investbrief.market.base import MarketProvider, stat_grid_html, metrics_table_html
 from investbrief.data.cn_data import CNData
 from investbrief.datasources.akshare import AKShareClient
 
@@ -162,13 +162,17 @@ class CNMarketProvider(MarketProvider):
             return ""
         def _row(label, val):
             return f'<div class="metric"><span class="label">{label}:</span> {val:.2f}</div>' if val else ""
-        rows = _row("50ETF QVIX", q50) + _row("300ETF QVIX", q300)
-        if not rows:
+        def _row(label, val):
+            if not val:
+                return None
+            return f'<td class="metric" valign="top"><span class="label">{label}:</span> {val:.2f}</td>'
+        cells = [c for c in (_row("50ETF QVIX", q50), _row("300ETF QVIX", q300)) if c]
+        if not cells:
             return ""
         return (
             '<div class="card"><div class="card-head">A股恐慌指数 QVIX</div>'
             '<div class="card-body">'
-            f'<div class="metrics-row">{rows}</div>'
+            f'{metrics_table_html(cells, per_row=4)}'
             '</div></div>'
         )
 
@@ -225,20 +229,20 @@ class CNMarketProvider(MarketProvider):
             ("CPI同比", monetary.get("cpi_yoy"), "%"),
             ("GDP同比", monetary.get("gdp_yoy"), "%"),
         ]
-        rows = []
+        cells = []
         for label, val, suffix in pairs:
             if val is None:
                 continue
             val_str = f"{val:.2f}" if isinstance(val, (int, float)) else str(val)
-            rows.append(
-                f'<div class="metric"><span class="label">{label}:</span> {val_str}{suffix}</div>'
+            cells.append(
+                f'<td class="metric" valign="top"><span class="label">{label}:</span> {val_str}{suffix}</td>'
             )
-        if not rows:
+        if not cells:
             return ""
         return (
             '<div class="card"><div class="card-head">货币政策与利率</div>'
             '<div class="card-body">'
-            f'<div class="metrics-row">{"".join(rows)}</div>'
+            f'{metrics_table_html(cells, per_row=4)}'
             '</div></div>'
         )
 
@@ -249,7 +253,7 @@ class CNMarketProvider(MarketProvider):
         if not indices:
             return '<div class="no-data">暂无指数数据</div>'
 
-        cards = ""
+        cells = []
         for idx in indices:
             change = idx.get("change") or 0
             change_str = f"+{change:.2f}%" if change > 0 else f"{change:.2f}%"
@@ -257,16 +261,16 @@ class CNMarketProvider(MarketProvider):
             point = idx.get("point", 0)
             amount = idx.get("amount")
             amount_str = f'<div class="stat-sub">额 {self._format_amount(amount)}</div>' if amount else ""
-            cards += (
-                f'<div class="stat">'
+            cells.append(
+                f'<td class="stat" valign="top">'
                 f'<div class="stat-label">{idx["name"]}</div>'
                 f'<div class="stat-value">{point:,.2f}</div>'
                 f'<div class="stat-delta {delta_cls}">{change_str}</div>'
                 f'{amount_str}'
-                f'</div>'
+                f'</td>'
             )
 
-        return f'<div class="stat-grid">{cards}</div>'
+        return stat_grid_html(cells, per_row=3)
 
     # ==================== Utilities ====================
 

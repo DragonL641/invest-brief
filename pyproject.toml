@@ -15,6 +15,7 @@ dependencies = [
     # 直接 import 的传递依赖需显式声明（PEP 621）：避免上游 akshare 改动导致 ImportError
     "pandas>=2.0",
     "numpy>=1.24",
+    "css-inline>=0.21.0",
 ]
 
 [project.scripts]

@@ -3,6 +3,10 @@ Email report template-rendering library.
 
 Renders Jinja2 templates (macro / holdings / picks) into Chinese-only email HTML.
 
+Outlook 桌面兼容：渲染后经 ``css_inline.inline`` 把 ``COMPONENT_CSS`` 的 class 规则
+**inline 到每个元素**（Outlook 桌面用 Word 引擎，只可靠读取 inline style），并保留
+``<style>`` 里的 ``@media``（移动端 WebKit 响应式；Outlook 桌面忽略 @media 不受影响）。
+
 Public API: load_template(), render_template(), render_holdings_template(),
 render_picks_template().
 """
@@ -11,16 +15,15 @@ from investbrief.core.timeutil import now_cn
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
+from css_inline import inline as _inline_html
 
 from investbrief.core.textfmt import md_inline
-from investbrief.mail.styles import BASE_CSS, COLOR_UP, COLOR_DOWN, FONT_FAMILY
+from investbrief.mail.styles import COMPONENT_CSS, MEDIA_CSS, COLOR_UP, COLOR_DOWN, FONT_FAMILY
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 # autoescape=False: template variables are pre-rendered HTML fragments
 # (macro_summary, market_sections, etc.). Escaping would mangle <p> → &lt;p&gt;.
-# Content comes from Claude + public data sources (not user input), and the
-# report is an email (not a web page), so XSS risk is acceptable.
 _env = Environment(
     loader=FileSystemLoader(str(TEMPLATES_DIR)),
     autoescape=False,
@@ -32,7 +35,6 @@ _env = Environment(
 # Language Configuration (single source of truth: investbrief/mail/styles.py)
 # ============================================================================
 
-# Chinese-only styling (red=up, green=down per 中国惯例)
 LANGUAGE_CONFIG = {
     'font_family': FONT_FAMILY,
     'color_up': COLOR_UP,
@@ -46,9 +48,7 @@ def get_config(language=None):
 
 
 def load_template(name: str = "email_base.j2") -> str:
-    """Load raw template string by name. Kept for existence checks (test_mail_api).
-    Uses direct file read rather than Jinja2 internals. For rendering, call
-    render_template / render_holdings_template directly with a template name."""
+    """Load raw template string by name. Kept for existence checks (test_mail_api)."""
     with open(TEMPLATES_DIR / name, encoding='utf-8') as f:
         return f.read()
 
@@ -58,7 +58,7 @@ def load_template(name: str = "email_base.j2") -> str:
 # ============================================================================
 
 def build_news_html(news_items):
-    """Build news items HTML - content from JSON. Editorial style (见 styles.py)."""
+    """Build news items HTML - content from JSON. Class 化（inliner 会 inline）。"""
     html = ''
     for i, item in enumerate(news_items, 1):
         title = item.get('title', '')
@@ -91,11 +91,21 @@ def build_news_html(news_items):
 # Template Rendering
 # ============================================================================
 
+def _render(template_name: str, ctx: dict) -> str:
+    """Jinja2 渲染 + css_inline inline 化（Outlook 桌面兼容）。
+
+    - ``extra_css=COMPONENT_CSS``：class 规则 inline 到每个元素（Outlook 读 inline style）。
+    - ``keep_style_tags=True``：保留 ``<style>``（含 @media，移动端响应式）。
+    """
+    html = _env.get_template(template_name).render(**ctx)
+    return _inline_html(html, extra_css=COMPONENT_CSS, keep_style_tags=True)
+
+
 def _base_context(language: str, data: dict, title: str, disclaimer: str) -> dict:
     """Shared context for macro / holdings / picks templates."""
     cfg = get_config(language)
     return {
-        'base_css': BASE_CSS,
+        'media_css': MEDIA_CSS,
         'font_family': cfg['font_family'],
         'color_up': cfg['color_up'],
         'color_down': cfg['color_down'],
@@ -124,7 +134,7 @@ def render_template(template_name: str, data: dict, language: str) -> str:
         'global_news_title': '重要新闻',
         'global_news': build_news_html(news[:5]),
     })
-    return _env.get_template(template_name).render(**ctx)
+    return _render(template_name, ctx)
 
 
 def render_holdings_template(template_name: str, data: dict, language: str) -> str:
@@ -137,7 +147,7 @@ def render_holdings_template(template_name: str, data: dict, language: str) -> s
         'holdings_summary': data.get('holdings_summary') or '<p>暂无组合研判。</p>',
         'holdings_sections': data.get('holdings_sections') or '',
     })
-    return _env.get_template(template_name).render(**ctx)
+    return _render(template_name, ctx)
 
 
 def render_picks_template(template_name: str, data: dict, language: str) -> str:
@@ -150,4 +160,4 @@ def render_picks_template(template_name: str, data: dict, language: str) -> str:
         'picks_brief': data.get('picks_brief') or '<p>本期暂无综合研判。</p>',
         'picks_sections': data.get('picks_sections') or '',
     })
-    return _env.get_template(template_name).render(**ctx)
+    return _render(template_name, ctx)

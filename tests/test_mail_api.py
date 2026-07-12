@@ -28,7 +28,9 @@ def test_render_template_substitutes_placeholders():
     }, "zh-CN")
     assert "TEST_MARK" in html
     assert "{{macro_summary}}" not in html  # placeholder replaced, not leaked
-    assert "<p>TEST_MARK</p>" in html       # autoescape=False preserves HTML
+    # autoescape=False：p 标签保留（css-inline inliner 会加 inline style），未被转义
+    assert "<p" in html and "TEST_MARK</p>" in html
+    assert "&lt;p&gt;" not in html
 
 
 def test_send_bulk_one_connection_partial_failure(monkeypatch):

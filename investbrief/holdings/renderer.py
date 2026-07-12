@@ -190,7 +190,7 @@ def _render_dimensions(r: HoldingResult) -> str:
         items = "".join(
             f'<div class="news-item">• {(n.get("title", ""))[:50]} <span class="news-date">{str(n.get("date", ""))[:10]}</span></div>'
             for n in r.news[:3])
-        rows.append(f'<div class="dim-row"><span class="dim-name">新闻</span><div class="dim-cells">{items}</div></div>')
+        rows.append(_dim_row("新闻", items))
 
     return f'<div class="dims">{"".join(rows)}</div>' if rows else ""
 
@@ -228,7 +228,11 @@ def _render_fund_card(r: HoldingResult) -> str:
 # ==================== 行/单元格/条 工具 ====================
 
 def _dim_row(name: str, cells_html: str) -> str:
-    return f'<div class="dim-row"><span class="dim-name">{name}</span><div class="dim-cells">{cells_html}</div></div>'
+    return (
+        f'<table class="dim-row" width="100%" cellpadding="0" cellspacing="0" border="0">'
+        f'<tr><td class="dim-name" valign="top">{name}</td>'
+        f'<td class="dim-cells" valign="top">{cells_html}</td></tr></table>'
+    )
 
 
 def _cells(specs) -> str:

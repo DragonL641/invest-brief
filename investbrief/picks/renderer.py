@@ -55,7 +55,11 @@ def _cell(label, value, cls="") -> str:
 
 
 def _dim(name: str, cells_html: str) -> str:
-    return f'<div class="dim-row"><div class="dim-name">{name}</div><div class="dim-cells">{cells_html}</div></div>'
+    return (
+        f'<table class="dim-row" width="100%" cellpadding="0" cellspacing="0" border="0">'
+        f'<tr><td class="dim-name" valign="top">{name}</td>'
+        f'<td class="dim-cells" valign="top">{cells_html}</td></tr></table>'
+    )
 
 
 # ---------- 关键信号 tag ----------
@@ -102,7 +106,11 @@ def _factor_dim(pick: dict) -> str:
                 f'<div class="factor-row"><span class="fl-name">{label}</span>'
                 f'<span class="fl-explain">{explain}</span></div>'
             )
-    return f'<div class="dim-row"><div class="dim-name">量化因子</div><div class="factor-list">{"".join(rows)}</div></div>' if rows else ""
+    return (
+        f'<table class="dim-row" width="100%" cellpadding="0" cellspacing="0" border="0">'
+        f'<tr><td class="dim-name" valign="top">量化因子</td>'
+        f'<td class="dim-cells" valign="top"><div class="factor-list">{"".join(rows)}</div></td></tr></table>'
+    ) if rows else ""
 
 
 # ---------- 基本面 / 技术面 / 价位 维度 ----------
@@ -334,13 +342,15 @@ def render_pick_card(pick: dict | None, profile: str = "", market: str = "") -> 
     ai_html = f'<div class="ai-box"><span class="ai-label">综合研判</span>{_md(ai)}</div>' if ai else ""
 
     kl = pick.get("key_levels") or {}
-    price_row = f'''<div class="price-row">
-<span class="pl"><span class="pl-l">现价</span><b>{_fmt(pick.get("price"))}</b></span>
-<span class="pl {_chg_cls(pick.get('change_pct'))}"><span class="pl-l">涨跌</span>{_fmt_chg(pick.get('change_pct'))}</span>
-<span class="pl neg"><span class="pl-l">压力</span>{_fmt(kl.get("resistance"))}</span>
-<span class="pl pos"><span class="pl-l">支撑</span>{_fmt(kl.get("support"))}</span>
-<span class="pl neg"><span class="pl-l">止损</span>{_fmt(pick.get("stop_level"))}</span>
-</div>'''
+    price_row = (
+        f'<table class="price-row" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f'<td class="pl" valign="middle"><span class="pl-l">现价</span><b>{_fmt(pick.get("price"))}</b></td>'
+        f'<td class="pl {_chg_cls(pick.get("change_pct"))}" valign="middle"><span class="pl-l">涨跌</span>{_fmt_chg(pick.get("change_pct"))}</td>'
+        f'<td class="pl neg" valign="middle"><span class="pl-l">压力</span>{_fmt(kl.get("resistance"))}</td>'
+        f'<td class="pl pos" valign="middle"><span class="pl-l">支撑</span>{_fmt(kl.get("support"))}</td>'
+        f'<td class="pl neg" valign="middle"><span class="pl-l">止损</span>{_fmt(pick.get("stop_level"))}</td>'
+        f'</tr></table>'
+    )
 
     return f'''<div class="card">
   <div class="card-head">
