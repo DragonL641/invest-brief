@@ -23,6 +23,9 @@ from investbrief.picks import brief as _brief
 logger = logging.getLogger(__name__)
 
 _CACHE_PATH = str(Path(DB_PATH).with_name("picks_cache.db"))
+# holdings analyzer 季频缓存(rating/fund/cn_activity, TTL=7d)。与 picks_cache.db 必须隔离:
+# fund:cn:{symbol} 两库语义不同(picks 归一化小数 / holdings 原始百分数),合并会读串,不可合并。
+_HOLDINGS_CACHE_PATH = str(Path(DB_PATH).with_name("holdings_cache.db"))
 _PROFILES = ("swing", "medium", "long")
 
 # 候选股深拉并发度:对齐 holdings/analyzer.py(2),更高会触发 eastmoney 限流。
@@ -305,15 +308,16 @@ def _enrich(pick: dict, hist, prof: dict, fund: dict | None = None, val: dict | 
         logger.warning(f"enrich {pick.get('symbol')} failed: {e}")
 
 
-def _enrich_with_holdings(pick: dict, with_ai: bool):
+def _enrich_with_holdings(pick: dict, analyzer, with_ai: bool):
     """复用 holdings 逐股分析,补 机构态度/盈利预测/综合研判。
 
+    analyzer 由调用方(run_picks_report)传入:run 级单例 + 机构调研 batch 预注入
+    (set_research_batch),避免每只 Top1 走 90 次/股的单股 fallback。
     编排层(pipelines)调用 holdings.analyzer —— 不破坏"域间不互引"不变量
     (picks 域本身不 import holdings)。失败降级(维度缺省,不阻塞)。
     """
     try:
-        from investbrief.holdings.analyzer import HoldingsAnalyzer
-        hr = HoldingsAnalyzer().analyze_one(pick["symbol"], pick["market"], "stock", with_ai=with_ai)
+        hr = analyzer.analyze_one(pick["symbol"], pick["market"], "stock", with_ai=with_ai)
         if hr.rating:
             pick["rating"] = hr.rating
         if hr.forecast:
@@ -375,6 +379,11 @@ def run_picks_report(args):
     logger.info("=" * 60)
     logger.info("invest-brief - Picks pipeline (6 Top1)")
     _data.init_cache(_CACHE_PATH)
+    # 注入 holdings analyzer 季频缓存(rating/fund/cn_activity, TTL=7d)。
+    # --only picks 单跑时 scheduler 没先跑 holdings, _fcache 默认 None → enrich 裸拉无缓存;
+    # 显式 init 后这些维度走 holdings_cache.db 跨日缓存。用独立 db(见 _HOLDINGS_CACHE_PATH 红线)。
+    from investbrief.holdings.analyzer import init_cache as _holdings_init_cache
+    _holdings_init_cache(_HOLDINGS_CACHE_PATH)
 
     config = load_config()
     recipients = [r for r in config.get("recipients", []) if r.get("active", True)]
@@ -404,11 +413,29 @@ def run_picks_report(args):
     all_picks: list[dict] = []
     sections_html = ""
     skip_summary = getattr(args, "skip_summary", False)
-    for prof_name in _PROFILES:
-        cn = _safe_build(prof_name, "cn")
-        # 复用 holdings 逐股分析,补 机构态度/盈利预测/综合研判(编排层调用,域不变量不破)
+
+    # 三阶段编排(对齐 pipelines/holdings.py:52-64 的批量预取模式):
+    # ① 先 build 全部 profile 拿 Top1 —— Top1 选定后才知机构调研 batch 的 symbol 集合
+    # ② run 级批量预取机构调研:N 只 Top1 共享一次 90 天遍历(1×90 次 eastmoney),
+    #    替代旧的"边 build 边 enrich"里每只 Top1 走 90 次/股单股 fallback(3×90 次)
+    # ③ 用注入了 batch 的单个 analyzer enrich + render(run 级单例,省 N×new)
+    built: list[tuple[str, dict | None]] = [(_p, _safe_build(_p, "cn")) for _p in _PROFILES]
+
+    from investbrief.holdings.analyzer import HoldingsAnalyzer
+    analyzer = HoldingsAnalyzer()
+    cn_symbols = [cn["symbol"] for _, cn in built if cn]
+    if cn_symbols:
+        try:
+            from investbrief.datasources.akshare import AKShareClient
+            batch = AKShareClient().get_institutional_research_batch(cn_symbols, days=90)
+            if batch:
+                analyzer.set_research_batch(batch)
+        except Exception as e:
+            logger.warning(f"research batch prefetch failed, falling back to per-stock: {e}")
+
+    for prof_name, cn in built:
         if cn:
-            _enrich_with_holdings(cn, with_ai=not skip_summary)
+            _enrich_with_holdings(cn, analyzer, with_ai=not skip_summary)
             all_picks.append(cn)
         sections_html += _renderer.render_pick_section(prof_name, cn)
 

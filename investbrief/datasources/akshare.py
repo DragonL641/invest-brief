@@ -25,16 +25,22 @@ _orig_session_request = requests.Session.request
 
 def _patched_session_request(self, method, url, **kwargs):
     if "eastmoney.com" in url:
-        # HTTP 层全局节流: 所有 eastmoney 请求(裸调/重试/_with_retry)统一守 _MIN_INTERVAL,
-        # 确保不超 eastmoney 的 1 QPS 安全线。不依赖每个调用点记得节流。
+        if _is_em_banned():
+            raise _EMBanned("eastmoney banned (negative cache window)")
         _throttle()
         headers = kwargs.get("headers") or {}
         for k, v in _DEFAULT_EM_HEADERS.items():
             headers.setdefault(k, v)
-        # 禁用 keep-alive: eastmoney ~15s 空闲静默关连接,连接池复用 stale 连接会 RemoteDisconnected。
-        # 每次 fresh connection(牺牲~50ms 握手换稳定),配合 _MIN_INTERVAL=2.5s 握手开销可接受。
         headers.setdefault("Connection", "close")
         kwargs["headers"] = headers
+        try:
+            resp = _orig_session_request(self, method, url, **kwargs)
+        except Exception as e:
+            if "RemoteDisconnected" in str(e) or "Connection aborted" in str(e):
+                _record_em_outcome(success=False)
+            raise
+        _record_em_outcome(success=True)
+        return resp
     return _orig_session_request(self, method, url, **kwargs)
 
 
@@ -104,6 +110,39 @@ def _throttle():
         _last_request = time.monotonic()
 
 
+# eastmoney IP 级反爬(RemoteDisconnected)的 negative cache: 连续 N 次断连 → 判定封禁,
+# 封禁期内所有 eastmoney 请求直接 _EMBanned(不连接、不节流、不重试), 省每次 1-2s 连接 hang。
+# history 有 sina fallback 兜底(封禁期照常取数); flow/quote/news/rating 封禁期降级为 None。
+# 实测: 一旦 IP 被 eastmoney 反爬识别, 连续请求几乎 100% RemoteDisconnected,
+# 节流间隔再大也无用 —— 必须短路避免几百次"连接→被断→重试退避"的纯浪费。
+_EM_BAN_THRESHOLD = 3      # 连续 3 次 RemoteDisconnected → 封禁
+_EM_BAN_DURATION = 300     # 封禁 5min(到期探活: 下次请求实连, 仍断则续封)
+_em_ban_lock = threading.Lock()
+_em_ban_until = 0.0
+_em_consecutive_fail = 0
+
+
+class _EMBanned(Exception):
+    """eastmoney 处于封禁 negative-cache 窗口, 请求被短路(不连接)。"""
+
+
+def _is_em_banned() -> bool:
+    with _em_ban_lock:
+        return time.monotonic() < _em_ban_until
+
+
+def _record_em_outcome(success: bool):
+    """记录 eastmoney 请求结果: 成功清零, 连续失败达阈值则触发封禁窗口。"""
+    global _em_ban_until, _em_consecutive_fail
+    with _em_ban_lock:
+        if success:
+            _em_consecutive_fail = 0
+            return
+        _em_consecutive_fail += 1
+        if _em_consecutive_fail >= _EM_BAN_THRESHOLD:
+            _em_ban_until = time.monotonic() + _EM_BAN_DURATION
+
+
 def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
     """运行 akshare 调用，带随机退避 + 最后一次长退避。
 
@@ -111,10 +150,13 @@ def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
     这里只管失败恢复: 随机延时(uniform base_delay~2x × attempt)规避 eastmoney 节奏识别,
     最后一次重试前 max(delay, 10s) 给限流窗口冷却。
     成功返回 fn() 结果(可能为 None/空 df);全部失败返回 None 并记录 warning。
+    _EMBanned(eastmoney 封禁窗口)→ 立即返回 None, 不重试(连接注定失败, 省退避)。
     """
     for attempt in range(attempts):
         try:
             return fn()
+        except _EMBanned:
+            return None
         except Exception as e:
             if attempt < attempts - 1:
                 delay = random.uniform(base_delay, base_delay * 2) * (attempt + 1)
@@ -814,6 +856,7 @@ class AKShareClient:
             df = _with_retry(
                 lambda: ak.stock_individual_fund_flow(stock=symbol, market=market),
                 label=f"fund_flow_history({symbol})",
+                attempts=1,  # picks 资金流因子:限流时失败立即降级(main_flow→None),不等 3 次重试(~23s/股)
             )
             if df is None or df.empty:
                 return None
