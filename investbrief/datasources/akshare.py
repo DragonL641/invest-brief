@@ -33,10 +33,14 @@ def _patched_session_request(self, method, url, **kwargs):
             headers.setdefault(k, v)
         headers.setdefault("Connection", "close")
         kwargs["headers"] = headers
+        # em 请求 8s 超时：防连接挂起无限等 + 慢响应(限流典型表现)超时计入失败，
+        # 连续 3 次失败(断连/超时)触发封禁短路(300s)，后续 em 请求秒级跳过。
+        kwargs.setdefault("timeout", 8)
         try:
             resp = _orig_session_request(self, method, url, **kwargs)
         except Exception as e:
-            if "RemoteDisconnected" in str(e) or "Connection aborted" in str(e):
+            est = str(e)
+            if "RemoteDisconnected" in est or "Connection aborted" in est or "timed out" in est.lower():
                 _record_em_outcome(success=False)
             raise
         _record_em_outcome(success=True)
@@ -306,16 +310,46 @@ class AKShareClient:
         """全量 A 股 spot 快照(5min TTL+负缓存)。picks 粗筛用。"""
         return self._get_all_stocks_df()
 
-    def _lookup_name(self, symbol: str) -> str | None:
-        """从 cached 全量 A 股 df 查 name（stock_bid_ask_em 不返回名称）。
+    def _get_name_map_df(self) -> "pd.DataFrame | None":
+        """全 A 代码-名称映射（stock_info_a_code_name，静态，1d 缓存）。
 
-        全量 df 5min 缓存（_get_all_stocks_df），命中时近免费；首次 miss
-        （网络/限流）返回 None，调用方用 symbol 兜底。
+        name 不随行情变 → 长缓存(1d)，且独立于实时 spot_em。em 限流时 spot_em
+        常返回**部分 df**(非空但缺某些 symbol)，曾被 _get_all_stocks_df 直接缓存，
+        导致 _lookup_name 对缺失 symbol 返回 None、邮件里显示代码而非名字
+        (见 601138/002371/002335 case)。name_map 是轻量静态映射(只 code+name，
+        17 分页 ~4s)，1d 命中后近免费，不受实时行情限流影响，作 name 主源。
         """
+        df = _df_cache.get("a_code_name", 86400)
+        if df is not None:
+            return df
+        if _df_cache.is_recently_failed("a_code_name"):
+            return None
+        df = _with_retry(lambda: ak.stock_info_a_code_name(), label="stock_info_a_code_name")
+        if df is not None and not df.empty:
+            _df_cache.set("a_code_name", df)
+        else:
+            _df_cache.mark_failed("a_code_name", 60)
+        return df
+
+    def _lookup_name(self, symbol: str) -> str | None:
+        """查个股 name：优先静态 name_map(stock_info_a_code_name, 1d 缓存, 稳),
+        fallback 实时 spot_em df(5min, em 限流可能部分缺失)。
+
+        stock_bid_ask_em 不返回名称、stock_individual_info_em 接口漂移失败，
+        故 name 必须从全市场映射查。name_map 是轻量静态源(首选)；spot_em 作
+        兜底(name_map 首次拉失败/缺 symbol 时)。
+        """
+        nm = self._get_name_map_df()
+        if nm is not None and not nm.empty:
+            row = nm[nm["code"].astype(str) == symbol]
+            if not row.empty:
+                name = str(row.iloc[0].get("name", "")).strip()
+                if name:
+                    return name
         df = self._get_all_stocks_df()
         if df is None or df.empty:
             return None
-        row = df[df["代码"] == symbol]
+        row = df[df["代码"].astype(str) == symbol]
         if row.empty:
             return None
         name = str(row.iloc[0].get("名称", "")).strip()

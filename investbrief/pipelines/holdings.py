@@ -49,17 +49,34 @@ def run_holdings_report(args):
     logger.info(f"Analyzing {len(all_holdings)} unique holdings for {len(recipients)} recipient(s)")
     analyzer = HoldingsAnalyzer()
 
-    # 机构调研 run 级批量预取：N 只 CN stock 共享一次 90 天遍历（省 N×~135s）
+    # 机构调研 run 级批量预取：N 只 CN stock 共享一次 90 天遍历（省 N×~135s）。
+    # 结果走 FactorCache（1d TTL）：首次 run 拉 90 次 eastmoney，后续 run 命中跳过
+    # （22min→0）。持仓固定、symbols 集合稳定，跨日复用安全；隔日 TTL 刷新（调研日期推进）。
     cn_stock_symbols = sorted({h["symbol"] for h in all_holdings
                                if h["market"] == "cn" and h["type"] == "stock"})
     if cn_stock_symbols:
         try:
+            import hashlib
             from investbrief.datasources.akshare import AKShareClient
-            batch = AKShareClient().get_institutional_research_batch(cn_stock_symbols, days=90)
+            from investbrief.holdings.analyzer import _factor_cache
+            research_days = 90
+            cache_key = ("research_batch:"
+                         + hashlib.md5(",".join(cn_stock_symbols).encode()).hexdigest()[:12]
+                         + f":{research_days}")
+            fc = _factor_cache()
+            batch = fc.get(cache_key) if fc else None
+            if batch is None:
+                batch = AKShareClient().get_institutional_research_batch(
+                    cn_stock_symbols, days=research_days)
+                if batch and fc:
+                    fc.set(cache_key, batch, ttl_days=1.0)
+                logger.info(f"Fetched institutional research batch (cache miss) for "
+                            f"{len(cn_stock_symbols)} CN stock(s)")
+            else:
+                logger.info(f"Institutional research batch cache hit for "
+                            f"{len(cn_stock_symbols)} CN stock(s)")
             if batch:
                 analyzer.set_research_batch(batch)
-                logger.info(f"Prefetched institutional research batch for "
-                            f"{len(cn_stock_symbols)} CN stock(s)")
         except Exception as e:
             logger.warning(f"research batch prefetch failed, falling back to per-stock: {e}")
 

@@ -22,6 +22,9 @@ from investbrief.picks.cache import FactorCache
 logger = logging.getLogger(__name__)
 
 _pool = ThreadPoolExecutor(max_workers=2)  # CN stock 专题接口多，高并发加速触发 eastmoney 限流
+# _parallel 总超时（秒）：兜底防某 task 卡死（em 连接挂起等）拖垮整个分析；
+# 超时后 cancel 剩余 task + 降级返回部分结果（优先保邮件发出，数据可降级）。
+_PARALLEL_TIMEOUT = 150
 
 # 跨日 TTL 缓存(复用 picks.cache.FactorCache): rating/fundamentals/cn_activity
 # 是季频数据(分析师评级 / 财报 / 机构调研), TTL=7 天安全; quote/history/news 高频不缓存。
@@ -511,13 +514,21 @@ class HoldingsAnalyzer:
     def _parallel(tasks: dict[str, Callable]) -> dict:
         results: dict[str, Any] = {}
         futures = {_pool.submit(fn): k for k, fn in tasks.items()}
-        for f in as_completed(futures):
-            k = futures[f]
-            try:
-                results[k] = f.result()
-            except Exception as e:
-                logger.warning(f"holdings parallel fetch failed [{k}]: {e}")
-                results[k] = None
+        try:
+            for f in as_completed(futures, timeout=_PARALLEL_TIMEOUT):
+                k = futures[f]
+                try:
+                    results[k] = f.result(timeout=5)
+                except Exception as e:
+                    logger.warning(f"holdings parallel fetch failed [{k}]: {e}")
+                    results[k] = None
+        except TimeoutError:
+            not_done = [f for f in futures if not f.done()]
+            logger.warning(f"_parallel total timeout ({_PARALLEL_TIMEOUT}s), "
+                           f"{len(not_done)} task(s) not done: {[futures[f] for f in not_done]}")
+            for f in not_done:
+                f.cancel()
+                results.setdefault(futures[f], None)
         return results
 
 
