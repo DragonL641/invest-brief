@@ -925,12 +925,19 @@ class AKShareClient:
     # ---- 个股新闻 ----
 
     def get_stock_news(self, symbol: str, limit: int = 20) -> list[dict[str, Any]]:
-        """获取个股新闻（东方财富）。"""
+        """获取个股新闻（东方财富，日级持久缓存）。
+
+        当天新闻缓存 _persist(1d TTL)，同日多次 run 命中跳过 em。
+        """
+        today = datetime.now().strftime("%Y-%m-%d")
+        cache_key = f"news:{symbol}:{today}"
+        cached = _persist.get(cache_key, 86400)
+        if cached is not None:
+            return cached[:limit]
         try:
             df = ak.stock_news_em(symbol=symbol)
             if df is None or df.empty:
                 return []
-            df = df.head(limit)
             results = []
             for _, r in df.iterrows():
                 results.append({
@@ -940,7 +947,8 @@ class AKShareClient:
                     "date": str(r.get("发布时间", "")),
                     "source": str(r.get("文章来源", "")),
                 })
-            return results
+            _persist.set(cache_key, results)  # 持久(跨 run, 1d)
+            return results[:limit]
         except Exception as e:
             logger.warning(f"AKShare get_stock_news failed for {symbol}: {e}")
             return []

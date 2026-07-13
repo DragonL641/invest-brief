@@ -232,6 +232,21 @@ class HoldingsAnalyzer:
             return {}
 
     def _collect_insider(self, symbol: str, market: str) -> dict:
+        """CN 大股东/高管增减持（月级持久缓存，跨 run 复用）。
+
+        缓存 _persist(30d TTL)，命中跳过 em 请求。未命中调 _collect_insider_live。
+        """
+        from investbrief.datasources.akshare import _persist
+        cache_key = f"insider:{symbol}"
+        cached = _persist.get(cache_key, 30 * 86400)
+        if cached is not None:
+            return cached
+        result = self._collect_insider_live(symbol, market)
+        if result:
+            _persist.set(cache_key, result)  # 持久(跨 run, 30d)
+        return result
+
+    def _collect_insider_live(self, symbol: str, market: str) -> dict:
         """CN 大股东/高管增减持，最近窗口聚合。失败返回 {}。
 
         Field structure: {"net_shares": float, "direction": "buy"/"sell"/"flat",
