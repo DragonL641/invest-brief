@@ -509,7 +509,9 @@ class AKShareClient:
         if sdf is None or sdf.empty:
             return None
         sdf["date"] = pd.to_datetime(sdf["date"])
-        sdf = sdf.set_index("date").tail(days)
+        sdf = sdf.set_index("date")
+        if start_date is None:
+            sdf = sdf.tail(days)  # days 模式取近期; start_date 全历史模式不 tail(返回从上市全部)
         keep = [c for c in ("open", "high", "low", "close", "volume", "amount")
                 if c in sdf.columns]
         return sdf[keep]
@@ -1100,6 +1102,30 @@ class AKShareClient:
             _df_cache.set("etf_spot", df)
             _persist.set("etf_spot", df.to_dict("records"))  # 持久(日级)
         return df
+
+    def _get_etf_name_map(self) -> dict:
+        """全市场 ETF 代码-名称映射（fund_etf_category_ths，同花顺非 em 不限流）。
+
+        持久缓存 7d（ETF 名称极少变）。ETF name 不依赖 em spot，解耦限流。
+        """
+        cached = _persist.get("etf_name_map", 7 * 86400)
+        if cached is not None:
+            return cached
+        try:
+            df = ak.fund_etf_category_ths(symbol="ETF")
+            if df is None or df.empty:
+                return {}
+            m = {str(r["基金代码"]): str(r["基金名称"]) for _, r in df.iterrows()}
+            if m:
+                _persist.set("etf_name_map", m)
+            return m
+        except Exception as e:
+            logger.warning(f"etf name map failed: {e}")
+            return {}
+
+    def get_etf_name(self, symbol: str) -> str | None:
+        """ETF 名称（同花顺非 em，持久缓存）。"""
+        return self._get_etf_name_map().get(str(symbol))
 
     def get_etf_spot(self, symbol: str) -> dict[str, Any] | None:
         """获取单只 ETF 实时行情。symbol: 6位代码如 "510300"。"""

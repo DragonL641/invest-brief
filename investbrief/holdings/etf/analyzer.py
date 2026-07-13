@@ -43,9 +43,10 @@ class ETFAnalyzer:
         market_data: 可选，大盘环境数据（来自现有 cn 市场数据）。
         """
         # 1. 数据获取（并行拉取三个独立数据源）
+        etf_name = self.client.get_etf_name(symbol) or symbol  # 独立 name（同花顺非 em，解耦 spot）
         spot = self.client.get_etf_spot(symbol)
         if not spot:
-            return ETFAnalysisResult(symbol=symbol, name=symbol)  # spot 失败兜底代码(不显示"未知")
+            return ETFAnalysisResult(symbol=symbol, name=etf_name)
 
         futures = {
             _fetch_pool.submit(self.client.get_etf_hist, symbol, 120): "hist",
@@ -85,7 +86,7 @@ class ETFAnalyzer:
         # 6. 构造结果
         return ETFAnalysisResult(
             symbol=symbol,
-            name=spot.get("name", ""),
+            name=etf_name or spot.get("name", ""),
             price=spot.get("price"),
             change_pct=spot.get("change_pct"),
             iopv=spot.get("iopv"),
