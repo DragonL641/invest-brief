@@ -102,7 +102,8 @@ def test_get_stock_quote_bid_ask(monkeypatch):
         {"item": "换手", "value": 0.66},
     ])
     monkeypatch.setattr("investbrief.datasources.akshare.ak.stock_bid_ask_em", lambda symbol: df)
-    # _lookup_name 走 _get_all_stocks_df，直接 mock 避免触网（本测试只验 bid_ask 解析）
+    # _lookup_name 走 _get_name_map_df → _get_all_stocks_df，全 mock 避免触网（本测试只验 bid_ask 解析）
+    monkeypatch.setattr(AKShareClient, "_get_name_map_df", lambda self: None)
     monkeypatch.setattr(AKShareClient, "_get_all_stocks_df", lambda self: pd.DataFrame())
     client = AKShareClient()
     q = client.get_stock_quote("601138")

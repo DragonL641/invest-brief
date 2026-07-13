@@ -1,9 +1,12 @@
 """A股数据客户端，基于 AKShare。"""
+import json
 import logging
 import os
+import sqlite3
 import threading
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 os.environ["TQDM_DISABLE"] = "1"
@@ -12,6 +15,8 @@ import akshare as ak
 import pandas as pd
 import random
 import requests
+
+from investbrief.core.config import DB_PATH
 
 # eastmoney 反爬：默认 UA 是 python-requests 几乎必拦。注入浏览器 UA + Referer。
 # 只对 eastmoney 域名生效，不影响 tavily（它自设 headers 会覆盖）。
@@ -94,6 +99,51 @@ class _DataFrameCache:
 
 
 _df_cache = _DataFrameCache()
+
+
+class _PersistentCache:
+    """sqlite 持久缓存(跨进程)：存 JSON 序列化对象 + TTL。
+
+    用于 name_map(代码↔名称映射，静态)等不需要每次 run 重拉的数据 —— 进程退出
+    不丢，下次 run 直接读磁盘(毫秒)，彻底脱离实时接口限流/波动。线程安全。
+    用 JSON 而非 pickle（pickle 反序列化有任意代码执行风险）。存 DataFrame 时
+    调用方转 list[dict]（to_dict('records')）再存。
+    """
+
+    def __init__(self, path):
+        self._conn = sqlite3.connect(str(path), check_same_thread=False)
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT, ts REAL)"
+        )
+        self._conn.commit()
+        self._lock = threading.Lock()
+
+    def get(self, key: str, ttl: float):
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT value, ts FROM cache WHERE key=?", (key,)
+            ).fetchone()
+            if row is None:
+                return None
+            value, ts = row
+            if time.time() - ts > ttl:
+                return None
+            try:
+                return json.loads(value)
+            except Exception:
+                return None
+
+    def set(self, key: str, value):
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO cache(key, value, ts) VALUES(?,?,?)",
+                (key, json.dumps(value), time.time()),
+            )
+            self._conn.commit()
+
+
+# 持久缓存文件 data/akshare_persist.db（与 macro_data.db 同目录，gitignored）
+_persist = _PersistentCache(Path(DB_PATH).parent / "akshare_persist.db")
 
 
 # —— 全局节流：akshare 历史无全局 QPS 限制，eastmoney 高频请求触发 RemoteDisconnected/限流。
@@ -311,22 +361,27 @@ class AKShareClient:
         return self._get_all_stocks_df()
 
     def _get_name_map_df(self) -> "pd.DataFrame | None":
-        """全 A 代码-名称映射（stock_info_a_code_name，静态，1d 缓存）。
+        """全 A 代码-名称映射（stock_info_a_code_name，走交易所 sh/sz/bse，非 em 不限流）。
 
-        name 不随行情变 → 长缓存(1d)，且独立于实时 spot_em。em 限流时 spot_em
-        常返回**部分 df**(非空但缺某些 symbol)，曾被 _get_all_stocks_df 直接缓存，
-        导致 _lookup_name 对缺失 symbol 返回 None、邮件里显示代码而非名字
-        (见 601138/002371/002335 case)。name_map 是轻量静态映射(只 code+name，
-        17 分页 ~4s)，1d 命中后近免费，不受实时行情限流影响，作 name 主源。
+        三级缓存：1. sqlite 持久(跨进程, 30d) 2. 进程内(1d) 3. 请求交易所。
+        name 是静态映射 → 持久缓存跨 run 复用，holdings run 读磁盘(毫秒)不再请求
+        交易所，彻底脱离接口波动。30d 自动刷新(股票改名/上市是少数)。
         """
+        # 1. 持久 sqlite（跨进程，30d；存 list[dict]，读时转 DataFrame）
+        cached = _persist.get("a_code_name", 30 * 86400)
+        if cached is not None:
+            return pd.DataFrame(cached)
+        # 2. 进程内（1d，本次 run 内复用）
         df = _df_cache.get("a_code_name", 86400)
         if df is not None:
             return df
         if _df_cache.is_recently_failed("a_code_name"):
             return None
+        # 3. 请求交易所（sh/sz/bse，非 em 不限流）
         df = _with_retry(lambda: ak.stock_info_a_code_name(), label="stock_info_a_code_name")
         if df is not None and not df.empty:
             _df_cache.set("a_code_name", df)
+            _persist.set("a_code_name", df.to_dict("records"))  # 持久化(JSON list, 跨 run)
         else:
             _df_cache.mark_failed("a_code_name", 60)
         return df

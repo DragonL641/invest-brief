@@ -21,7 +21,9 @@ from investbrief.picks.cache import FactorCache
 
 logger = logging.getLogger(__name__)
 
-_pool = ThreadPoolExecutor(max_workers=2)  # CN stock 专题接口多，高并发加速触发 eastmoney 限流
+# 串行化(max_workers=1)：用时间换稳定 —— 请求严格按全局 2.5s 节流速率，em 不再
+# 觉高频 → 不触发 IP 限流。CN stock 专题接口多，并发(max 2)会拉高请求密度触发限流。
+_pool = ThreadPoolExecutor(max_workers=1)
 # _parallel 总超时（秒）：兜底防某 task 卡死（em 连接挂起等）拖垮整个分析；
 # 超时后 cancel 剩余 task + 降级返回部分结果（优先保邮件发出，数据可降级）。
 _PARALLEL_TIMEOUT = 150
@@ -372,7 +374,11 @@ class HoldingsAnalyzer:
         return self._ak.get_financial_indicators(symbol)
 
     def _analyze_cn_stock(self, symbol: str, *, with_ai: bool = True) -> HoldingResult:
-        # 季频+日频维度全部并行;rating 走跨日缓存(fundamentals 内部自带 7d 季频缓存)
+        # name 独立调(不进 _parallel)：避免被 em 行情 task 挤线程池饿死(name 走交易所
+        # name_map 本来很快, 但并发池被慢 em task 占满时会排队→超时被 cancel→丢名)。
+        # name_map 走 sh/sz/bse 交易所(非 em 不限流) + sqlite 持久缓存, 稳定拿到。
+        name = self._ak._lookup_name(symbol)
+        # 行情/维度并行（_pool 串行化 max_workers=1, 低频不触发 em IP 限流）
         data = self._parallel({
             "quote": lambda: self._ak.get_stock_quote(symbol),
             "flow": lambda: (self._cached(f"flow:cn:{symbol}", 1, lambda: self._ak.get_stock_fund_flow(symbol)) or {}),
@@ -388,9 +394,10 @@ class HoldingsAnalyzer:
         quote = data.get("quote") or {}
         flow = data.get("flow") or {}
         fin = data.get("fund") or {}
+        name = name or quote.get("name") or symbol
         result = HoldingResult(
             symbol=symbol, market="cn", type="stock",
-            name=quote.get("name") or symbol,
+            name=name,
             price={
                 "current": quote.get("price"),
                 "change_pct": quote.get("change_pct"),
@@ -421,7 +428,7 @@ class HoldingsAnalyzer:
                 "date": flow.get("date"),
             },
             technicals=_extract_technicals(data.get("history")),
-            news=_extract_news(data.get("news"), symbol=symbol, name=quote.get("name") or symbol),
+            news=_extract_news(data.get("news"), symbol=symbol, name=name),
             events=data.get("events") or {},
             insider=data.get("insider") or {},
             cn_activity=data.get("cn_activity") or {},

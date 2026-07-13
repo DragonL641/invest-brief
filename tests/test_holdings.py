@@ -25,6 +25,11 @@ def _mock_analyzer() -> HoldingsAnalyzer:
     an._ak = MagicMock()
     an._etf = MagicMock()
     an._cache = {}
+    # __init__ 被跳过, 手动补 __init__ 里初始化的属性(避免 task 触发 AttributeError)
+    an._dragon_tiger_cache = {}
+    an._research_batch = None
+    # name task(_ak._lookup_name) 返回 None → r.name fallback 到 quote.get("name")
+    an._ak._lookup_name = lambda s: None
     return an
 
 
