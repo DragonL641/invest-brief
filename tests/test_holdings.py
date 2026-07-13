@@ -336,9 +336,10 @@ def test_history_db_first_has_data_uses_recent_increment():
     from investbrief.holdings.analyzer import _history_db_first
     db = MagicMock()
     db.has_today_bar.return_value = False  # 没今天 bar → 需增量
-    # DB 有历史(query n=1 非空) → 应走近期增量而非全历史
+    # DB 有充足历史(600 行 >= 500 阈值) → 走近期增量而非全历史
     db.query_stock_daily.return_value = pd.DataFrame(
-        {"market": ["cn"], "symbol": ["601138"], "date": ["2026-07-12"], "close": [10]})
+        {"market": ["cn"] * 600, "symbol": ["601138"] * 600,
+         "date": ["2026-07-12"] * 600, "close": [10] * 600})
     db.upsert_stock_df = MagicMock()
     full_called = {"n": 0}
     recent_called = {"n": 0}

@@ -45,7 +45,7 @@ class ETFAnalyzer:
         # 1. 数据获取（并行拉取三个独立数据源）
         spot = self.client.get_etf_spot(symbol)
         if not spot:
-            return ETFAnalysisResult(symbol=symbol, name="未知")
+            return ETFAnalysisResult(symbol=symbol, name=symbol)  # spot 失败兜底代码(不显示"未知")
 
         futures = {
             _fetch_pool.submit(self.client.get_etf_hist, symbol, 120): "hist",

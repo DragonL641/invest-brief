@@ -18,7 +18,7 @@ def test_cn_insider_aggregates_major_and_mgmt():
     ]
     with patch.object(a._ak, "get_major_shareholder_trades", return_value=major), \
          patch.object(a._ak, "get_insider_trades", return_value=insider):
-        ins = a._collect_insider("002371", "cn")
+        ins = a._collect_insider_live("002371", "cn")
     assert ins["count"] == 2
     assert ins["latest_date"] == "2026-06-25"
     # 减持方向占主导（major 减持 + insider 增持，仅按方向计数：sell=1, buy=1 → 平）
@@ -37,7 +37,7 @@ def test_cn_insider_sell_dominant():
     insider = []
     with patch.object(a._ak, "get_major_shareholder_trades", return_value=major), \
          patch.object(a._ak, "get_insider_trades", return_value=insider):
-        ins = a._collect_insider("002371", "cn")
+        ins = a._collect_insider_live("002371", "cn")
     assert ins["direction"] == "sell"
     assert ins["count"] == 2
     assert ins["latest_date"] == "2026-06-15"
@@ -47,12 +47,12 @@ def test_insider_empty_when_no_data():
     a = HoldingsAnalyzer()
     with patch.object(a._ak, "get_major_shareholder_trades", return_value=[]), \
          patch.object(a._ak, "get_insider_trades", return_value=[]):
-        ins = a._collect_insider("002371", "cn")
+        ins = a._collect_insider_live("002371", "cn")
     assert ins == {}
 
 
 def test_insider_empty_on_exception():
     a = HoldingsAnalyzer()
     with patch.object(a._ak, "get_major_shareholder_trades", side_effect=Exception("net")):
-        ins = a._collect_insider("002371", "cn")
+        ins = a._collect_insider_live("002371", "cn")
     assert ins == {}

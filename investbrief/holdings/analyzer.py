@@ -74,7 +74,7 @@ def _history_db_first(market: str, symbol: str, *, days: int, db, live_fetch, li
     """holdings history DB-First fast-path。
 
     1. stock_daily 有 today bar → 直接返回 DB（0 网络请求）。
-    2. DB 完全空 + live_fetch_full → 拉全历史(从上市, 量化回测铺路) → 回写 stock_daily。
+    2. DB 空 或 行数不足(< 500 天, 不够全历史/回测) + live_fetch_full → 拉全历史 → 回写。
     3. DB 有历史没今天 → live_fetch(symbol, days) 近期增量 → 回写。
     任一步失败 → 回退 live_fetch 原始结果（DB 不是强依赖，pipeline 不阻塞）。
 
@@ -93,15 +93,15 @@ def _history_db_first(market: str, symbol: str, *, days: int, db, live_fetch, li
                 return cached.set_index(dt_idx)
     except Exception as e:
         logger.warning(f"_history_db_first DB read {market}:{symbol} failed: {e}")
-    # DB 空 → 全历史(回测铺路)；DB 有历史 → 近期增量(今天)
-    db_empty = True
+    # DB 空 或 行数不足(< 500 天) → 全历史(回测铺路); 否则近期增量(今天)
+    db_insufficient = True
     try:
         if db is not None:
-            probe = db.query_stock_daily(market, symbol, n=1)
-            db_empty = probe is None or probe.empty
+            probe = db.query_stock_daily(market, symbol, n=1000)
+            db_insufficient = probe is None or len(probe) < 500
     except Exception:
-        db_empty = True
-    if db_empty and live_fetch_full is not None:
+        db_insufficient = True
+    if db_insufficient and live_fetch_full is not None:
         df = live_fetch_full(symbol)
     else:
         df = live_fetch(symbol, days)

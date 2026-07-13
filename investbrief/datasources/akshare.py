@@ -1085,13 +1085,20 @@ class AKShareClient:
     # ---- ETF ----
 
     def _get_all_etf_df(self) -> pd.DataFrame | None:
-        """获取全量 ETF DataFrame（带缓存，TTL 5 分钟）。"""
+        """获取全量 ETF DataFrame（持久日级 + 进程内 5min 双层缓存）。
+
+        日级 _persist 缓存（跨 run，收盘快照路线），em 限流时读缓存不致 ETF name 丢成"未知"。
+        """
+        cached = _persist.get("etf_spot", 86400)
+        if cached is not None:
+            return pd.DataFrame(cached)
         df = _df_cache.get("etf_spot", 300)
         if df is not None:
             return df
         df = ak.fund_etf_spot_em()
         if df is not None and not df.empty:
             _df_cache.set("etf_spot", df)
+            _persist.set("etf_spot", df.to_dict("records"))  # 持久(日级)
         return df
 
     def get_etf_spot(self, symbol: str) -> dict[str, Any] | None:
