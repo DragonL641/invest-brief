@@ -948,10 +948,16 @@ class AKShareClient:
     # ---- 主力资金 ----
 
     def get_stock_fund_flow(self, symbol: str) -> dict[str, Any] | None:
-        """获取个股最新主力资金流向。
+        """获取个股最新主力资金流向(日级持久缓存, 跨 run 复用)。
 
+        当天 flow 缓存 _persist(1d TTL), 同日多次 run 命中跳过 em 请求。
         market 从代码推断: 6 开头=sh, 其他=sz。
         """
+        today = datetime.now().strftime("%Y-%m-%d")
+        cache_key = f"flow:{symbol}:{today}"
+        cached = _persist.get(cache_key, 86400)
+        if cached is not None:
+            return cached
         try:
             market = "sh" if symbol.startswith("6") else "sz"
             df = _with_retry(
@@ -961,7 +967,7 @@ class AKShareClient:
             if df is None or df.empty:
                 return None
             r = df.iloc[-1]
-            return {
+            flow = {
                 "date": str(r.get("日期", "")),
                 "main_net": self._safe_float(r.get("主力净流入-净额")),
                 "main_pct": self._safe_float(r.get("主力净流入-净占比")),
@@ -970,6 +976,8 @@ class AKShareClient:
                 "big_net": self._safe_float(r.get("大单净流入-净额")),
                 "big_pct": self._safe_float(r.get("大单净流入-净占比")),
             }
+            _persist.set(cache_key, flow)  # 持久(跨 run, 1d)
+            return flow
         except Exception as e:
             logger.warning(f"AKShare get_stock_fund_flow failed for {symbol}: {e}")
             return None

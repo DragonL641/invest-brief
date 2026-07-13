@@ -68,15 +68,24 @@ def test_config_rejects_missing_field():
 
 # ==================== analyzer 分发 ====================
 
-def test_analyze_cn_stock_mock():
+def test_analyze_cn_stock_mock(monkeypatch):
     an = _mock_analyzer()
-    an._ak.get_stock_quote = lambda s: {"name": "贵州茅台", "price": 1680, "change_pct": -0.5, "pe": 30.0}
+    an._ak._lookup_name = lambda s: "贵州茅台"  # name 独立调(quote 已弃)
+    # quote 弃 → price 从 history today bar(收盘) 提取
+    hist = pd.DataFrame(
+        {"open": [1670], "close": [1680], "high": [1690], "low": [1660],
+         "volume": [100000], "amount": [16800000], "change_pct": [-0.5]},
+        index=pd.to_datetime(["2026-07-13"]))
+    monkeypatch.setattr("investbrief.holdings.analyzer._history_db_first", lambda *a, **kw: hist)
     an._ak.get_analyst_rating_summary = lambda s, df=None: {"buy": 8, "outperform": 2, "total_reports": 10, "total_reports_all": 25, "institutions": 6, "change": {"buy": 5.0}, "days": 90}
     an._ak.get_research_reports = lambda s, limit=5, df=None: [{"institution": "中信", "rating": "买入", "date": "2026-07-01"}]
     an._ak.get_financial_indicators = lambda s: {"roe": 30.0, "gross_margin": 90.0}
     an._ak.get_stock_fund_flow = lambda s: {"main_net": 50000000, "main_pct": 2.5}
     r = an.analyze_one("600519", "cn", "stock")
-    assert r.name == "贵州茅台" and r.rating["price_target"] == {}
+    assert r.name == "贵州茅台"              # 来自 _lookup_name
+    assert r.price["current"] == 1680        # 来自 history today bar close
+    assert r.price["change_pct"] == -0.5
+    assert r.rating["price_target"] == {}
     assert r.rating["distribution"]["buy"] == 8 and r.rating["total"] == 10
     assert r.rating["total_all"] == 25 and r.rating["trend"]["buy"] == 5.0
     assert r.flow["main_net"] == 50000000

@@ -392,8 +392,9 @@ class HoldingsAnalyzer:
         name = self._ak._lookup_name(symbol)
         # 行情/维度并行（_pool 串行化 max_workers=1, 低频不触发 em IP 限流）
         data = self._parallel({
-            "quote": lambda: self._ak.get_stock_quote(symbol),
-            "flow": lambda: (self._cached(f"flow:cn:{symbol}", 1, lambda: self._ak.get_stock_fund_flow(symbol)) or {}),
+            # quote 弃: card 的价/涨跌用 history today bar(收盘), 不依赖实时 bid_ask
+            # (项目用收盘数据非实时; 消除 bid_ask 实时盘口 → 每标的 -1 em 请求)
+            "flow": lambda: (self._ak.get_stock_fund_flow(symbol) or {}),
             "history": lambda s=symbol: _history_db_first(
                 "cn", s, days=180, db=_stock_db(),
                 live_fetch=lambda sym, days=180: self._ak.get_stock_history(sym, days=days),
@@ -404,26 +405,35 @@ class HoldingsAnalyzer:
             "cn_activity": lambda: self._collect_cn_activity(symbol, "cn"),
             "fund": lambda: self._collect_fundamentals(symbol, "cn") or {},
         })
-        quote = data.get("quote") or {}
+        # 价/涨跌从 history today bar(收盘) 提取, 替代 bid_ask 实时盘口
+        hist = data.get("history")
+        today = hist.tail(1) if (hist is not None and hasattr(hist, "empty") and not hist.empty) else None
+
+        def _bar(col):
+            if today is None or col not in today.columns:
+                return None
+            v = today[col].iloc[0]
+            return float(v) if pd.notna(v) else None
+
         flow = data.get("flow") or {}
         fin = data.get("fund") or {}
-        name = name or quote.get("name") or symbol
+        name = name or symbol
         result = HoldingResult(
             symbol=symbol, market="cn", type="stock",
             name=name,
             price={
-                "current": quote.get("price"),
-                "change_pct": quote.get("change_pct"),
-                "open": quote.get("open"),
-                "high": quote.get("high"),
-                "low": quote.get("low"),
-                "volume": quote.get("volume"),
-                "amount": quote.get("amount"),
-                "market_cap": quote.get("market_cap"),
+                "current": _bar("close"),
+                "change_pct": _bar("change_pct"),
+                "open": _bar("open"),
+                "high": _bar("high"),
+                "low": _bar("low"),
+                "volume": _bar("volume"),
+                "amount": _bar("amount"),
+                "market_cap": None,  # history/bid_ask 均无市值
             },
             rating=self._collect_rating(symbol, "cn"),
             fundamentals={
-                "pe": quote.get("pe"),
+                "pe": None,  # quote 弃(bid_ask 本就无 pe); 后续可从 ths 财务指标或 close/eps 算
                 "eps": fin.get("eps"),
                 "roe": fin.get("roe"),
                 "revenue_growth": fin.get("revenue_growth"),
