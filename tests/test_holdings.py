@@ -294,3 +294,50 @@ def test_run_holdings_report_prefetches_research_batch(monkeypatch):
     fake_analyzer.set_research_batch.assert_called_once()
     injected = fake_analyzer.set_research_batch.call_args[0][0]
     assert set(injected.keys()) == {"600519", "002371"}
+
+
+def test_history_db_first_empty_db_uses_full_history():
+    """DB 空时 _history_db_first 用 live_fetch_full(全历史), 不用 live_fetch(近期增量)。"""
+    from investbrief.holdings.analyzer import _history_db_first
+    db = MagicMock()
+    db.has_today_bar.return_value = False
+    db.query_stock_daily.return_value = pd.DataFrame()  # DB 空
+    db.upsert_stock_df = MagicMock()
+    full_called = {"n": 0}
+    recent_called = {"n": 0}
+    sample = pd.DataFrame({"open": [1], "close": [2]},
+                          index=pd.to_datetime(["2026-07-13"]))
+
+    def live_fetch(sym, days):
+        recent_called["n"] += 1
+        return sample
+
+    def live_fetch_full(sym):
+        full_called["n"] += 1
+        return sample
+
+    _history_db_first("cn", "601138", days=180, db=db,
+                      live_fetch=live_fetch, live_fetch_full=live_fetch_full)
+    assert full_called["n"] == 1   # DB 空 → 全历史
+    assert recent_called["n"] == 0  # 不调近期
+
+
+def test_history_db_first_has_data_uses_recent_increment():
+    """DB 有历史(没今天 bar)时 _history_db_first 用 live_fetch(近期增量), 不重拉全历史。"""
+    from investbrief.holdings.analyzer import _history_db_first
+    db = MagicMock()
+    db.has_today_bar.return_value = False  # 没今天 bar → 需增量
+    # DB 有历史(query n=1 非空) → 应走近期增量而非全历史
+    db.query_stock_daily.return_value = pd.DataFrame(
+        {"market": ["cn"], "symbol": ["601138"], "date": ["2026-07-12"], "close": [10]})
+    db.upsert_stock_df = MagicMock()
+    full_called = {"n": 0}
+    recent_called = {"n": 0}
+    sample = pd.DataFrame({"open": [1], "close": [2]},
+                          index=pd.to_datetime(["2026-07-13"]))
+
+    _history_db_first("cn", "601138", days=180, db=db,
+                      live_fetch=lambda s, d: (recent_called.__setitem__("n", recent_called["n"] + 1), sample)[1],
+                      live_fetch_full=lambda s: (full_called.__setitem__("n", full_called["n"] + 1), sample)[1])
+    assert recent_called["n"] == 1  # DB 有 → 近期增量
+    assert full_called["n"] == 0    # 不调全历史

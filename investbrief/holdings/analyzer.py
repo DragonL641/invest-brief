@@ -70,11 +70,12 @@ def _stock_db():
     return _db_handle
 
 
-def _history_db_first(market: str, symbol: str, *, days: int, db, live_fetch):
+def _history_db_first(market: str, symbol: str, *, days: int, db, live_fetch, live_fetch_full=None):
     """holdings history DB-First fast-path。
 
     1. stock_daily 有 today bar → 直接返回 DB（0 网络请求）。
-    2. 否则 → live_fetch(symbol, days) 拉取 → 回写 stock_daily → 返回 live 结果。
+    2. DB 完全空 + live_fetch_full → 拉全历史(从上市, 量化回测铺路) → 回写 stock_daily。
+    3. DB 有历史没今天 → live_fetch(symbol, days) 近期增量 → 回写。
     任一步失败 → 回退 live_fetch 原始结果（DB 不是强依赖，pipeline 不阻塞）。
 
     列归一化覆盖源形状：
@@ -92,7 +93,18 @@ def _history_db_first(market: str, symbol: str, *, days: int, db, live_fetch):
                 return cached.set_index(dt_idx)
     except Exception as e:
         logger.warning(f"_history_db_first DB read {market}:{symbol} failed: {e}")
-    df = live_fetch(symbol, days)
+    # DB 空 → 全历史(回测铺路)；DB 有历史 → 近期增量(今天)
+    db_empty = True
+    try:
+        if db is not None:
+            probe = db.query_stock_daily(market, symbol, n=1)
+            db_empty = probe is None or probe.empty
+    except Exception:
+        db_empty = True
+    if db_empty and live_fetch_full is not None:
+        df = live_fetch_full(symbol)
+    else:
+        df = live_fetch(symbol, days)
     try:
         if db is not None and isinstance(df, pd.DataFrame) and not df.empty:
             rows = df.rename(columns={
@@ -384,7 +396,8 @@ class HoldingsAnalyzer:
             "flow": lambda: (self._cached(f"flow:cn:{symbol}", 1, lambda: self._ak.get_stock_fund_flow(symbol)) or {}),
             "history": lambda s=symbol: _history_db_first(
                 "cn", s, days=180, db=_stock_db(),
-                live_fetch=lambda sym, days=180: self._ak.get_stock_history(sym, days=days)),
+                live_fetch=lambda sym, days=180: self._ak.get_stock_history(sym, days=days),
+                live_fetch_full=lambda sym: self._ak.get_stock_history(sym, start_date="19900101")),
             "news": lambda: self._ak.get_stock_news(symbol, limit=5),
             "events": lambda: self._collect_events(symbol, "cn"),
             "insider": lambda: self._collect_insider(symbol, "cn"),

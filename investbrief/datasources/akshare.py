@@ -471,10 +471,15 @@ class AKShareClient:
 
     # ---- 历史K线 ----
 
-    def get_stock_history(self, symbol: str, days: int = 180) -> pd.DataFrame | None:
-        """获取个股日K线（前复权）。eastmoney(stock_zh_a_hist)失败时 fallback 到新浪源。"""
+    def get_stock_history(self, symbol: str, days: int = 180, start_date: str | None = None) -> pd.DataFrame | None:
+        """获取个股日K线（前复权）。start_date 传 "19900101" 可拉全历史(从上市, 量化回测用)。
+
+        eastmoney(stock_zh_a_hist)失败时 fallback 到新浪源；新浪源不支持 start_date,
+        全历史请求降级为近期 days(新浪 fallback 只兜底, 不保证全历史)。
+        """
         end_date = datetime.now().strftime("%Y%m%d")
-        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+        if start_date is None:
+            start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
         # eastmoney 限流时 3 次重试耗 ~13s/标的;只试 1 次,失败立即转新浪 fallback。
         df = _with_retry(
             lambda: ak.stock_zh_a_hist(
