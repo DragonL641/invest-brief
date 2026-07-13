@@ -160,21 +160,21 @@ def _render_dimensions(r: HoldingResult) -> str:
         if cells:
             rows.append(_dim_row("机构态度", "".join(cells)))
 
-    # 事件日历
+    # 事件（6 源合并最近 5 + 高管增减持）
     ev = r.events
     ins = r.insider
-    if ev or ins:
+    ev_list = ev.get("events") if ev else None
+    has_insider = ins.get("direction") and ins.get("direction") != "flat"
+    if ev_list or has_insider:
         cells = []
-        if ev.get("next_earnings"):
-            days = ev.get("days_to_next")
-            warn = ' · 临近' if days is not None and days <= 7 else ''
-            cells.append(f'<span class="cell"><span class="cl">财报</span> {ev["next_earnings"]}{warn}</span>')
-        if ins.get("direction") and ins.get("direction") != "flat":
+        for e in (ev_list or [])[:5]:
+            cells.append(f'<span class="cell"><span class="cl">{e["type"]}</span> {e["date"]} {e.get("desc","")[:20]}</span>')
+        if has_insider:
             cls = "stock-up" if ins["direction"] == "buy" else "stock-down"
             verb = "增持" if ins["direction"] == "buy" else "减持"
             cells.append(f'<span class="cell"><span class="cl">高管{verb}</span> <span class="{cls}">{_fmt_short_money(ins.get("net_shares", 0))}股</span></span>')
         if cells:
-            rows.append(_dim_row("事件日历", "".join(cells)))
+            rows.append(_dim_row("事件", "".join(cells)))
 
     # 盈利预估
     fc = r.forecast

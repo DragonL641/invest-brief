@@ -1127,6 +1127,127 @@ class AKShareClient:
         """ETF 名称（同花顺非 em，持久缓存）。"""
         return self._get_etf_name_map().get(str(symbol))
 
+    def _recent_periods(self) -> list[str]:
+        """最近 2 个已完成报告期（stock_report_disclosure period 格式）。
+
+        返回披露窗口已过的报告期（确保披露表已公布，避免未到期 period 返回空/格式错）。
+        窗口截止日：一季4/30、半年报8/31、三季10/31、年报次年4/30。
+        """
+        now = datetime.now()
+        y, m = now.year, now.month
+        if m <= 4: return [f"{y - 1}年报"]
+        if m <= 8: return [f"{y}一季", f"{y - 1}年报"]
+        if m <= 10: return [f"{y}半年报", f"{y}一季"]
+        return [f"{y}三季", f"{y}半年报"]
+
+    def _recent_report_dates(self) -> list[str]:
+        """最近 2 个报告期的 date 格式（yjyg/yjkb：YYYYMMDD 季度末）。"""
+        now = datetime.now()
+        y, m = now.year, now.month
+        if m <= 3: return [f"{y - 1}1231", f"{y}0331"]
+        if m <= 6: return [f"{y}0331", f"{y}0630"]
+        if m <= 9: return [f"{y}0630", f"{y}0930"]
+        return [f"{y}0930", f"{y}1231"]
+
+    def get_stock_events(self, symbol: str) -> list[dict]:
+        """个股事件列表（6 源合并，每源 7d _persist 缓存）。
+
+        返回 list[{type, date, desc}]，调用方排序取最近 5。
+        源：财报披露(巨潮非em) / 业绩预告+快报(em) / 解禁(em) / 分红(em) / 回购(em)。
+        """
+        def _cached(key, fetch):
+            cached = _persist.get(key, 7 * 86400)
+            if cached is not None:
+                return cached
+            try:
+                r = fetch() or []
+                if r:
+                    _persist.set(key, r)
+                return r
+            except Exception as e:
+                logger.warning(f"event source {key} failed: {e}")
+                return []
+
+        events: list[dict] = []
+
+        # 1. 财报披露（巨潮非 em）
+        def _disclosure():
+            out = []
+            for p in self._recent_periods():
+                df = ak.stock_report_disclosure(market="沪深京", period=p)
+                if df is None or df.empty: continue
+                row = df[df["股票代码"] == symbol]
+                if row.empty: continue
+                r = row.iloc[0]
+                d = r.get("实际披露") or r.get("首次预约")
+                if pd.notna(d):
+                    out.append({"type": "财报", "date": str(d), "desc": f"{p}披露"})
+            return out
+        events += _cached(f"evt:disclosure:{symbol}", _disclosure)
+
+        # 2-3. 业绩预告 / 业绩快报（em）
+        for src_name, ak_fn, label in [
+            ("yjyg", ak.stock_yjyg_em, "业绩预告"),
+            ("yjkb", ak.stock_yjkb_em, "业绩快报"),
+        ]:
+            def _yj(_ak_fn=ak_fn, _label=label):
+                out = []
+                for d in self._recent_report_dates():
+                    df = _ak_fn(date=d)
+                    if df is None or df.empty: continue
+                    row = df[df["股票代码"] == symbol]
+                    if row.empty: continue
+                    r = row.iloc[0]
+                    pub = r.get("公告日期")
+                    if pd.notna(pub):
+                        extra = str(r.get("预告类型", "")) if "预告" in _label else ""
+                        out.append({"type": _label, "date": str(pub),
+                                    "desc": f"{extra} {str(r.get('业绩变动', ''))[:30]}".strip()})
+                return out
+            events += _cached(f"evt:{src_name}:{symbol}", _yj)
+
+        # 4. 解禁（em 单股）
+        def _restricted():
+            df = ak.stock_restricted_release_queue_em(symbol=symbol)
+            if df is None or df.empty: return []
+            out = []
+            for _, r in df.iterrows():
+                d = r.get("解禁时间")
+                if pd.notna(d):
+                    out.append({"type": "解禁", "date": str(d),
+                                "desc": f"解禁{r.get('解禁数量', '')}股"})
+            return out
+        events += _cached(f"evt:restricted:{symbol}", _restricted)
+
+        # 5. 分红（em 单股）
+        def _fhps():
+            df = ak.stock_fhps_detail_em(symbol=symbol)
+            if df is None or df.empty: return []
+            out = []
+            for _, r in df.iterrows():
+                d = r.get("除权除息日")
+                if pd.notna(d):
+                    out.append({"type": "分红", "date": str(d),
+                                "desc": str(r.get("现金分红-现金分红比例描述", ""))[:30]})
+            return out
+        events += _cached(f"evt:fhps:{symbol}", _fhps)
+
+        # 6. 回购（em 全市场）
+        def _repurchase():
+            df = ak.stock_repurchase_em()
+            if df is None or df.empty: return []
+            row = df[df["股票代码"] == symbol]
+            if row.empty: return []
+            r = row.iloc[0]
+            d = r.get("最新公告日期") or r.get("回购起始时间")
+            if pd.notna(d):
+                return [{"type": "回购", "date": str(d),
+                         "desc": f"回购{r.get('已回购金额', '')}元"}]
+            return []
+        events += _cached(f"evt:repurchase:{symbol}", _repurchase)
+
+        return events
+
     def get_etf_spot(self, symbol: str) -> dict[str, Any] | None:
         """获取单只 ETF 实时行情。symbol: 6位代码如 "510300"。"""
         try:

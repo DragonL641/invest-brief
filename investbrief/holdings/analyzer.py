@@ -205,28 +205,28 @@ class HoldingsAnalyzer:
     # ==================== 分发实现 ====================
 
     def _collect_events(self, symbol: str, market: str) -> dict:
-        """业绩日历（CN 季报披露窗口规则推算）。失败返回 {}。
+        """个股事件（6 源合并：财报披露/业绩预告/快报/解禁/分红/回购，按日期排序取最近 5）。
 
-        Field structure: {"next_earnings": "YYYY-MM-DD", "days_to_next": int, "is_in_window": bool}
+        失败返回 {}。Field structure: {"events": [{type, date, desc}], "count": int}
         """
-        from datetime import date
+        from datetime import datetime as _dt
         try:
-            # CN 季报披露窗口：Q1 4-30、半年报 8-31、Q3 10-31、年报 次年 4-30
-            today = date.today()
-            windows = []
-            year = today.year
-            for _ in range(2):
-                windows += [
-                    date(year, 4, 30), date(year, 8, 31),
-                    date(year, 10, 31), date(year + 1, 4, 30),
-                ]
-                year += 1
-            upcoming = sorted(w for w in windows if w >= today)
-            if not upcoming:
+            all_events = self._ak.get_stock_events(symbol) or []
+            if not all_events:
                 return {}
-            next_d = upcoming[0].isoformat()
-            days = (date.fromisoformat(next_d) - date.today()).days
-            return {"next_earnings": next_d, "days_to_next": days, "is_in_window": days <= 7}
+            # 按 |date - today| 排序（离当前最近优先），取最近 5
+            today_dt = _dt.now()
+
+            def _parse(e):
+                d = str(e.get("date", ""))[:10]
+                try:
+                    return _dt.strptime(d, "%Y-%m-%d")
+                except ValueError:
+                    return None
+            valid = [e for e in all_events if _parse(e) is not None]
+            valid.sort(key=lambda e: abs((_parse(e) - today_dt).total_seconds()))
+            top5 = valid[:5]
+            return {"events": top5, "count": len(top5)}
         except Exception as e:
             logger.warning(f"events collect failed for {symbol}: {e}")
             return {}
