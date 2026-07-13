@@ -61,7 +61,37 @@ def test_get_name_map_df_cached_and_not_refetch(monkeypatch):
         return None  # 即使调用也不该走到(缓存命中)
 
     from investbrief.datasources import akshare as ak_mod
+    monkeypatch.setattr(ak_mod._persist, "get", lambda key, ttl: None)  # 持久 miss → 走进程内
     monkeypatch.setattr(ak_mod._df_cache, "get", _fake_get)
     monkeypatch.setattr(ak_mod, "_with_retry", _fake_retry)
     assert c._get_name_map_df() is cached
-    assert called["n"] == 0  # 缓存命中, 未触网
+    assert called["n"] == 0  # 进程内缓存命中, 未触网
+
+
+def test_research_batch_incremental_only_fetches_today(monkeypatch):
+    """增量缓存：历史天命中 _persist 不重拉，今天(i=0)总请求拿最新。"""
+    from investbrief.datasources.akshare import AKShareClient
+    from investbrief.datasources import akshare as ak_mod
+    from datetime import datetime
+    c = AKShareClient()
+    today_str = datetime.now().strftime("%Y%m%d")
+
+    def _persist_get(key, ttl):
+        if today_str in key:
+            return None
+        # 历史天命中：返回含目标 symbol 的调研记录
+        return [{"代码": "601138", "接待日期": "20260701", "接待机构数量": "5",
+                 "接待方式": "特定", "接待人员": "X"}]
+    monkeypatch.setattr(ak_mod._persist, "get", _persist_get)
+    monkeypatch.setattr(ak_mod._persist, "set", lambda k, v: None)
+
+    called = {"n": 0}
+    def _fake_jgdy(date):
+        called["n"] += 1
+        return pd.DataFrame([{"代码": "601138", "接待日期": date,
+                              "接待机构数量": "3", "接待方式": "调研", "接待人员": "Y"}])
+    monkeypatch.setattr(ak_mod.ak, "stock_jgdy_tj_em", _fake_jgdy)
+
+    result = c.get_institutional_research_batch(["601138"], days=3)
+    assert called["n"] == 1  # 只拉今天(历史 2 天命中缓存, 不请求)
+    assert len(result["601138"]) >= 1  # today + 历史都有数据

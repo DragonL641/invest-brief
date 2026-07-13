@@ -829,9 +829,15 @@ class AKShareClient:
     # ---- 机构调研 ----
 
     def get_institutional_research_batch(
-        self, symbols: list[str], days: int = 7
+        self, symbols: list[str], days: int = 90
     ) -> dict[str, list[dict[str, Any]]]:
-        """批量获取多只股票的机构调研统计，只遍历一次日期。"""
+        """批量获取机构调研统计，遍历 days 天窗口（默认 90 天）。
+
+        增量缓存：每天 stock_jgdy_tj_em(date) 结果按日独立缓存（_persist sqlite,
+        TTL 90d —— 历史调研数据是既成事实，不会变）。今天(i=0)总是请求拿最新，
+        历史 89 天读缓存，miss 才请求 + 缓存（空日也缓存 [] 避免重拉）。
+        冷启动后每 run 只拉今天 1 次，不再每次重拉 90 天。
+        """
         symbol_set = set(symbols)
         all_results: dict[str, list[dict[str, Any]]] = {s: [] for s in symbols}
         seen: set[str] = set()
@@ -839,26 +845,34 @@ class AKShareClient:
         for i in range(days):
             d = end - timedelta(days=i)
             date_str = d.strftime("%Y%m%d")
-            try:
-                df = ak.stock_jgdy_tj_em(date=date_str)
-                if df is None or df.empty:
+            is_today = (i == 0)
+            cache_key = f"jgdy:{date_str}"
+            # 今天拿最新(不读缓存, 盘后可能更新); 历史读缓存(90d, 调研数据不变)
+            records = None if is_today else _persist.get(cache_key, 90 * 86400)
+            if records is None:
+                try:
+                    df = ak.stock_jgdy_tj_em(date=date_str)
+                except Exception:
                     continue
-                df = df[df["代码"].isin(symbol_set)]
-                for _, r in df.iterrows():
-                    sym = str(r.get("代码", ""))
-                    date_val = str(r.get("接待日期", ""))
-                    key = f"{sym}_{date_val}"
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    all_results.setdefault(sym, []).append({
-                        "institution": str(r.get("接待机构数量", "")),
-                        "date": date_val,
-                        "type": str(r.get("接待方式", "")),
-                        "researchers": str(r.get("接待人员", "")),
-                    })
-            except Exception:
-                continue
+                records = [] if (df is None or df.empty) else df.to_dict("records")
+                if not is_today:
+                    _persist.set(cache_key, records)  # 缓存历史(含空日, 避免重拉)
+            # 过滤目标 symbols + 收集（records 来自缓存或新拉, 统一 list[dict]）
+            for r in records:
+                sym = str(r.get("代码", ""))
+                if sym not in symbol_set:
+                    continue
+                date_val = str(r.get("接待日期", ""))
+                key = f"{sym}_{date_val}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                all_results.setdefault(sym, []).append({
+                    "institution": str(r.get("接待机构数量", "")),
+                    "date": date_val,
+                    "type": str(r.get("接待方式", "")),
+                    "researchers": str(r.get("接待人员", "")),
+                })
         return all_results
 
     def get_institutional_research(
