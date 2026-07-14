@@ -80,11 +80,11 @@ a { color: ${ACCENT}; }
 
 /* ── 数据网格 stat-grid（<table>；间距靠 cellspacing 属性，Outlook 友好）── */
 .stat-grid { width: 100%; border-collapse: separate; }
-.stat { background-color: ${TINT}; border: 1px solid ${RULE_SOFT}; border-radius: 3px; padding: 14px 10px; text-align: center; vertical-align: top; }
-.stat-label { font-family: ${SANS}; font-size: 11px; color: ${INK_3}; letter-spacing: 0.3px; margin-bottom: 7px; }
-.stat-value { font-family: ${SERIF}; font-size: 21px; font-weight: 700; color: ${INK}; line-height: 1; }
-.stat-delta { font-family: ${SANS}; font-size: 12px; font-weight: 700; margin-top: 6px; }
-.stat-sub { font-family: ${SANS}; font-size: 10px; color: ${INK_3}; margin-top: 6px; }
+.stat { background-color: transparent; border: 1px solid ${RULE}; border-radius: 3px; padding: 10px 8px; text-align: center; vertical-align: top; }
+.stat-label { font-family: ${SANS}; font-size: 10.5px; color: ${INK_3}; letter-spacing: 0.3px; margin-bottom: 7px; }
+.stat-value { font-family: ${SANS}; font-size: 16px; font-weight: 600; color: ${INK}; line-height: 1; }
+.stat-delta { font-family: ${SANS}; font-size: 11.5px; font-weight: 700; margin-top: 6px; }
+.stat-sub { font-family: ${SANS}; font-size: 9.5px; color: ${INK_3}; margin-top: 6px; }
 
 /* ── 涨跌色 ── */
 .pos, .stock-up { color: ${UP}; font-weight: 700; }
