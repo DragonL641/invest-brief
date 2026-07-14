@@ -6,6 +6,7 @@
 韧性：单个数据源失败 try/except 跳过，对应维度留空，renderer 优雅降级，不阻塞整体。
 跨标的去重缓存：同一 (symbol, market, type) 在一次运行内只分析一次（多收件人共享）。
 """
+import atexit
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
@@ -68,6 +69,24 @@ def _stock_db():
         from investbrief.data.cn_data import CNData
         _db_handle = CNData(db_path=DB_PATH)
     return _db_handle
+
+
+def close_all():
+    """关闭 holdings analyzer 共享的 stock_daily 句柄。
+
+    _stock_db 惰性创建的 CNData 在 scheduler 长跑下连接终生持有；atexit 兜底关闭，
+    与有回归测试(test_cache_close_on_reinit)的 FactorCache/BaseData 生命周期对齐。
+    """
+    global _db_handle
+    if _db_handle is not None:
+        try:
+            _db_handle.close()
+        except Exception:
+            pass
+        _db_handle = None
+
+
+atexit.register(close_all)
 
 
 def _history_db_first(market: str, symbol: str, *, days: int, db, live_fetch, live_fetch_full=None):

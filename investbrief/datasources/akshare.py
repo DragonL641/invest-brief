@@ -1,4 +1,5 @@
 """A股数据客户端，基于 AKShare。"""
+import atexit
 import json
 import logging
 import os
@@ -141,9 +142,16 @@ class _PersistentCache:
             )
             self._conn.commit()
 
+    def close(self):
+        with self._lock:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
+
 
 # 持久缓存文件 data/akshare_persist.db（与 macro_data.db 同目录，gitignored）
 _persist = _PersistentCache(Path(DB_PATH).parent / "akshare_persist.db")
+atexit.register(_persist.close)  # 进程退出时关闭，避免 scheduler 长跑下连接终生持有
 
 
 # —— 全局节流：akshare 历史无全局 QPS 限制，eastmoney 高频请求触发 RemoteDisconnected/限流。

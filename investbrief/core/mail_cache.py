@@ -5,6 +5,7 @@ macro/picks 用户无关（key=日期）；holdings per-user（key=日期+email+
 """
 import hashlib
 import logging
+import time
 from pathlib import Path
 
 from investbrief.core.config import REPORTS_DIR
@@ -55,3 +56,29 @@ def set_cache(key: str, html: str):
         _path(key).write_text(html, encoding="utf-8")
     except Exception as e:
         logger.warning(f"mail_cache write {key} failed: {e}")
+    _sweep_stale()
+
+
+_RETENTION_DAYS = 30
+_last_sweep = 0.0
+
+
+def _sweep_stale():
+    """删除超过 30 天的缓存文件。
+
+    文件名含日期只保证跨天不命中(正确性)，不保证磁盘不增长 —— holdings 指纹变更后
+    旧文件会永久残留。进程内每天最多 sweep 一次(_last_sweep 节流)，避免每次 set_cache
+    都全目录扫。sweep 失败仅 debug 日志，不阻塞写。
+    """
+    global _last_sweep
+    now = time.time()
+    if now - _last_sweep < 86400:
+        return
+    _last_sweep = now
+    cutoff = now - _RETENTION_DAYS * 86400
+    try:
+        for f in CACHE_DIR.glob("*.html"):
+            if f.stat().st_mtime < cutoff:
+                f.unlink()
+    except Exception as e:
+        logger.debug(f"mail_cache sweep failed: {e}")
