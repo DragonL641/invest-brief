@@ -152,6 +152,9 @@ class GoldData(BaseData):
             df = self._retry_api(lambda: ak.spot_golden_benchmark_sge())
             if df is None or df.empty:
                 return
+            # akshare 帧顺序不可信(CLAUDE.md)，按交易时间列(第0列)升序后再取最新行，
+            # 否则降序帧会把最旧金价当最新 upsert
+            df = df.sort_values(by=df.columns[0], kind="stable").reset_index(drop=True)
             latest = df.iloc[-1]
             # 列顺序: 交易时间, 晚盘价, 早盘价
             early = latest.iloc[2] if pd.notna(latest.iloc[2]) else latest.iloc[1]

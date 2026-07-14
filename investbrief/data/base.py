@@ -221,8 +221,8 @@ class BaseData(ABC):
 
     def has_today_bar(self, market: str, symbol: str) -> bool:
         """stock_daily 是否已有今天的 bar（DB-First fast-path 判定）。"""
-        from datetime import date as _date
-        today = _date.today().isoformat()
+        from investbrief.core.timeutil import now_cn
+        today = now_cn().date().isoformat()
         sql = "SELECT 1 FROM stock_daily WHERE market=? AND symbol=? AND date=? LIMIT 1"
         df = pd.read_sql_query(sql, self.conn, params=(market, symbol, today))
         return not df.empty
