@@ -60,9 +60,9 @@ a { color: ${ACCENT}; }
 .container { max-width: 680px; margin: 0 auto; background: ${CARD}; border: 1px solid ${RULE}; border-radius: 4px; overflow: hidden; }
 
 /* ── 报头 masthead（td 上；模板用 <td bgcolor> 兜底 Outlook） ── */
-.masthead { background-color: ${INK}; color: #fff; padding: 30px 30px 24px; border-bottom: 3px solid ${ACCENT}; }
+.masthead { background-color: ${INK}; color: #fff; padding: 30px 30px 24px; border-bottom: 2px solid ${ACCENT}; }
 .masthead-brand { font-family: ${SANS}; font-size: 10px; letter-spacing: 3px; color: #fff; font-weight: 700; margin-bottom: 12px; opacity: 0.55; }
-.masthead-title { font-family: ${SERIF}; font-size: 29px; font-weight: 700; margin: 0 0 7px; color: #fff; letter-spacing: -0.01em; line-height: 1.2; }
+.masthead-title { font-family: ${SERIF}; font-size: 25px; font-weight: 700; margin: 0 0 7px; color: #fff; letter-spacing: -0.01em; line-height: 1.2; }
 .masthead-date { font-family: ${SANS}; font-size: 12px; color: ${ON_DARK_FAINT}; letter-spacing: 0.3px; }
 
 /* ── 段落 section ── */
@@ -70,7 +70,7 @@ a { color: ${ACCENT}; }
 .section:last-child { border-bottom: none; }
 .section-head { padding-bottom: 14px; margin-bottom: 18px; border-bottom: 1px solid ${RULE}; }
 .kicker { display: block; font-family: ${SANS}; font-size: 10px; letter-spacing: 2.5px; color: ${ACCENT}; font-weight: 700; margin-bottom: 6px; }
-.section-title { font-family: ${SERIF}; font-size: 22px; font-weight: 700; color: ${INK}; margin: 0; letter-spacing: -0.005em; line-height: 1.25; }
+.section-title { font-family: ${SERIF}; font-size: 20px; font-weight: 700; color: ${INK}; margin: 0; letter-spacing: -0.005em; line-height: 1.25; }
 
 /* ── 卡片 card ── */
 .card { background: ${CARD}; border: 1px solid ${RULE}; border-radius: 3px; margin: 14px 0; }
@@ -97,7 +97,7 @@ a { color: ${ACCENT}; }
 .metric .label { color: ${INK_3}; font-size: 11px; display: block; margin-bottom: 3px; letter-spacing: 0.3px; }
 
 /* ── 摘要框 summary-box（核心观点 / 风险 / 卖方） ── */
-.summary-box { background-color: ${TINT}; border-top: 2px solid ${INK}; padding: 18px 20px; font-family: ${SANS}; font-size: 14.5px; line-height: 1.8; color: ${INK}; }
+.summary-box { background-color: #fcfbf9; border-left: 3px solid ${ACCENT}; padding: 14px 18px; font-family: ${SANS}; font-size: 14.5px; line-height: 1.8; color: ${INK}; }
 .summary-box p { margin: 0 0 10px; } .summary-box p:last-child { margin: 0; }
 .summary-box strong { color: ${INK}; font-weight: 700; }
 .summary-box ul, .summary-box ol { margin: 8px 0; padding-left: 20px; } .summary-box li { margin-bottom: 5px; }
@@ -114,10 +114,10 @@ a { color: ${ACCENT}; }
 
 /* ── 信号 tag ── */
 .signal-tag { display: inline-block; font-family: ${SANS}; padding: 2px 9px; border-radius: 2px; font-size: 11px; font-weight: 700; margin: 0 5px 4px 0; letter-spacing: 0.2px; }
-.signal-tag-up { background-color: ${TINT}; color: ${UP}; border: 1px solid #f0d6d2; }
-.signal-tag-down { background-color: ${TINT}; color: ${DOWN}; border: 1px solid #cce4d8; }
-.signal-tag-warn { background-color: ${TINT}; color: #b07a14; border: 1px solid #ecdfc0; }
-.signal-tag-neutral { background-color: ${TINT}; color: ${INK_3}; border: 1px solid ${RULE}; }
+.signal-tag-up { background-color: transparent; color: ${UP}; border: 1px solid #f0d6d2; }
+.signal-tag-down { background-color: transparent; color: ${DOWN}; border: 1px solid #cce4d8; }
+.signal-tag-warn { background-color: transparent; color: #b07a14; border: 1px solid #ecdfc0; }
+.signal-tag-neutral { background-color: transparent; color: ${INK_3}; border: 1px solid ${RULE}; }
 
 /* ── 维度行 dim-row（<table> 2 列：name + cells） ── */
 .dim-row { width: 100%; border-collapse: collapse; border-bottom: 1px solid ${RULE_SOFT}; }
@@ -131,11 +131,11 @@ a { color: ${ACCENT}; }
 .bar-fill { display: block; height: 5px; border-radius: 3px; background-color: ${INK_3}; }
 
 /* ── AI 研判框 ── */
-.ai-box { margin-top: 12px; padding: 13px 15px; background-color: ${TINT}; border-top: 2px solid ${INK}; border-radius: 2px; font-family: ${SANS}; font-size: 13px; line-height: 1.65; color: ${INK}; }
+.ai-box { margin-top: 12px; padding: 13px 15px; background-color: transparent; border-top: 1px solid ${RULE}; font-family: ${SANS}; font-size: 13px; line-height: 1.65; color: ${INK}; }
 .ai-box .ai-label { font-size: 10px; letter-spacing: 2px; color: ${ACCENT}; font-weight: 700; display: block; margin-bottom: 6px; }
 
 /* ── 买入逻辑框（picks） ── */
-.logic-box { margin-top: 10px; padding: 11px 13px; background-color: ${TINT}; border: 1px solid ${RULE}; border-radius: 2px; font-family: ${SANS}; font-size: 12.5px; line-height: 1.6; color: ${INK_2}; }
+.logic-box { margin-top: 10px; padding: 11px 13px; background-color: transparent; border-top: 1px solid ${RULE}; font-family: ${SANS}; font-size: 12.5px; line-height: 1.6; color: ${INK_2}; }
 .logic-box b, .logic-box strong { color: ${INK}; }
 .logic-box ul { margin: 5px 0 0; padding-left: 16px; } .logic-box li { margin-bottom: 3px; }
 
@@ -146,20 +146,20 @@ a { color: ${ACCENT}; }
 .news-title a { color: ${INK}; text-decoration: none; border-bottom: 1px solid ${RULE}; }
 .news-summary { font-family: ${SANS}; font-size: 13px; color: ${INK_2}; line-height: 1.65; }
 .news-meta { font-family: ${SANS}; font-size: 11px; color: ${INK_3}; margin-top: 5px; letter-spacing: 0.2px; }
-.news-tag { display: inline-block; font-family: ${SANS}; font-size: 10px; color: ${INK_3}; background-color: ${TINT}; border: 1px solid ${RULE}; padding: 1px 7px; border-radius: 2px; margin-left: 8px; letter-spacing: 0.3px; }
+.news-tag { display: inline-block; font-family: ${SANS}; font-size: 10px; color: ${INK_3}; background-color: transparent; border: 1px solid ${RULE}; padding: 1px 7px; border-radius: 2px; margin-left: 8px; letter-spacing: 0.3px; }
 .news-date { color: ${INK_3}; font-size: 11px; margin-left: 4px; }
 
 /* ── 无数据 ── */
 .no-data { text-align: center; color: ${INK_3}; padding: 24px; font-family: ${SANS}; font-size: 13px; }
 
 /* ── 页脚 footer ── */
-.footer { padding: 20px 30px; text-align: center; color: ${INK_3}; font-family: ${SANS}; font-size: 11px; line-height: 1.8; background-color: ${TINT}; border-top: 1px solid ${RULE}; }
+.footer { padding: 20px 30px; text-align: center; color: ${INK_3}; font-family: ${SANS}; font-size: 11px; line-height: 1.8; background-color: transparent; border-top: 1px solid ${RULE}; }
 
 /* ── 周期风险卡 risk ── */
-.risk-wrap { margin-top: 14px; padding: 16px 18px; background-color: ${TINT}; border: 1px solid ${RULE}; border-radius: 3px; }
+.risk-wrap { margin-top: 14px; padding: 14px 16px; background-color: transparent; border: 1px solid ${RULE}; border-radius: 3px; }
 .risk-label { font-family: ${SANS}; font-size: 10px; letter-spacing: 2px; color: ${INK_3}; font-weight: 700; margin-bottom: 10px; }
 .risk-score-row { margin-bottom: 10px; }
-.risk-score { font-family: ${SERIF}; font-size: 30px; font-weight: 700; line-height: 1; vertical-align: middle; }
+.risk-score { font-family: ${SERIF}; font-size: 24px; font-weight: 700; line-height: 1; vertical-align: middle; }
 .risk-score-out { font-family: ${SANS}; font-size: 12px; color: ${INK_3}; margin-left: 2px; vertical-align: middle; }
 .risk-state { font-family: ${SANS}; font-size: 12.5px; color: ${INK_2}; margin-bottom: 12px; }
 .risk-state b { font-weight: 700; }
@@ -170,7 +170,7 @@ a { color: ${ACCENT}; }
 .ind-explain { font-family: ${SANS}; font-size: 11px; color: ${INK_3}; padding-left: 4px; margin-top: 2px; line-height: 1.5; }
 
 /* ── 宏观四象限 regime ── */
-.regime-wrap { margin-top: 14px; padding: 16px 18px; background-color: ${TINT}; border: 1px solid ${RULE}; border-radius: 3px; }
+.regime-wrap { margin-top: 14px; padding: 14px 16px; background-color: transparent; border: 1px solid ${RULE}; border-radius: 3px; }
 .regime-label { font-family: ${SANS}; font-size: 10px; letter-spacing: 2px; color: ${INK_3}; font-weight: 700; margin-bottom: 10px; }
 .regime-table { width: 100%; border-collapse: separate; border-spacing: 6px; }
 .regime-axis { font-family: ${SANS}; font-size: 10px; color: ${INK_3}; letter-spacing: 0.5px; vertical-align: middle; }
@@ -194,14 +194,14 @@ a { color: ${ACCENT}; }
 .dims { font-family: ${SANS}; font-size: 13px; }
 
 /* ── picks 专用 ── */
-.brief-box { background-color: ${TINT}; border-top: 2px solid ${INK}; border-radius: 2px; padding: 15px 17px; font-family: ${SANS}; font-size: 13.5px; line-height: 1.75; color: ${INK}; }
+.brief-box { background-color: #fcfbf9; border-left: 3px solid ${ACCENT}; padding: 14px 18px; font-family: ${SANS}; font-size: 13.5px; line-height: 1.75; color: ${INK}; }
 .brief-box p { margin: 0 0 8px; } .brief-box p:last-child { margin: 0; }
 .brief-box strong { color: ${INK}; }
 .mkt-badge { display: inline-block; font-family: ${SANS}; font-size: 9px; font-weight: 700; color: ${ACCENT}; border: 1px solid ${ACCENT}; padding: 1px 6px; border-radius: 2px; margin-left: 6px; vertical-align: middle; letter-spacing: 0.5px; }
 .profile-title { font-family: ${SERIF}; font-size: 16px; font-weight: 700; color: ${INK}; margin: 24px 0 10px; padding-bottom: 8px; border-bottom: 1px solid ${RULE}; }
 .profile-title:first-child { margin-top: 0; }
 .profile-kicker { display: block; font-family: ${SANS}; font-size: 10px; letter-spacing: 2px; color: ${ACCENT}; font-weight: 700; margin-bottom: 4px; }
-.notice { padding: 12px 20px; background-color: ${TINT}; border-bottom: 1px solid ${RULE}; font-family: ${SANS}; font-size: 11.5px; line-height: 1.65; color: ${INK_2}; }
+.notice { padding: 12px 20px; background-color: transparent; border-bottom: 1px solid ${RULE}; font-family: ${SANS}; font-size: 11.5px; line-height: 1.65; color: ${INK_2}; }
 .notice b { color: ${INK}; font-weight: 700; }
 .price-row { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .price-row .pl { font-family: ${SANS}; font-size: 13px; padding: 10px 12px 10px 0; vertical-align: middle; white-space: nowrap; }
