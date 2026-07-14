@@ -1,4 +1,6 @@
 """Market provider 能力声明 + 注册表扩展性测试。"""
+import pytest
+
 from investbrief.market.base import MarketProvider
 
 
@@ -45,6 +47,7 @@ def test_gold_provider_declares_capabilities():
     assert p.render_section({}, {}) == ""
 
 
+@pytest.mark.network  # 完整 macro pipeline dry-run，漏 mock overseas/gold/news/FRED → 触网（market 注册逻辑本身 hermetic，理想应补 mock，留 followup）
 def test_fake_market_runs_through_pipeline(monkeypatch, capsys):
     """注册一个全新市场 kr(FakeProvider), 编排层无需改代码即可跑通。
 

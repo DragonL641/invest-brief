@@ -1,5 +1,6 @@
 # tests/test_pipeline_cache.py
 """pipeline 日级缓存集成：命中跳过 build、miss 写缓存、--force 强制。"""
+import pytest
 from datetime import datetime
 from unittest.mock import MagicMock
 
@@ -187,6 +188,7 @@ def test_macro_cache_hit_skips_build(tmp_path, monkeypatch):
     assert sent["messages"][0]["html"] == "<html>MACRO</html>"
 
 
+@pytest.mark.network  # 完整 macro pipeline dry-run，漏 mock overseas/news 拉取 → 触网（缓存逻辑本身 hermetic，理想应补 mock，留 followup）
 def test_macro_cache_miss_writes_cache(tmp_path, monkeypatch):
     """miss → build 被调 + set_cache 写入缓存文件。
 
@@ -233,6 +235,7 @@ def test_macro_cache_miss_writes_cache(tmp_path, monkeypatch):
     assert mail_cache.get_cache("macro_2026-07-10") == "<html>FRESH</html>"  # miss 写入缓存
 
 
+@pytest.mark.network  # 同上：完整 macro pipeline dry-run，漏 mock overseas/news → 触网
 def test_macro_cache_hit_dry_run_still_builds_no_send(tmp_path, monkeypatch, capsys):
     """预填 macro 缓存 + --dry-run → 仍走 build + 打印 JSON，不查缓存不发邮件。
 
