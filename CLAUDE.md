@@ -54,9 +54,9 @@ docker compose -f docker-compose.prod.yml up -d  # Prod: pull GHCR image
 ## Configuration
 
 - `config.json` (gitignored) — `markets` (cron schedules), `email_service` (SMTP), `recipients[]`. Copy from `config.example.json`.
-- **Schedule:** the scheduler honors the FIRST cron entry of the FIRST enabled market. `first_enabled_cron`(`scheduler.py`)按 `for market in ("us", "cn")` **优先 us**(残留偏好);因 `config.example.json` 已设 `us.enabled=false`,实际落到 **cn 的 cron**。若保留 `us.enabled=true`,scheduler 会在 us 的 cron 时点触发(us 已无 provider,`macro.py` 显式过滤 `c != "us"`,报告仍是合并的 A 股邮件,不会独立跑 us section)。生产配置建议保持 `us.enabled=false`,让 cn 的 cron 成为唯一触发源。
-- `recipients[]` shape: `{email, name, active, language, holdings?}`. `language` is accepted but currently ignored (Chinese-only output; kept for call-site compat). Optional `holdings: [{symbol, market, type}]` (**market∈{cn}**, type∈{stock,etf,fund}; fund=CN 场外基金) triggers a separate per-recipient **holdings-analysis email** (distinct from the macro email). P1 market/type constraints enforced in `_validate_holdings` (`core/config.py`): `_VALID_HOLDING_MARKETS = {"cn"}`,即 **holdings 只支持 CN**;`fund` 亦为 CN-only。No web/auth fields.
-- `.env` (gitignored) — `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_DEFAULT_SONNET_MODEL` (see `core/llm.py:default_model()` — env value used as-is unless it carries a `[1m]` suffix, which is stripped/ignored because Claude Code's runtime leaks IDs like `glm-5.2[1m]` that compatible endpoints reject; hardcoded fallback is `claude-sonnet-4-5-20250929`, since `claude-sonnet-4-6` is **not** recognized by GLM-style Anthropic-compatible endpoints), `SMTP_PASSWORD`, and `TAVILY_KEY` (唯一 news/research key;cn-pivot 删掉了 `FINNHUB_KEY`/`ALPHAVANTAGE_KEY`,不再需要)。
+- **Schedule:** the scheduler honors the FIRST cron entry of the FIRST enabled market. `first_enabled_cron`(`scheduler.py`)按 `for market in ("us", "cn")` **优先 us**(残留偏好);因 `config.example.json` 已设 `us.enabled=false`,实际落到 **cn 的 cron**。若保留 `us.enabled=true`,scheduler 会在 us 的 cron 时点触发(us 已无 provider,`macro.py` 显式过滤 `c != "us"`,报告仍是合并的 A 股邮件,不会独立跑 us section)。生产配置建议保持 `us.enabled=false`,让 cn 的 cron 成为唯一触发源。（缺失 `enabled` 字段现默认 `False` —— us 块缺失不再误启用为 us 优先调度。）
+- `recipients[]` shape: `{email, name, active, language, holdings?}`. `language` is accepted but currently ignored (Chinese-only output; kept for call-site compat). Optional `holdings: [{symbol, market, type}]` (**market∈{cn}**, type∈{stock,etf,fund}; fund=CN 场外基金) triggers a separate per-recipient **holdings-analysis email** (distinct from the macro email). P1 market/type constraints enforced in `validate_holdings` (`core/config.py`): `_VALID_HOLDING_MARKETS = {"cn"}`,即 **holdings 只支持 CN**;`fund` 亦为 CN-only。No web/auth fields.
+- `.env` (gitignored) — `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_DEFAULT_SONNET_MODEL` (see `core/llm.py:default_model()` — env value used as-is unless it carries a `[1m]` suffix, which is stripped/ignored because Claude Code's runtime leaks IDs like `glm-5.2[1m]` that compatible endpoints reject; hardcoded fallback is `claude-sonnet-4-5-20250929`, since `claude-sonnet-4-6` is **not** recognized by GLM-style Anthropic-compatible endpoints), `SMTP_PASSWORD`, and `TAVILY_KEY` (唯一 news/research key;cn-pivot 删掉了 `FINNHUB_KEY`/`ALPHAVANTAGE_KEY`,不再需要), and `INVESTBRIEF_DB_PATH` (SQLite DB 路径覆盖,见 `core/config.py:DB_PATH`)。
 - `ANTHROPIC_AUTH_TOKEN` auto-aliases to `ANTHROPIC_API_KEY`.
 - 全 akshare 数据源,无 yfinance。`run.py` 对 eastmoney 域名设置 NO_PROXY(系统代理 SSL 劫持会破坏 CN 行情/历史/资金流)。
 
@@ -206,7 +206,7 @@ The **holdings email** (`mail/templates/email_holdings.j2`, separate from macro)
 ## Deployment
 
 ### Local (`docker-compose.yml`)
-Single `scheduler` service, builds from `Dockerfile.scheduler`. Mounts config.json/.env (ro), logs/, reports/, data/ (stateful SQLite, P1).
+Single `scheduler` service, builds from `Dockerfile.scheduler`. Mounts config.json/.env (ro), logs/, reports/, data/ (stateful SQLite, P1). **首次启动前置**:`config.json`/`.env` 不存在时单文件 bind mount 会被 Docker 建成目录(常见 footgun),需先 `cp config.example.json config.json && cp .env.example .env` 再 `docker compose up`。
 
 ### Prod (`docker-compose.prod.yml`)
 Pulls `ghcr.io/dragonl641/invest-brief:latest`. Same mounts.
