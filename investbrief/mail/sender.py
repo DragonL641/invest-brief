@@ -77,6 +77,11 @@ class EmailSender:
         self.sender_email = email_config['sender_email']
         self.sender_name = email_config['sender_name']
         self.app_password = os.environ.get('SMTP_PASSWORD') or email_config.get('app_password', '')
+        if not self.app_password:
+            raise ValueError(
+                "SMTP password missing: set SMTP_PASSWORD env var or email_service.app_password "
+                "in config.json (EmailSender cannot login without it)"
+            )
 
         # Retry settings
         self.max_retries = 3

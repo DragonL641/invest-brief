@@ -19,6 +19,7 @@ API_RETRY_DELAY = 5  # seconds
 
 _VALID_HOLDING_MARKETS = {"cn"}
 _VALID_HOLDING_TYPES = {"stock", "etf", "fund"}
+_VALID_EMAIL_PROVIDERS = {"qq", "gmail", "outlook", "163", "custom"}
 
 
 def load_config() -> dict:
@@ -38,6 +39,12 @@ def validate_config(config: dict):
             raise ValueError(f"config.json email_service missing or empty '{key}'")
     if not isinstance(email_cfg["smtp_port"], int):
         raise ValueError("config.json email_service smtp_port must be an integer")
+    provider = email_cfg.get("provider", "custom")
+    if provider not in _VALID_EMAIL_PROVIDERS:
+        raise ValueError(
+            f"config.json email_service provider must be one of "
+            f"{sorted(_VALID_EMAIL_PROVIDERS)}: {provider}"
+        )
     if "recipients" not in config or not config["recipients"]:
         raise ValueError("config.json missing or empty 'recipients' list")
 
@@ -92,11 +99,6 @@ def validate_holdings(holdings, email: str):
                 f"config.json recipient {email} holding type must be one of "
                 f"{sorted(_VALID_HOLDING_TYPES)}: {h}"
             )
-        # fund is CN-only (其他 market 已被 _VALID_HOLDING_MARKETS 拦截)
-        if h["type"] == "fund" and h["market"] != "cn":
-            raise ValueError(
-                f"config.json recipient {email} fund type only supported for cn market: {h}"
-            )
 
 
 def enabled_market_codes(config: dict) -> list[str]:
@@ -106,7 +108,9 @@ def enabled_market_codes(config: dict) -> list[str]:
     gold 不在 markets 里时默认包含(它随 us/cn 调度, 无独立 cron)。
     """
     markets = config.get("markets", {})
-    codes = [m for m, cfg in markets.items() if cfg.get("enabled", True)]
+    # 默认 False: 缺失 enabled 视为禁用(避免 us 块缺失时默认启用 → us 优先调度错误；
+    # us 已无 provider)。config.example.json 显式 enabled，正常配置无感。
+    codes = [m for m, cfg in markets.items() if cfg.get("enabled", False)]
     if "gold" not in markets:
         codes.append("gold")
     return codes

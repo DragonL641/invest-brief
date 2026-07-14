@@ -32,7 +32,8 @@ def first_enabled_cron(config: dict) -> str | None:
     markets_cfg = config.get("markets", {})
     for market in ("us", "cn"):
         cfg = markets_cfg.get(market, {})
-        if not cfg.get("enabled", True):
+        # 默认 False: 缺失 enabled 视为禁用(与 enabled_market_codes 一致, 避免 us 块缺失时默认启用)
+        if not cfg.get("enabled", False):
             continue
         raw = cfg.get("schedule")
         if isinstance(raw, list):
@@ -55,7 +56,8 @@ def _first_enabled_timezone(config: dict) -> str:
     markets_cfg = config.get("markets", {})
     for market in ("us", "cn"):
         cfg = markets_cfg.get(market, {})
-        if not cfg.get("enabled", True):
+        # 默认 False: 缺失 enabled 视为禁用(与 enabled_market_codes 一致, 避免 us 块缺失时默认启用)
+        if not cfg.get("enabled", False):
             continue
         raw = cfg.get("schedule")
         if isinstance(raw, list):
