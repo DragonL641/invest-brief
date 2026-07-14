@@ -50,8 +50,14 @@ def _patch_overseas(monkeypatch):
     """stub overseas fetch(避免 network),返回最小可用 data。"""
     import investbrief.market.overseas as overseas_mod
     monkeypatch.setattr(overseas_mod, "fetch_overseas_data",
-                        lambda ak, fed_rate=5.25: {"fed_rate": fed_rate, "us_10y": 4.56,
-                                   "sp500": {"point": 7575, "change": 0.4}, "usdcny": 7.18})
+                        lambda ak, fed_rate=5.25: {
+                            "fed_rate": fed_rate,
+                            "us_10y": {"value": 4.56, "change": 0.02},
+                            "sp500": {"point": 7575, "change": 0.4},
+                            "nasdaq": {"point": 18342, "change": 0.3},
+                            "usdcny": {"value": 7.18, "change": None},
+                            "wti": {"point": 79.34, "change": 1.7},
+                        })
 
 
 def test_pipeline_iterates_all_enabled_markets(monkeypatch, capsys):

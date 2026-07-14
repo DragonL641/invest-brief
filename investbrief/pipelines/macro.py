@@ -170,9 +170,11 @@ def run_macro_report(args):
         overseas_data, overseas_html = {}, ""
     overseas_for_claude = {
         "美联储利率": overseas_data.get("fed_rate"),
-        "美债10Y": overseas_data.get("us_10y"),
+        "美债10Y": (overseas_data.get("us_10y") or {}).get("value"),
         "标普500": (overseas_data.get("sp500") or {}).get("point"),
-        "USDCNY": overseas_data.get("usdcny"),
+        "纳斯达克": (overseas_data.get("nasdaq") or {}).get("point"),
+        "USDCNY": (overseas_data.get("usdcny") or {}).get("value"),
+        "WTI原油": (overseas_data.get("wti") or {}).get("point"),
     }
 
     # Claude ①⑥（传外围 + cn macro + 全市场 risk/regime）
