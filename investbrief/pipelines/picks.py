@@ -441,7 +441,6 @@ def run_picks_report(args):
 
     picks_brief = "" if skip_summary else _brief.generate_picks_brief(all_picks)
 
-    now = now_cn()
     report_data = {
         "data_time": now.strftime("%Y-%m-%d %H:%M"),
         "picks_brief": picks_brief,

@@ -161,8 +161,6 @@ class CNMarketProvider(MarketProvider):
         if q50 is None and q300 is None:
             return ""
         def _row(label, val):
-            return f'<div class="metric"><span class="label">{label}:</span> {val:.2f}</div>' if val else ""
-        def _row(label, val):
             if not val:
                 return None
             return f'<td class="metric" valign="top"><span class="label">{label}:</span> {val:.2f}</td>'
