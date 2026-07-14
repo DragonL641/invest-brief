@@ -27,3 +27,31 @@ def test_cn_qvix_returns_dict_with_50etf_and_300etf():
     assert isinstance(q, dict)
     assert "qvix_50" in q and "qvix_300" in q
     assert isinstance(q["qvix_50"], (int, float)) and q["qvix_50"] > 0
+
+
+def test_nasdaq_quote_returns_point_and_change():
+    q = AKShareClient().get_nasdaq_quote()
+    assert isinstance(q, dict)
+    assert isinstance(q["point"], (int, float)) and q["point"] > 0
+    assert "change" in q                          # 涨跌幅 %
+
+
+def test_wti_quote_returns_point_and_change():
+    q = AKShareClient().get_wti_quote()
+    assert isinstance(q, dict)
+    assert isinstance(q["point"], (int, float)) and q["point"] > 0
+    assert "change" in q
+
+
+def test_us_10y_quote_returns_value_and_change():
+    q = AKShareClient().get_us_10y_quote()
+    assert isinstance(q, dict)
+    assert isinstance(q["value"], (int, float)) and 0 < q["value"] < 20
+    assert "change" in q                           # 可为 None(仅一期时)
+
+
+def test_usdcny_quote_returns_value():
+    q = AKShareClient().get_usdcny_quote()
+    assert isinstance(q, dict)
+    assert isinstance(q["value"], (int, float)) and 6 < q["value"] < 8
+    assert q["change"] is None                     # forex_spot_em 无历史, 恒 None

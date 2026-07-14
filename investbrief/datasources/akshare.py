@@ -1585,11 +1585,11 @@ class AKShareClient:
             logger.warning(f"get_us_treasury_10y failed: {e}")
             return None
 
-    def get_sp500_quote(self) -> dict | None:
-        """标普500 最新点数 + 前日涨跌幅%(akshare index_us_stock_sina '.INX')。失败返回 None。"""
+    def get_us_index_quote(self, symbol: str) -> dict | None:
+        """美股指数(Sina):最新点数 + 前日涨跌幅%。symbol 如 '.INX'(标普)/'.IXIC'(纳指)。失败 None。"""
         try:
             df = _with_retry(
-                lambda: ak.index_us_stock_sina(symbol=".INX"), label="sp500"
+                lambda: ak.index_us_stock_sina(symbol=symbol), label=f"us_index_{symbol}"
             )
             if df is None or len(df) < 1:
                 return None
@@ -1600,8 +1600,16 @@ class AKShareClient:
                 change = round((point - prev) / prev * 100, 2) if prev else 0.0
             return {"point": point, "change": change}
         except Exception as e:
-            logger.warning(f"get_sp500_quote failed: {e}")
+            logger.warning(f"get_us_index_quote[{symbol}] failed: {e}")
             return None
+
+    def get_sp500_quote(self) -> dict | None:
+        """标普500(委托 get_us_index_quote '.INX')。失败 None。"""
+        return self.get_us_index_quote(".INX")
+
+    def get_nasdaq_quote(self) -> dict | None:
+        """纳斯达克综合(委托 get_us_index_quote '.IXIC')。失败 None。"""
+        return self.get_us_index_quote(".IXIC")
 
     def get_fx_usdcny_realtime(self) -> float | None:
         """USDCNY 即期汇率(akshare forex_spot_em,代码 USDCNYC 美元人民币中间价)。失败返回 None。
@@ -1620,6 +1628,53 @@ class AKShareClient:
             return float(val) if pd.notna(val) else None
         except Exception as e:
             logger.warning(f"get_fx_usdcny_realtime failed: {e}")
+            return None
+
+    def get_wti_quote(self) -> dict | None:
+        """WTI 原油连续(NYMEX CL):最新价 + 前日涨跌幅%。akshare futures_foreign_hist。失败 None。"""
+        try:
+            df = _with_retry(lambda: ak.futures_foreign_hist(symbol="CL"), label="wti")
+            if df is None or len(df) < 1:
+                return None
+            point = float(df.iloc[-1]["close"])
+            change = 0.0
+            if len(df) >= 2:
+                prev = float(df.iloc[-2]["close"])
+                change = round((point - prev) / prev * 100, 2) if prev else 0.0
+            return {"point": point, "change": change}
+        except Exception as e:
+            logger.warning(f"get_wti_quote failed: {e}")
+            return None
+
+    def get_us_10y_quote(self) -> dict | None:
+        """美债10Y 收益率 + 前期变动(百分点差)。akshare bond_zh_us_rate。
+        最新行可能 nan(当日未更新), dropna 后取最近两期有效值。失败 None。"""
+        try:
+            df = _with_retry(lambda: ak.bond_zh_us_rate(), label="us_10y_quote")
+            if df is None or df.empty:
+                return None
+            series = df["美国国债收益率10年"].dropna()
+            if series.empty:
+                return None
+            val = float(series.iloc[-1])
+            change = None
+            if len(series) >= 2:
+                prev = float(series.iloc[-2])
+                change = round(val - prev, 2)
+            return {"value": val, "change": change}
+        except Exception as e:
+            logger.warning(f"get_us_10y_quote failed: {e}")
+            return None
+
+    def get_usdcny_quote(self) -> dict | None:
+        """USDCNY 即期 + 涨跌。forex_spot_em 为快照无历史, change 恒 None(仅返回当前值)。失败 None。"""
+        try:
+            value = self.get_fx_usdcny_realtime()
+            if value is None:
+                return None
+            return {"value": round(value, 4), "change": None}
+        except Exception as e:
+            logger.warning(f"get_usdcny_quote failed: {e}")
             return None
 
     def get_cn_qvix(self) -> dict:
