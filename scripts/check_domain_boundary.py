@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-"""域边界 lint: market/risk 互不 import; core/** 不得 import risk/market。
+"""域边界 lint: 五域(market/holdings/risk/regime/mail)互不 import; core/** 不得 import 任何域包。
 
+CLAUDE.md: "domains have ZERO 横向 dependencies, collaborate only through pipelines/"
 CI 可调用: python scripts/check_domain_boundary.py
 """
 import ast
@@ -26,14 +27,19 @@ def check(path: Path, forbidden_prefix: str, domain_name: str):
                 VIOLATIONS.append(f"{path}: {domain_name} 禁止 import {m}")
 
 
+# 五域互不引用; core 不得引用任何域包
+DOMAINS = ["market", "holdings", "risk", "regime", "mail"]
+
 root = Path("investbrief")
-for p in root.glob("market/**/*.py"):
-    check(p, "investbrief.risk", "market")
-for p in root.glob("risk/**/*.py"):
-    check(p, "investbrief.market", "risk")
+for domain in DOMAINS:
+    forbidden = [d for d in DOMAINS if d != domain]
+    for p in root.glob(f"{domain}/**/*.py"):
+        for other in forbidden:
+            check(p, f"investbrief.{other}", domain)
+
 for p in root.glob("core/**/*.py"):
-    check(p, "investbrief.risk", "core")
-    check(p, "investbrief.market", "core")
+    for domain in DOMAINS:
+        check(p, f"investbrief.{domain}", "core")
 
 if VIOLATIONS:
     print("\n".join(VIOLATIONS))

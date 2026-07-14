@@ -12,7 +12,8 @@ from investbrief.risk.config import (
     CN_ALL_INDICATORS,
     GOLD_ALL_INDICATORS,
 )
-from investbrief.mail.styles import INK_3
+# 辅助灰（与 mail 设计系统 INK_3 同色 #8b95a3）；risk 域自包含, 不跨域 import mail（域边界不变量）
+INK_3 = "#8b95a3"
 
 
 # === Indicator metadata: key → {name, scale, unit, explain, description, thresholds} ===
