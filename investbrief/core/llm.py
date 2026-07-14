@@ -4,6 +4,7 @@
 """
 import os
 import random
+import re
 import time
 import logging
 from functools import lru_cache
@@ -32,8 +33,13 @@ def default_model() -> str:
     如 glm-5.2[1m]，这类 ID 不被兼容端点识别）。
     """
     env_model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL")
-    if env_model and "[1m]" not in env_model:
-        return env_model
+    if env_model:
+        # 过滤 [1m]/[2m]/[ctx] 等 context 标记（Claude Code runtime 会把模型 ID 泄露进该 env，
+        # 如 glm-5.2[1m]，这类 ID 不被兼容端点识别）；与 run.py bootstrap 的 re.sub 一致，
+        # 作防御深度。strip 后若空则回退硬编码。
+        env_model = re.sub(r"\[.*\]", "", env_model).strip()
+        if env_model:
+            return env_model
     return "claude-sonnet-4-5-20250929"
 
 

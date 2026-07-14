@@ -12,8 +12,19 @@ FALLBACK = "claude-sonnet-4-5-20250929"
 
 
 def test_default_model_filters_1m_suffix(monkeypatch):
-    """A [1m]-suffixed env value must fall back, not pass through."""
+    """[1m] 等 context 标记被 strip 后用底下的干净模型名（与 run.py bootstrap 的 re.sub 一致，非整体回退）。
+
+    Regression: holdings/brief.py 等曾直读 env 绕过过滤，把 glm-5.2[1m] 原样发给 GLM 被
+    'model not found' 拒。default_model() 现在 strip 所有 [..] 标记后用干净名（run.py
+    bootstrap 已清洗 env，此处作防御深度）。
+    """
     monkeypatch.setenv("ANTHROPIC_DEFAULT_SONNET_MODEL", "glm-5.2[1m]")
+    assert default_model() == "glm-5.2"
+
+
+def test_default_model_falls_back_when_only_marker(monkeypatch):
+    """env 仅含标记（strip 后为空）→ 回退 fallback。"""
+    monkeypatch.setenv("ANTHROPIC_DEFAULT_SONNET_MODEL", "[1m]")
     assert default_model() == FALLBACK
 
 
