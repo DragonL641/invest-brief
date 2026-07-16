@@ -138,7 +138,7 @@ def _render_dimensions(r: HoldingResult) -> str:
         dt = (cn_act or {}).get("dragon_tiger_count", 0)
         if dt:
             cells.append(f'<span class="cell"><span class="cl">龙虎榜</span>×{dt}</span>')
-        rc = (cn_act or {}).get("institutional_research_count", 0)
+        rc = (cn_act or {}).get("institution_research_count", 0)
         if rc:
             cells.append(f'<span class="cell"><span class="cl">机构调研</span>×{rc}</span>')
         if cells:

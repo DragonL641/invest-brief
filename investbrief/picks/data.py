@@ -10,6 +10,7 @@ import logging
 import pandas as pd
 
 from investbrief.picks.cache import FactorCache
+from investbrief.core.timeutil import now_cn
 
 logger = logging.getLogger(__name__)
 
@@ -136,9 +137,15 @@ def _maybe_append_today(df: pd.DataFrame, symbol: str, market: str) -> pd.DataFr
             return df
         idx = pd.to_datetime(df.index)
         last = idx.max()
-        today = pd.Timestamp.now().normalize()
+        now = now_cn()
+        today = pd.Timestamp(now.date())
         if last >= today:
             return df   # 当天已更新过
+        # P1: 盘前(<15:00)/周末 → 今天确定无新收盘 bar,跳过增量补齐。
+        # 省每只候选 1 次无效增量请求(凌晨/盘前跑全是白拉);盘后(>=15:00)才补今天。
+        # 节假日会多 1 次增量(发现无新 bar 返回原 df),不致命;精确判断需交易日历(暂无)。
+        if now.weekday() >= 5 or now.hour < 15:
+            return df
         recent = _do_fetch_history(symbol, market, days=10)
         if recent is None or recent.empty:
             return df

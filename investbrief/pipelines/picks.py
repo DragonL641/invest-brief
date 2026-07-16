@@ -36,8 +36,14 @@ def _spot_df(market: str):
     return _universe.get_spot_df(market)
 
 
-def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
-    """跑单 profile×市场 → Top1 pick(或 None)。"""
+def build_picks_for_profile(profile_name: str, market: str,
+                             exclude_symbols: set[str] | None = None) -> dict | None:
+    """跑单 profile×市场 → Top1 pick(或 None)。
+
+    exclude_symbols: 跨 profile 去重——已被先跑 profile 选中的 symbol 从候选池剔除
+    (在 head(cap) 之前过滤,不占 cap 名额,后续候选自然上移)。medium/long 因子相似 +
+    industry_neutralize 在 CN 降级为 no-op,评分易趋同,去重避免两个 profile 选同一只票。
+    """
     try:
         prof = load_profiles()[profile_name]
     except Exception as e:
@@ -53,6 +59,14 @@ def build_picks_for_profile(profile_name: str, market: str) -> dict | None:
     turnover_col = next((c for c in ("成交额", "amount", "turnover") if c in candidates_df.columns), None)
     if turnover_col:
         candidates_df = candidates_df.sort_values(by=turnover_col, ascending=False)
+    # 跨 profile 去重:剔除已被先跑 profile 选中的 symbol(在 cap 截断前,保名额)。
+    if exclude_symbols and "代码" in candidates_df.columns:
+        before = len(candidates_df)
+        candidates_df = candidates_df[~candidates_df["代码"].astype(str).isin(list(exclude_symbols))]
+        dropped = before - len(candidates_df)
+        if dropped:
+            logger.info(f"{profile_name}/{market}: dedup excluded {dropped} symbol(s) "
+                        f"selected by earlier profile: {sorted(exclude_symbols)}")
     # 基线 cap 作为候选池;动态收缩靠 futures 循环早停(见下)。
     effective_cap = _candidate_cap(profile_name)
     candidates_df = candidates_df.head(effective_cap)
@@ -365,10 +379,10 @@ def _num(row, col):
         return None
 
 
-def _safe_build(profile_name: str, market: str):
+def _safe_build(profile_name: str, market: str, exclude_symbols: set[str] | None = None):
     """build_picks_for_profile 的韧性包装:任何异常 → None(占位卡),不阻塞 pipeline。"""
     try:
-        return build_picks_for_profile(profile_name, market)
+        return build_picks_for_profile(profile_name, market, exclude_symbols=exclude_symbols)
     except Exception as e:
         logger.warning(f"build_picks_for_profile {profile_name}/{market} failed: {e}")
         return None
@@ -419,7 +433,16 @@ def run_picks_report(args):
     # ② run 级批量预取机构调研:N 只 Top1 共享一次 90 天遍历(1×90 次 eastmoney),
     #    替代旧的"边 build 边 enrich"里每只 Top1 走 90 次/股单股 fallback(3×90 次)
     # ③ 用注入了 batch 的单个 analyzer enrich + render(run 级单例,省 N×new)
-    built: list[tuple[str, dict | None]] = [(_p, _safe_build(_p, "cn")) for _p in _PROFILES]
+    # 顺序 build + 跨 profile 去重:后跑 profile 的候选池剔除先跑者已选 symbol。
+    # medium/long 因子相似 + industry_neutralize 在 CN 降级为 no-op → 评分易趋同,
+    # 去重避免两个 profile 选同一只票(如云铝被 medium/long 同选)。顺序保后跑者排除先跑 Top1。
+    selected_symbols: set[str] = set()
+    built: list[tuple[str, dict | None]] = []
+    for _p in _PROFILES:
+        cn = _safe_build(_p, "cn", exclude_symbols=selected_symbols or None)
+        if cn:
+            selected_symbols.add(cn["symbol"])
+        built.append((_p, cn))
 
     from investbrief.holdings.analyzer import HoldingsAnalyzer
     analyzer = HoldingsAnalyzer()
@@ -427,7 +450,8 @@ def run_picks_report(args):
     if cn_symbols:
         try:
             from investbrief.datasources.akshare import AKShareClient
-            batch = AKShareClient().get_institutional_research_batch(cn_symbols, days=90)
+            # days=1:机构调研事件型,只展示当天被调研(有则展示,无则不展示),不要 90 天历史。
+            batch = AKShareClient().get_institutional_research_batch(cn_symbols, days=1)
             if batch:
                 analyzer.set_research_batch(batch)
         except Exception as e:
@@ -449,6 +473,8 @@ def run_picks_report(args):
     }
 
     if getattr(args, "dry_run", False):
+        from investbrief.datasources.akshare import format_request_stats
+        logger.info(format_request_stats())
         print(json.dumps(report_data, ensure_ascii=False, indent=2, default=str))
         return
 
@@ -475,4 +501,6 @@ def run_picks_report(args):
     if failed:
         logger.warning(f"{len(failed)}/{len(recipients)} picks recipients failed: "
                        f"{[f[0] for f in failed]}")
+    from investbrief.datasources.akshare import format_request_stats
     logger.info("Picks pipeline complete")
+    logger.info(format_request_stats())

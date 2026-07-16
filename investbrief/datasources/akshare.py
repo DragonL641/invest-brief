@@ -32,6 +32,7 @@ _orig_session_request = requests.Session.request
 def _patched_session_request(self, method, url, **kwargs):
     if "eastmoney.com" in url:
         if _is_em_banned():
+            _bump_stat("em_banned_short_circuit")
             raise _EMBanned("eastmoney banned (negative cache window)")
         _throttle()
         headers = kwargs.get("headers") or {}
@@ -57,6 +58,38 @@ def _patched_session_request(self, method, url, **kwargs):
 requests.Session.request = _patched_session_request
 
 logger = logging.getLogger(__name__)
+
+
+# O1: 进程级请求计数器(按接口类别聚合,剥离 symbol),供 pipeline 末尾 INFO 汇总。
+# 成功(_with_retry) / 封禁短路(_patched_session_request) / 最终失败 各自分项计数。
+# 生产 INFO 即可看到请求画像,不再依赖 DEBUG。
+_req_stats_lock = threading.Lock()
+_req_stats: dict[str, int] = {}
+
+
+def _bump_stat(kind: str):
+    with _req_stats_lock:
+        _req_stats[kind] = _req_stats.get(kind, 0) + 1
+
+
+def _stat_kind(label: str) -> str:
+    """label(含 symbol 括号) → 聚合类别(剥离 symbol)。"""
+    return label.split("(", 1)[0]
+
+
+def get_request_stats() -> dict[str, int]:
+    """返回累计请求统计快照(线程安全拷贝)。"""
+    with _req_stats_lock:
+        return dict(_req_stats)
+
+
+def format_request_stats() -> str:
+    stats = get_request_stats()
+    if not stats:
+        return "akshare stats: (no requests)"
+    total = sum(stats.values())
+    parts = [f"{k}={v}" for k, v in sorted(stats.items(), key=lambda kv: (-kv[1], kv[0]))]
+    return f"akshare stats (total={total}): " + ", ".join(parts)
 
 
 class _DataFrameCache:
@@ -230,8 +263,10 @@ def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
                 f"akshare ok label={label} "
                 f"elapsed={(time.perf_counter() - t0) * 1000:.0f}ms"
             )
+            _bump_stat(_stat_kind(label))
             return result
         except _EMBanned:
+            # 封禁短路已在 _patched_session_request 计数,此处不重复
             return None
         except Exception as e:
             if attempt < attempts - 1:
@@ -248,6 +283,7 @@ def _with_retry(fn, *, label: str, attempts: int = 3, base_delay: float = 2.0):
                 f"AKShare {label} failed after {attempts} attempts: {e}",
                 exc_info=True,
             )
+            _bump_stat(f"failed_{_stat_kind(label)}")
             return None
 
 
@@ -853,6 +889,13 @@ class AKShareClient:
         历史 89 天读缓存，miss 才请求 + 缓存（空日也缓存 [] 避免重拉）。
         冷启动后每 run 只拉今天 1 次，不再每次重拉 90 天。
         """
+        # em 封禁期整体跳过:jgdy 走 eastmoney,封禁时 N 次请求注定全败(被短路),
+        # 且失败不写 persist 缓存 → 死循环(每次跑重试全量)。封禁窗口直接返回空,
+        # 省无谓请求。机构调研是当天事件型增量,缺失不阻塞(rating 维度另有 research_report 兜底)。
+        if _is_em_banned():
+            logger.info("institutional research batch skipped (eastmoney banned)")
+            _bump_stat("jgdy_skipped_em_banned")
+            return {s: [] for s in symbols}
         symbol_set = set(symbols)
         all_results: dict[str, list[dict[str, Any]]] = {s: [] for s in symbols}
         seen: set[str] = set()
@@ -867,7 +910,9 @@ class AKShareClient:
             if records is None:
                 try:
                     df = ak.stock_jgdy_tj_em(date=date_str)
+                    _bump_stat("stock_jgdy_tj_em")
                 except Exception:
+                    _bump_stat("failed_stock_jgdy_tj_em")
                     continue
                 records = [] if (df is None or df.empty) else df.to_dict("records")
                 if not is_today:

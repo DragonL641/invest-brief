@@ -352,7 +352,7 @@ class HoldingsAnalyzer:
                 research = self._research_batch.get(symbol, [])
             else:
                 # fallback：单股路径（analyze_one/测试）
-                research = self._ak.get_institutional_research(symbol, days=90) or []
+                research = self._ak.get_institutional_research(symbol, days=1) or []
             return {
                 "dragon_tiger_count": dt_count,
                 "institution_research_count": len(research or []),

@@ -49,9 +49,9 @@ def run_holdings_report(args):
     logger.info(f"Analyzing {len(all_holdings)} unique holdings for {len(recipients)} recipient(s)")
     analyzer = HoldingsAnalyzer()
 
-    # 机构调研 run 级批量预取：N 只 CN stock 共享一次 90 天遍历（省 N×~135s）。
-    # 结果走 FactorCache（1d TTL）：首次 run 拉 90 次 eastmoney，后续 run 命中跳过
-    # （22min→0）。持仓固定、symbols 集合稳定，跨日复用安全；隔日 TTL 刷新（调研日期推进）。
+    # 机构调研当天事件预取:N 只 CN stock 共享一次当天查询(days=1)。
+    # 机构调研是事件型——当天被调研才展示,否则不展示(renderer rc=0 跳过)。
+    # 结果走 FactorCache(1d TTL):同日多次 run 命中跳过;em 封禁时 batch 整体跳过(akshare 层)。
     cn_stock_symbols = sorted({h["symbol"] for h in all_holdings
                                if h["market"] == "cn" and h["type"] == "stock"})
     if cn_stock_symbols:
@@ -59,7 +59,7 @@ def run_holdings_report(args):
             import hashlib
             from investbrief.datasources.akshare import AKShareClient
             from investbrief.holdings.analyzer import _factor_cache
-            research_days = 90
+            research_days = 1  # 当天:事件型,只展示当天被调研
             cache_key = ("research_batch:"
                          + hashlib.md5(",".join(cn_stock_symbols).encode()).hexdigest()[:12]
                          + f":{research_days}")
