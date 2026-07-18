@@ -251,3 +251,22 @@ def test_e2e_three_line_strike_at_downtrend():
     assert res[0]["direction"] == "bull"
     assert res[0]["volume_confirmed"] is True
     assert res[0]["status"] == "pending"
+
+
+# ---------- Task 6: analyzer 集成 ----------
+
+def test_extract_technicals_has_candle_patterns():
+    from investbrief.holdings.analyzer import _extract_technicals
+    rows = _trend(58, 100.0, -0.5) + [(72.0, 73.0, 70.5, 71.0, 1500), (70.0, 74.0, 69.5, 73.5, 2200)]
+    hist = _df_from_rows(rows)
+    tech = _extract_technicals(hist)
+    assert "candle_patterns" in tech
+    assert isinstance(tech["candle_patterns"], list)
+    assert tech["candle_patterns"][0]["name_cn"] == "看涨吞没"
+
+
+def test_extract_technicals_candle_patterns_empty_on_flat():
+    from investbrief.holdings.analyzer import _extract_technicals
+    hist = _df_from_rows([(100.0, 100.3, 99.7, 100.0, 1000)] * 60)
+    tech = _extract_technicals(hist)
+    assert tech.get("candle_patterns") == []

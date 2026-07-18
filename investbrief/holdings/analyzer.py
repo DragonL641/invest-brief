@@ -19,6 +19,7 @@ from investbrief.data.db_first import history_db_first, stock_db as _stock_db_im
 from investbrief.datasources.akshare import AKShareClient
 from investbrief.holdings.etf.analyzer import ETFAnalyzer, ETFAnalysisResult
 from investbrief.holdings.etf.indicators import compute_indicators
+from investbrief.holdings.patterns import detect_patterns
 from investbrief.picks.cache import FactorCache
 
 logger = logging.getLogger(__name__)
@@ -570,6 +571,8 @@ def _extract_technicals(hist) -> dict:
         "high_60d": ind.get("high_60d"),
         # regime 推断（方案 A）
         "regime": ind.get("regime"),
+        # K 线形态（第一梯队 5 形态,纯计算,零 API）
+        "candle_patterns": _detect_patterns_safe(hist),
     }
 
 
@@ -625,3 +628,12 @@ def _extract_news(items, symbol="", name="", limit=3, max_days=7) -> list:
     pool = in_window if in_window else all_kept  # 全过期则放宽
     pool.sort(key=lambda x: x[0] or _dt.min.date(), reverse=True)
     return [r for _, r in pool][:limit]
+
+
+def _detect_patterns_safe(hist) -> list:
+    """detect_patterns 薄包装:任何异常 → [],保持 _extract_technicals 不阻塞。"""
+    try:
+        return detect_patterns(hist)
+    except Exception as e:
+        logger.warning(f"candle patterns detect failed: {e}")
+        return []
