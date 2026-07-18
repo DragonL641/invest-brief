@@ -270,3 +270,28 @@ def test_extract_technicals_candle_patterns_empty_on_flat():
     hist = _df_from_rows([(100.0, 100.3, 99.7, 100.0, 1000)] * 60)
     tech = _extract_technicals(hist)
     assert tech.get("candle_patterns") == []
+
+
+# ---------- Task 7: brief 集成 ----------
+
+def test_format_holding_with_pattern():
+    from investbrief.holdings.analyzer import HoldingResult
+    from investbrief.holdings.brief import _format_holding
+    r = HoldingResult(
+        symbol="000001", market="cn", type="stock", name="平安",
+        technicals={"candle_patterns": [
+            {"name_cn": "看跌吞没", "direction": "bear",
+             "volume_confirmed": True, "status": "confirmed"}]})
+    out = _format_holding(r)
+    assert "K线信号" in out
+    assert "看跌吞没" in out
+    assert "放量" in out
+    assert "已确认" in out
+    assert "辅助择时" in out
+
+
+def test_format_holding_without_pattern():
+    from investbrief.holdings.analyzer import HoldingResult
+    from investbrief.holdings.brief import _format_holding
+    r = HoldingResult(symbol="000001", market="cn", type="stock", name="平安", technicals={})
+    assert "K线信号" not in _format_holding(r)

@@ -62,6 +62,13 @@ def _format_holding(r: HoldingResult) -> str:
             f"60日={t.get('return_60d')}% 区间位置={t.get('position_60d')} "
             f"布林位置={t.get('boll_position')} 60日新高={t.get('new_high_60d')}"
         )
+    cps = (r.technicals or {}).get("candle_patterns") or []
+    if cps:
+        p0 = cps[0]
+        vol_txt = "放量" if p0.get("volume_confirmed") else "缩量"
+        status_cn = {"confirmed": "已确认", "unconfirmed": "未确认",
+                     "pending": "待确认"}.get(p0.get("status"), "")
+        lines.append(f"  K线信号: {p0['name_cn']} · {vol_txt} · {status_cn} — 辅助择时,非买卖指令")
     if r.insider and r.insider.get("direction") and r.insider.get("direction") != "flat":
         verb = "增持" if r.insider["direction"] == "buy" else "减持"
         lines.append(f"  高管/大股东{verb}: 净增减持股数 {r.insider.get('net_shares')} ({r.insider.get('count')} 笔)")
