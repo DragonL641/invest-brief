@@ -284,6 +284,7 @@ def _pick_key_signals(r: HoldingResult) -> list[dict]:
     Priority (spec §3.3):
       1. insider sell/buy (when direction != flat and net_shares present)
       2. latest rating action (up/down based on grade)
+      2b. candle pattern (反转形态,bull→up / else down,first match only)
       3. RSI > 70 (down 超买) / < 30 (up 超卖)
       4. MACD golden (up) / dead (down)
       5. dragon-tiger count > 0 (up, CN only)
