@@ -7,6 +7,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
 
+from investbrief.data.db_first import history_db_first, stock_db
 from investbrief.datasources.akshare import AKShareClient
 from investbrief.holdings.etf.indicators import compute_indicators
 from investbrief.holdings.etf.engine import RuleEngine, RuleResult
@@ -29,6 +30,7 @@ class ETFAnalysisResult:
     dimension_summary: dict = field(default_factory=dict)
     ai_conclusion: str = ""
     data_snapshot: dict = field(default_factory=dict)
+    degraded: bool = False  # spot+hist 都缺 → 数据源全面不可用，renderer 显式标注
 
 
 class ETFAnalyzer:
@@ -41,15 +43,20 @@ class ETFAnalyzer:
 
         symbol: 6 位 ETF 代码。
         market_data: 可选，大盘环境数据（来自现有 cn 市场数据）。
-        """
-        # 1. 数据获取（并行拉取三个独立数据源）
-        etf_name = self.client.get_etf_name(symbol) or symbol  # 独立 name（同花顺非 em，解耦 spot）
-        spot = self.client.get_etf_spot(symbol)
-        if not spot:
-            return ETFAnalysisResult(symbol=symbol, name=etf_name)
 
+        韧性：spot(em) 缺失不再短路 —— hist 走 DB-First(stock_daily 落库 + sina 非 em 兜底)
+        支撑价格/技术指标/规则/AI 研判；仅当 spot+hist 都缺时 degraded=True。
+        """
+        # 1. 数据获取：name(同花顺非 em) + spot(em, 失败为 {}) + hist(DB-First) + valuation
+        etf_name = self.client.get_etf_name(symbol) or symbol  # 独立 name（同花顺非 em，解耦 spot）
+        spot = self.client.get_etf_spot(symbol) or {}
         futures = {
-            _fetch_pool.submit(self.client.get_etf_hist, symbol, 120): "hist",
+            _fetch_pool.submit(
+                history_db_first, "cn", symbol,
+                days=120, db=stock_db(),
+                live_fetch=lambda sym, days=120: self.client.get_etf_hist(sym, days=days),
+                live_fetch_full=lambda sym: self.client.get_etf_hist(sym, start_date="20100101"),
+            ): "hist",
             _fetch_pool.submit(self.client.get_index_valuation, symbol): "valuation",
         }
         results = {}
@@ -64,6 +71,16 @@ class ETFAnalyzer:
         hist = results.get("hist")
         valuation = results.get("valuation")
 
+        # spot 缺失时用 hist 末根收盘兜底 price/change_pct（消除 em spot 硬门禁）
+        price = spot.get("price")
+        change_pct = spot.get("change_pct")
+        if price is None and hist is not None and not hist.empty and "close" in hist.columns:
+            price = float(hist["close"].iloc[-1])
+            if change_pct is None and len(hist) >= 2:
+                prev = float(hist["close"].iloc[-2])
+                if prev:
+                    change_pct = round((price / prev - 1) * 100, 2)
+
         # 2. 指标计算
         indicators = compute_indicators(hist) if hist is not None else {}
 
@@ -77,18 +94,19 @@ class ETFAnalyzer:
         rule_results = self.engine.evaluate(data)
         dim_summary = self.engine.dimension_summary(rule_results)
 
-        # 5. AI 综合研判（dry-run 可跳过省 token）
+        # 5. AI 综合研判（dry-run 可跳过省 token）；effective_spot 含兜底价格
         ai_conclusion = ""
         if with_ai:
-            ai_conclusion = self._ai_synthesize(symbol, spot, rule_results, dim_summary, market_data,
+            effective_spot = {**spot, "price": price, "change_pct": change_pct, "name": etf_name}
+            ai_conclusion = self._ai_synthesize(symbol, effective_spot, rule_results, dim_summary, market_data,
                                                 regime=indicators.get("regime"))
 
-        # 6. 构造结果
+        # 6. 构造结果（degraded: spot+hist 都缺 → 数据源全面不可用）
         return ETFAnalysisResult(
             symbol=symbol,
-            name=etf_name or spot.get("name", ""),
-            price=spot.get("price"),
-            change_pct=spot.get("change_pct"),
+            name=etf_name,
+            price=price,
+            change_pct=change_pct,
             iopv=spot.get("iopv"),
             premium_rate=spot.get("premium_rate"),
             main_net_flow=spot.get("main_net_flow"),
@@ -96,6 +114,7 @@ class ETFAnalyzer:
             dimension_summary=dim_summary,
             ai_conclusion=ai_conclusion,
             data_snapshot=data,
+            degraded=(not spot) and (hist is None or hist.empty),
         )
 
     def _ai_synthesize(

@@ -76,7 +76,7 @@ def test_analyze_cn_stock_mock(monkeypatch):
         {"open": [1670], "close": [1680], "high": [1690], "low": [1660],
          "volume": [100000], "amount": [16800000], "change_pct": [-0.5]},
         index=pd.to_datetime(["2026-07-13"]))
-    monkeypatch.setattr("investbrief.holdings.analyzer._history_db_first", lambda *a, **kw: hist)
+    monkeypatch.setattr("investbrief.holdings.analyzer.history_db_first", lambda *a, **kw: hist)
     an._ak.get_analyst_rating_summary = lambda s, df=None: {"buy": 8, "outperform": 2, "total_reports": 10, "total_reports_all": 25, "institutions": 6, "change": {"buy": 5.0}, "days": 90}
     an._ak.get_research_reports = lambda s, limit=5, df=None: [{"institution": "中信", "rating": "买入", "date": "2026-07-01"}]
     an._ak.get_financial_indicators = lambda s: {"roe": 30.0, "gross_margin": 90.0}
@@ -307,7 +307,7 @@ def test_run_holdings_report_prefetches_research_batch(monkeypatch):
 
 def test_history_db_first_empty_db_uses_full_history():
     """DB 空时 _history_db_first 用 live_fetch_full(全历史), 不用 live_fetch(近期增量)。"""
-    from investbrief.holdings.analyzer import _history_db_first
+    from investbrief.data.db_first import history_db_first as _history_db_first
     db = MagicMock()
     db.has_today_bar.return_value = False
     db.query_stock_daily.return_value = pd.DataFrame()  # DB 空
@@ -333,7 +333,7 @@ def test_history_db_first_empty_db_uses_full_history():
 
 def test_history_db_first_has_data_uses_recent_increment():
     """DB 有历史(没今天 bar)时 _history_db_first 用 live_fetch(近期增量), 不重拉全历史。"""
-    from investbrief.holdings.analyzer import _history_db_first
+    from investbrief.data.db_first import history_db_first as _history_db_first
     db = MagicMock()
     db.has_today_bar.return_value = False  # 没今天 bar → 需增量
     # DB 有充足历史(600 行 >= 500 阈值) → 走近期增量而非全历史

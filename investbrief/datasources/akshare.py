@@ -315,6 +315,22 @@ def _to_sina_symbol(code: str) -> str:
     return code
 
 
+def _to_sina_etf_symbol(code: str) -> str:
+    """bare ETF code → 新浪源格式。
+
+    fund_etf_hist_sina 需交易所前缀: 沪市 ETF(5开头:510xxx/512xxx/588xxx/56x)→sh,
+    深市 ETF(1开头:159xxx/15x/16x/18x)→sz。em(fund_etf_hist_em)限流时的非 em fallback。
+    """
+    if not code:
+        return code
+    head = str(code)[0]
+    if head == "5":
+        return f"sh{code}"
+    if head == "1":
+        return f"sz{code}"
+    return code
+
+
 class AKShareClient:
     """封装 AKShare 接口，提供统一的 A 股数据获取方法。
 
@@ -385,7 +401,15 @@ class AKShareClient:
     # ---- 个股行情 ----
 
     def _get_all_stocks_df(self) -> pd.DataFrame | None:
-        """获取全量 A 股 DataFrame（带缓存，TTL 5 分钟；失败 60s 负缓存）。"""
+        """获取全量 A 股 DataFrame（持久日级 + 进程内 5min 双层缓存；失败 60s 负缓存）。
+
+        持久层(_persist, 1d)是跨 run 的收盘快照: em 限流日 picks 读昨日全市场快照,
+        coarse_filter 仍能出候选, 不再 'no candidates'。mirror _get_all_etf_df 双层模式。
+        优先级: 持久(跨run) > 进程内(5min) > 负缓存短路 > live。
+        """
+        cached = _persist.get("zh_a_spot", 86400)
+        if cached is not None:
+            return pd.DataFrame(cached)
         df = _df_cache.get("zh_a_spot", 300)
         if df is not None:
             return df
@@ -394,6 +418,7 @@ class AKShareClient:
         df = _with_retry(lambda: ak.stock_zh_a_spot_em(), label="stock_zh_a_spot_em")
         if df is not None and not df.empty:
             _df_cache.set("zh_a_spot", df)
+            _persist.set("zh_a_spot", df.to_dict("records"))  # 持久(日级)
         else:
             _df_cache.mark_failed("zh_a_spot", 60)
         return df
@@ -1369,19 +1394,21 @@ class AKShareClient:
             logger.warning(f"AKShare get_etf_spot_batch failed: {e}")
             return []
 
-    def get_etf_hist(self, symbol: str, days: int = 120) -> pd.DataFrame | None:
+    def get_etf_hist(self, symbol: str, days: int = 120, start_date: str | None = None) -> pd.DataFrame | None:
         """获取 ETF 历史日K线（前复权）。
 
-        优先用 fund_etf_hist_em 获取 OHLCV 数据。如失败，fallback 到
-        fund_etf_fund_info_em 的 NAV 数据构造简化版（close=nav, 无 high/low/volume）。
+        三级源: fund_etf_hist_em(OHLCV, em) → fund_etf_hist_sina(OHLCV, 新浪非 em 不限流)
+        → fund_etf_fund_info_em(NAV, 构造平线 df)。em 限流时 sina 兜底, 保证 hist 不空。
+        start_date 给定 → 全历史模式(DB-First 铺底用), 忽略 days; 否则 days 模式取近期。
         """
         end_date = datetime.now().strftime("%Y%m%d")
-        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+        sd = start_date or (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+        # 1. em 主源(OHLCV)
         try:
             df = ak.fund_etf_hist_em(
                 symbol=symbol,
                 period="daily",
-                start_date=start_date,
+                start_date=sd,
                 end_date=end_date,
                 adjust="qfq",
             )
@@ -1397,8 +1424,21 @@ class AKShareClient:
                 df = df.set_index("date")
                 return df
         except Exception as e:
-            logger.warning(f"AKShare get_etf_hist failed for {symbol}: {e}, falling back to NAV")
-        # Fallback: use NAV history
+            logger.warning(f"AKShare get_etf_hist em failed for {symbol}: {e}, falling back to sina")
+        # 2. sina fallback(非 em, OHLCV 全历史)
+        sina_sym = _to_sina_etf_symbol(symbol)
+        sdf = _with_retry(
+            lambda: ak.fund_etf_hist_sina(symbol=sina_sym),
+            label=f"fund_etf_hist_sina({sina_sym})",
+        )
+        if sdf is not None and not sdf.empty:
+            sdf["date"] = pd.to_datetime(sdf["date"])
+            sdf = sdf.set_index("date")
+            if start_date is None:
+                sdf = sdf.tail(days)  # days 模式取近期; 全历史模式(start_date)返回上市至今
+            keep = [c for c in ("open", "high", "low", "close", "volume", "amount") if c in sdf.columns]
+            return sdf[keep]
+        # 3. NAV fallback(简化平线 df)
         nav_df = self.get_etf_nav_history(symbol, days=days)
         if nav_df is not None and not nav_df.empty:
             result = nav_df.rename(columns={"nav": "close"}).copy()

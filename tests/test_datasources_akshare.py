@@ -202,3 +202,45 @@ def test_research_reports_fallback_fetches_when_no_df(monkeypatch):
     reports = client.get_research_reports("600519", limit=5)  # 不传 df
     assert calls["n"] == 1, f"fallback 路径应拉 1 次, 实际 {calls['n']}"
     assert len(reports) == 1 and reports[0]["rating"] == "买入"
+
+
+def test_get_etf_hist_sina_fallback(monkeypatch):
+    """em(fund_etf_hist_em)失败/空 → sina(fund_etf_hist_sina)兜底, 保证 ETF hist 不空。"""
+    from investbrief.datasources import akshare as ak_mod
+    from investbrief.datasources.akshare import AKShareClient
+
+    # em 源返空(触发 sina fallback; 不抛异常, 走 if df empty 后继续)
+    monkeypatch.setattr(ak_mod.ak, "fund_etf_hist_em", lambda **kw: pd.DataFrame())
+    # sina 源返有效(英文小写列, date 为列 — 实测 fund_etf_hist_sina 返回格式)
+    sina_df = pd.DataFrame({
+        "date": ["2026-07-17"], "open": [1.0], "high": [1.1],
+        "low": [0.9], "close": [1.05], "volume": [1000], "amount": [1050],
+    })
+    monkeypatch.setattr(ak_mod.ak, "fund_etf_hist_sina", lambda symbol: sina_df)
+    # NAV fallback 不应触达(sina 已兜底)
+    monkeypatch.setattr(AKShareClient, "get_etf_nav_history",
+                        lambda self, fund, days=60: None)
+
+    df = AKShareClient().get_etf_hist("510300", days=10)
+
+    assert df is not None and len(df) == 1
+    assert float(df.iloc[0]["close"]) == 1.05
+
+
+def test_get_all_stocks_df_persist_fallback(monkeypatch):
+    """_persist 跨 run 持久层命中 → 读昨日全市场快照, em 限流日 picks 不再 'no candidates'。"""
+    from investbrief.datasources import akshare as ak_mod
+    from investbrief.datasources.akshare import AKShareClient
+
+    # 持久层命中(昨日收盘快照)
+    monkeypatch.setattr(ak_mod._persist, "get",
+                        lambda key, ttl: [{"代码": "000001", "名称": "平安", "最新价": 10}])
+    # 持久层命中应直接返回, 不触达 live(stock_zh_a_spot_em 触网)
+    def _fail_live(*a, **k):
+        raise AssertionError("持久层命中不应触达 live 拉取")
+    monkeypatch.setattr(ak_mod.ak, "stock_zh_a_spot_em", _fail_live)
+
+    df = AKShareClient()._get_all_stocks_df()
+
+    assert df is not None and len(df) == 1
+    assert df.iloc[0]["代码"] == "000001"

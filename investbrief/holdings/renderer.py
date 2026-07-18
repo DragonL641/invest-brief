@@ -64,7 +64,12 @@ def _render_card(r: HoldingResult) -> str:
         f'<span class="signal-tag signal-tag-{s["cls"]}">{s["label"]}</span>' for s in sigs) + '</div>' if sigs else ""
     dims = _render_dimensions(r)
     ai = f'<div class="ai-box"><span class="ai-label">AI 研判</span>{md_inline(r.ai_conclusion)}</div>' if r.ai_conclusion else ""
-    return f'<div class="card">{head}<div class="card-body">{sig_html}{dims}{ai}</div></div>'
+    # degraded: em 封禁等致关键数据源不可用 → 顶部横幅提示, dims 继续渲染(轻量降级, inline style 免新 CSS)
+    degraded_html = (
+        '<div style="margin:6px 0;padding:6px 8px;background:#fff4e5;color:#8a6d3b;'
+        'font-size:12px;border-radius:4px;">⚠ 部分数据源暂不可用(em 限流)，仅显示有限信息</div>'
+    ) if r.degraded else ""
+    return f'<div class="card">{head}<div class="card-body">{sig_html}{degraded_html}{dims}{ai}</div></div>'
 
 
 # ==================== 维度表格行 ====================

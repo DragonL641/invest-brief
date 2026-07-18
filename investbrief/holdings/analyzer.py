@@ -15,6 +15,7 @@ from collections.abc import Callable
 
 import pandas as pd
 
+from investbrief.data.db_first import history_db_first, stock_db as _stock_db_impl, close_stock_db
 from investbrief.datasources.akshare import AKShareClient
 from investbrief.holdings.etf.analyzer import ETFAnalyzer, ETFAnalysisResult
 from investbrief.holdings.etf.indicators import compute_indicators
@@ -54,92 +55,24 @@ def _factor_cache() -> FactorCache | None:
 
 # ---- holdings history DB-First（stock_daily 跨日复用） ----
 # 持仓固定（不像 universe 扫描那样每日变动），跨日复用收益最大：有 today bar → 0 网络请求。
-_db_handle = None
+# _stock_db 句柄 + close_all 已下沉到 data.db_first（stock/etf 共用），本地保留 thin wrapper。
 
 
 def _stock_db():
-    """共享 BaseData 句柄用于 stock_daily DB-First。
-
-    CNData(db_path=DB_PATH) 只触发 BaseData.__init__ → _ensure_tables（CREATE TABLE IF NOT EXISTS），
-    无 refresh / 网络副作用（已验证：CNData 未覆盖 __init__）。惰性初始化，跨调用复用同一连接。
-    """
-    global _db_handle
-    if _db_handle is None:
-        from investbrief.core.config import DB_PATH
-        from investbrief.data.cn_data import CNData
-        _db_handle = CNData(db_path=DB_PATH)
-    return _db_handle
+    """共享 stock_daily 句柄（委托 data.db_first.stock_db，stock/etf 共用同一连接）。"""
+    return _stock_db_impl()
 
 
 def close_all():
-    """关闭 holdings analyzer 共享的 stock_daily 句柄。
-
-    _stock_db 惰性创建的 CNData 在 scheduler 长跑下连接终生持有；atexit 兜底关闭，
-    与有回归测试(test_cache_close_on_reinit)的 FactorCache/BaseData 生命周期对齐。
-    """
-    global _db_handle
-    if _db_handle is not None:
-        try:
-            _db_handle.close()
-        except Exception:
-            pass
-        _db_handle = None
+    """关闭共享 stock_daily 句柄（委托 data.db_first.close_stock_db）。"""
+    close_stock_db()
 
 
 atexit.register(close_all)
 
 
-def _history_db_first(market: str, symbol: str, *, days: int, db, live_fetch, live_fetch_full=None):
-    """holdings history DB-First fast-path。
-
-    1. stock_daily 有 today bar → 直接返回 DB（0 网络请求）。
-    2. DB 空 或 行数不足(< 500 天, 不够全历史/回测) + live_fetch_full → 拉全历史 → 回写。
-    3. DB 有历史没今天 → live_fetch(symbol, days) 近期增量 → 回写。
-    任一步失败 → 回退 live_fetch 原始结果（DB 不是强依赖，pipeline 不阻塞）。
-
-    列归一化覆盖源形状：
-    - CN akshare get_stock_history: lowercase 列 + DatetimeIndex(date) + amount
-    date 是 index（非列），需从 index 合成并 strftime 成 "YYYY-MM-DD"（匹配 has_today_bar 的 isoformat）。
-    """
-    try:
-        if db is not None and db.has_today_bar(market, symbol):
-            cached = db.query_stock_daily(market, symbol, n=days)
-            if cached is not None and not cached.empty:
-                # 归一化成与 live 一致的 shape（DatetimeIndex + ohlcv[+amount]），对齐 compute_indicators 契约：
-                # query_stock_daily 返回 date 为列 + market/symbol 多余列；live 路径（akshare）date 是 index。
-                dt_idx = pd.to_datetime(cached["date"])
-                cached = cached.drop(columns=[c for c in ("market", "symbol", "date") if c in cached.columns])
-                return cached.set_index(dt_idx)
-    except Exception as e:
-        logger.warning(f"_history_db_first DB read {market}:{symbol} failed: {e}")
-    # DB 空 或 行数不足(< 500 天) → 全历史(回测铺路); 否则近期增量(今天)
-    db_insufficient = True
-    try:
-        if db is not None:
-            probe = db.query_stock_daily(market, symbol, n=1000)
-            db_insufficient = probe is None or len(probe) < 500
-    except Exception:
-        db_insufficient = True
-    if db_insufficient and live_fetch_full is not None:
-        df = live_fetch_full(symbol)
-    else:
-        df = live_fetch(symbol, days)
-    try:
-        if db is not None and isinstance(df, pd.DataFrame) and not df.empty:
-            rows = df.rename(columns={
-                "Open": "open", "High": "high", "Low": "low",
-                "Close": "close", "Volume": "volume",
-                "Date": "date",  # 兼容个别 mock 把 Date 作为列
-            }).copy()
-            rows["market"] = market
-            rows["symbol"] = symbol
-            if "date" not in rows.columns:
-                rows["date"] = df.index  # akshare 源 date 是 index
-            rows["date"] = pd.to_datetime(rows["date"]).dt.strftime("%Y-%m-%d")
-            db.upsert_stock_df(rows)
-    except Exception as e:
-        logger.warning(f"_history_db_first DB write {market}:{symbol} failed: {e}")
-    return df
+# _history_db_first 已下沉到 investbrief.data.db_first.history_db_first（stock/etf 共用）。
+# 本模块只保留 _stock_db() 共享句柄 + close_all() 生命周期；DB-First 逻辑见 data/db_first.py。
 
 
 @dataclass
@@ -163,6 +96,7 @@ class HoldingResult:
     fund_meta: dict = field(default_factory=dict)
     ai_conclusion: str = ""
     error: str = ""              # 非空 → 该标的整体分析失败
+    degraded: bool = False       # True → 部分数据源不可用(em 封禁等), 仅显示有限信息
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -429,7 +363,7 @@ class HoldingsAnalyzer:
             # quote 弃: card 的价/涨跌用 history today bar(收盘), 不依赖实时 bid_ask
             # (项目用收盘数据非实时; 消除 bid_ask 实时盘口 → 每标的 -1 em 请求)
             "flow": lambda: (self._ak.get_stock_fund_flow(symbol) or {}),
-            "history": lambda s=symbol: _history_db_first(
+            "history": lambda s=symbol: history_db_first(
                 "cn", s, days=180, db=_stock_db(),
                 live_fetch=lambda sym, days=180: self._ak.get_stock_history(sym, days=days),
                 live_fetch_full=lambda sym: self._ak.get_stock_history(sym, start_date="19900101")),
@@ -506,6 +440,7 @@ class HoldingsAnalyzer:
             flow={"main_net_flow": result.main_net_flow},
             signals=list(result.rule_results),
             ai_conclusion=result.ai_conclusion or "",
+            degraded=result.degraded,
         )
 
     def _analyze_cn_fund(self, symbol: str, *, with_ai: bool = True) -> HoldingResult:
