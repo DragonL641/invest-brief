@@ -284,12 +284,12 @@ def _pick_key_signals(r: HoldingResult) -> list[dict]:
     Priority (spec §3.3):
       1. insider sell/buy (when direction != flat and net_shares present)
       2. latest rating action (up/down based on grade)
-      2b. candle pattern (反转形态,bull→up / else down,first match only)
       3. RSI > 70 (down 超买) / < 30 (up 超卖)
       4. MACD golden (up) / dead (down)
       5. dragon-tiger count > 0 (up, CN only)
       6. days_to_next ≤ 7 (warn)
       7. price_target upside_pct > 20 (up)
+      8. candle pattern (反转形态,tier=B 辅助,bull→up / else down)
     """
     sigs: list[dict] = []
     # 1. insider sell/buy
@@ -304,11 +304,6 @@ def _pick_key_signals(r: HoldingResult) -> list[dict]:
         cls = "up" if ("买" in rating_txt or "增" in rating_txt) else (
             "down" if ("减" in rating_txt or "卖" in rating_txt) else "up")
         sigs.append({"label": f"评级{rating_txt}", "cls": cls})
-    # 2b. candle pattern (反转形态,强信号)
-    for cp in (r.technicals or {}).get("candle_patterns") or []:
-        cls = "up" if cp.get("direction") == "bull" else "down"
-        sigs.append({"label": cp.get("name_cn", ""), "cls": cls})
-        break  # 只取最近一次触发进 key signals
     # 3. RSI overbought/oversold
     rsi = (r.technicals or {}).get("rsi")
     if rsi is not None and rsi > 70:
@@ -333,6 +328,11 @@ def _pick_key_signals(r: HoldingResult) -> list[dict]:
     pt = (r.rating.get("price_target") or {}).get("upside_pct")
     if pt is not None and pt > 20:
         sigs.append({"label": f"目标空间{pt:+.0f}%", "cls": "up"})
+    # 8. candle pattern (反转形态,tier=B 辅助择时,最后顺位)
+    for cp in (r.technicals or {}).get("candle_patterns") or []:
+        cls = "up" if cp.get("direction") == "bull" else "down"
+        sigs.append({"label": cp.get("name_cn", ""), "cls": cls})
+        break  # 只取最近一次触发进 key signals
     return sigs[:3]
 
 

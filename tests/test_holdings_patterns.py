@@ -177,13 +177,10 @@ def test_e2e_bearish_engulfing_at_uptrend():
 
 
 def test_e2e_position_filter_drops_ranging():
-    # 58 根窄幅震荡(close 在 99/101 交替,|趋势收益|<2%),末尾看涨吞没 → 丢弃
-    rows = []
-    for k in range(58):
-        c = 101 if k % 2 == 0 else 99
-        rows.append((c, c + 0.5, c - 0.5, c, 1000))
-    rows.append((100.0, 100.5, 98.5, 99.0, 1500))     # 阴
-    rows.append((98.0, 101.0, 97.5, 100.5, 2200))     # 阳吞没
+    # 58 根恒定价(平盘,|趋势收益|≈0.5%<2%),末尾看涨吞没 → 震荡区丢弃
+    rows = [(100.0, 100.5, 99.5, 100.0, 1000)] * 58
+    rows.append((100.5, 101.0, 99.0, 99.5, 1500))    # 阴 i-1
+    rows.append((98.5, 101.5, 98.0, 101.0, 2200))    # 阳吞没 i(O98.5<=L99, C101>=H101)
     assert patterns.detect_patterns(_df_from_rows(rows)) == []
 
 
