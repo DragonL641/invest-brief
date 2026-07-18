@@ -31,3 +31,29 @@ def detect_patterns(hist_df, *, lookback: int = LOOKBACK_DEFAULT) -> list[dict]:
     if len(hist_df) < 5:
         return []
     return []
+
+
+def _bullish_engulfing(O, H, L, C, i):
+    """看涨吞没:前根阴 + 本根阳,实体吞没前根完整区间。命中返回 (id, cn),否则 None。"""
+    if i < 1:
+        return None
+    if not (C[i - 1] < O[i - 1]):          # 前根阴
+        return None
+    if not (C[i] >= O[i]):                 # 本根阳
+        return None
+    if O[i] <= L[i - 1] and C[i] >= H[i - 1]:
+        return ("bullish_engulfing", "看涨吞没")
+    return None
+
+
+def _bearish_engulfing(O, H, L, C, i):
+    """看跌吞没:前根阳 + 本根阴,实体吞没前根完整区间。"""
+    if i < 1:
+        return None
+    if not (C[i - 1] >= O[i - 1]):         # 前根阳
+        return None
+    if not (C[i] < O[i]):                  # 本根阴
+        return None
+    if O[i] >= H[i - 1] and C[i] <= L[i - 1]:
+        return ("bearish_engulfing", "看跌吞没")
+    return None

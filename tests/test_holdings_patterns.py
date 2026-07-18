@@ -50,3 +50,30 @@ def test_detect_patterns_none():
 def test_detect_patterns_insufficient_data():
     df = _df_from_rows(_flat(4))
     assert patterns.detect_patterns(df) == []
+
+
+# ---------- Task 2: 吞没 ----------
+
+def test_bullish_engulfing_hit():
+    O, H, L, C = _arr([(105, 106, 96, 98), (95.5, 108, 95, 107)])
+    assert patterns._bullish_engulfing(O, H, L, C, 1) == ("bullish_engulfing", "看涨吞没")
+
+
+def test_bullish_engulfing_not_engulfing():
+    O, H, L, C = _arr([(105, 106, 96, 98), (100, 101, 99, 100.5)])  # 未吞没
+    assert patterns._bullish_engulfing(O, H, L, C, 1) is None
+
+
+def test_bullish_engulfing_prev_not_bearish():
+    O, H, L, C = _arr([(100, 106, 96, 102), (95.5, 108, 95, 107)])  # 前根阳
+    assert patterns._bullish_engulfing(O, H, L, C, 1) is None
+
+
+def test_bearish_engulfing_hit():
+    O, H, L, C = _arr([(100, 109, 99, 108), (109.5, 110, 97, 98)])
+    assert patterns._bearish_engulfing(O, H, L, C, 1) == ("bearish_engulfing", "看跌吞没")
+
+
+def test_bearish_engulfing_not_engulfing():
+    O, H, L, C = _arr([(100, 109, 99, 108), (105, 109, 100, 105)])  # 未吞没
+    assert patterns._bearish_engulfing(O, H, L, C, 1) is None
