@@ -5,7 +5,9 @@
 扛 eastmoney 限流。拉取失败返回 {} / 空 df,不抛。
 """
 from __future__ import annotations
+import json
 import logging
+from pathlib import Path
 
 import pandas as pd
 
@@ -13,6 +15,26 @@ from investbrief.picks.cache import FactorCache
 from investbrief.core.timeutil import now_cn
 
 logger = logging.getLogger(__name__)
+
+# 离线行业映射(scripts/build_industry_map.py 生成)。运行时只读, 零 em 依赖。
+_INDUSTRY_MAP_PATH = Path(__file__).resolve().parent.parent / "strategies" / "industry_map.json"
+_industry_map_cache: dict | None = None
+
+
+def load_industry_map() -> dict:
+    """加载 symbol→行业 静态映射(模块级缓存)。文件缺失/解析失败 → {}(neutralize 降级 no-op)。"""
+    global _industry_map_cache
+    if _industry_map_cache is None:
+        try:
+            if _INDUSTRY_MAP_PATH.exists():
+                _industry_map_cache = json.loads(_INDUSTRY_MAP_PATH.read_text(encoding="utf-8"))
+            else:
+                logger.info("industry_map.json 不存在, neutralize 降级(运行 scripts/build_industry_map.py)")
+                _industry_map_cache = {}
+        except Exception as e:
+            logger.warning(f"load_industry_map failed: {e}")
+            _industry_map_cache = {}
+    return _industry_map_cache or {}
 
 # 缓存单例(进程级);path 由 pipeline 注入,默认 data/picks_cache.db
 _cache: FactorCache | None = None

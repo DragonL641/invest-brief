@@ -134,7 +134,7 @@ def build_picks_for_profile(profile_name: str, market: str,
                 raw[fkey] = fn(hist, fund, val) if fn else None
             cand = {"symbol": symbol, "name": str(row.get("名称", symbol)),
                     "market": market, "raw_factors": raw,
-                    "industry": None}
+                    "industry": _data.load_industry_map().get(symbol)}
             return cand, (symbol, (hist, fund, val))
         except Exception as e:
             # 非网络异常(因子计算/gate/KeyError 等)——不是限流,不计入 limit_hits。
