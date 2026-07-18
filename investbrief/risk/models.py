@@ -265,7 +265,7 @@ class RiskModel:
                     score = all_results[ind_name].get("score", 5.0)
                     scores.append(score)
 
-            if not scores:
+            if not scores and indicator_list:
                 logger.warning(f"No indicator data for dimension '{dim_name}' in market '{market}'")
 
             avg_score = round(sum(scores) / len(scores), 2) if scores else 5.0

@@ -389,9 +389,9 @@ def _safe_build(profile_name: str, market: str, exclude_symbols: set[str] | None
 
 
 def run_picks_report(args):
-    """编排:6 只 Top1 → 研判 → 渲染 → 发送(dry_run 打印 JSON;preview 渲染不发)。"""
+    """编排:三 profile × CN 各选 Top1 → 研判 → 渲染 → 发送(dry_run 打印 JSON;preview 渲染不发)。"""
     logger.info("=" * 60)
-    logger.info("invest-brief - Picks pipeline (6 Top1)")
+    logger.info(f"invest-brief - Picks pipeline ({len(_PROFILES)} Top1)")
     _data.init_cache(_CACHE_PATH)
     # 注入 holdings analyzer 季频缓存(rating/fund/cn_activity, TTL=7d)。
     # --only picks 单跑时 scheduler 没先跑 holdings, _fcache 默认 None → enrich 裸拉无缓存;

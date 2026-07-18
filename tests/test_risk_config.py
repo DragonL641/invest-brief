@@ -22,10 +22,11 @@ class TestConfig:
     # broad_erp merge (hsh300_erp+zz500_erp 0.30+0.24 -> broad_erp 0.35) cut CN totals
     # by 0.19. north_flow removal (2024-08 停发) cut a further 0.08.
     # pledge_ratio removal (margin 已覆盖杠杆) cut a further 0.08:
-    # 1.26 -> 1.07 -> 0.99 -> 0.91 (CN_TOTAL), 1.17 -> 0.98 -> 0.90 -> 0.82 (CN_SPECIFIC).
-    CN_TOTAL = 0.91  # was 0.99 before pledge_ratio removal
+    # 1.26 -> 1.07 -> 0.99 -> 0.91 -> 0.99 (CN_TOTAL), 1.17 -> 0.98 -> 0.90 -> 0.82 -> 0.90 (CN_SPECIFIC).
+    # cpi_cycle(宏观基本面维度, +0.08) 恢复两 total 至 pledge_ratio 移除前的 0.99/0.90。
+    CN_TOTAL = 0.99  # cpi_cycle +0.08
     COMMON_TOTAL = 0.09
-    CN_SPECIFIC_TOTAL = 0.82  # was 0.90 before pledge_ratio removal
+    CN_SPECIFIC_TOTAL = 0.90  # cpi_cycle +0.08
 
     def test_cn_weights_documented(self):
         total = sum(ind["weight"] for ind in CN_ALL_INDICATORS.values())
@@ -250,6 +251,20 @@ class TestPercentileScoreFromSeries:
             assert r["score"] <= 1.0  # 高分位 + invert -> 低 score
         finally:
             ds.close()
+
+
+def test_aggregate_dimensions_silent_on_empty_indicator_list(caplog):
+    """配置 indicator_list=[] 的维度(gold 流动性/情绪)不 warn; 仅配置非空却缺数据才 warn(#6)。"""
+    import logging
+    from investbrief.risk.models import RiskModel
+    model = RiskModel.__new__(RiskModel)
+    all_results = {"broad_erp": {"score": 7.0}}
+    with caplog.at_level(logging.WARNING, logger="investbrief.risk.models"):
+        model._aggregate_dimensions("gold", all_results)
+    msgs = [r.getMessage() for r in caplog.records]
+    assert not any("流动性风险" in m for m in msgs), "gold 流动性(配置空)不应 warn"
+    assert not any("情绪面风险" in m for m in msgs), "gold 情绪面(配置空)不应 warn"
+    assert any("宏观基本面风险" in m for m in msgs), "gold 宏观(配置非空却缺数据)应 warn"
 
 
 if __name__ == "__main__":

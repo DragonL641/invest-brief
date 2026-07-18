@@ -55,7 +55,7 @@ FIVE_DIMENSIONS = {
         "gold": [],
     },
     "宏观基本面风险": {
-        "cn": [],
+        "cn": ["cpi_cycle"],
         "gold": ["real_yield"],
     },
 }

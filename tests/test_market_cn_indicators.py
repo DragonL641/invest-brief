@@ -15,6 +15,8 @@ def test_cn_indicators_factory_returns_list():
             "margin_growth": {}, "margin_level": {},
         })
         assert isinstance(inds, list) and len(inds) >= 3
+        from investbrief.market.cn.indicators import CnMacroIndicator
+        assert any(isinstance(i, CnMacroIndicator) for i in inds), "应含 CnMacroIndicator(宏观基本面维度)"
     finally:
         data.close()
 

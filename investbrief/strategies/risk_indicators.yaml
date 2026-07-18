@@ -73,6 +73,14 @@ cn:
     scale: 100
     unit: "%"
     explain: "低=广度收缩=顶部前兆"
+  cpi_cycle:
+    name: CPI 周期位置
+    weight: 0.08
+    category: macro
+    description: "CN CPI YoY% 近10年分位, 高=通胀压力/过热"
+    scale: 1
+    unit: "%"
+    explain: "高=通胀高位, 约束货币政策(加息/收紧预期)"
 
 gold:
   gold_gdp_ratio:

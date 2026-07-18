@@ -242,6 +242,29 @@ class CnSentimentIndicator:
         )
 
 
+class CnMacroIndicator:
+    """CN 宏观基本面: cpi_cycle。
+
+    cpi_cycle: CN CPI YoY% 近10年分位; 高=通胀压力/过热=高风险(正常方向, 不invert)。
+    CPI 已是 YoY%(国统局 macro_china_cpi, 月频), 直接分位打分, 无需 YoY 转换。
+    """
+
+    def __init__(self, config: dict):
+        self._market = "cn"
+        self._config = config
+
+    def calculate(self, data_source, date: str | None = None) -> dict:
+        results = {}
+        results["cpi_cycle"] = self._cpi_cycle(data_source, date)
+        return results
+
+    def _cpi_cycle(self, data_source, date: str | None = None) -> dict:
+        return percentile_score_from_series(
+            data_source, "macro_data", "value", "indicator='CPI' AND country='cn'",
+            date=date, round_value=2,
+        )
+
+
 def cn_indicators(data_source, config: dict) -> list:
     """CN 市场的全部 indicator 实例(config 由 pipeline 从 load_indicators('cn') 注入)。
 
@@ -252,4 +275,5 @@ def cn_indicators(data_source, config: dict) -> list:
         TechnicalIndicator(market="cn", config=config),
         CnLiquidityIndicator(config),
         CnSentimentIndicator(config),
+        CnMacroIndicator(config),
     ]
