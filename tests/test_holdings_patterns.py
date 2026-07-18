@@ -77,3 +77,42 @@ def test_bearish_engulfing_hit():
 def test_bearish_engulfing_not_engulfing():
     O, H, L, C = _arr([(100, 109, 99, 108), (105, 109, 100, 105)])  # 未吞没
     assert patterns._bearish_engulfing(O, H, L, C, 1) is None
+
+
+# ---------- Task 3: 三线打击 ----------
+
+def test_three_line_strike_hit():
+    O, H, L, C = _arr([(110, 111, 105, 106), (106, 107, 101, 102),
+                        (102, 103, 97, 98), (96.5, 112, 96, 111.5)])
+    assert patterns._three_line_strike(O, H, L, C, 3) == ("three_line_strike", "三线打击")
+
+
+def test_three_line_strike_current_not_bullish():
+    # 第4根不是阳线(阴线)→ 不构成
+    O, H, L, C = _arr([(110, 111, 105, 106), (106, 107, 101, 102),
+                        (102, 103, 97, 98), (96.5, 100, 96, 95)])  # C=95 < O=96.5 → 阴
+    assert patterns._three_line_strike(O, H, L, C, 3) is None
+
+
+def test_three_line_strike_not_engulfing_all_three():
+    # 第4根未吞没全部三根
+    O, H, L, C = _arr([(110, 111, 105, 106), (106, 107, 101, 102),
+                        (102, 103, 97, 98), (99, 103, 98, 102)])
+    assert patterns._three_line_strike(O, H, L, C, 3) is None
+
+
+def test_three_line_strike_i_too_small():
+    O, H, L, C = _arr([(110, 111, 105, 106), (106, 107, 101, 102), (102, 103, 97, 98)])
+    assert patterns._three_line_strike(O, H, L, C, 2) is None  # i<3 guard
+
+
+def test_three_line_strike_prev_not_all_bearish():
+    # 前3根非全阴(第2根阳)→ None
+    O, H, L, C = _arr([(110, 111, 105, 106), (100, 107, 99, 105), (102, 103, 97, 98), (96.5, 112, 96, 111.5)])
+    assert patterns._three_line_strike(O, H, L, C, 3) is None
+
+
+def test_three_line_strike_not_declining():
+    # 前3根均阴但非逐级走低 → None
+    O, H, L, C = _arr([(110, 111, 105, 106), (108, 109, 100, 101), (105, 106, 99, 102), (96.5, 112, 96, 111.5)])
+    assert patterns._three_line_strike(O, H, L, C, 3) is None

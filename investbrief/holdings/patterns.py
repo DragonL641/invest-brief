@@ -57,3 +57,21 @@ def _bearish_engulfing(O, H, L, C, i):
     if O[i] >= H[i - 1] and C[i] <= L[i - 1]:
         return ("bearish_engulfing", "看跌吞没")
     return None
+
+
+def _three_line_strike(O, H, L, C, i):
+    """三线打击(看涨):前3根逐级走低阴线 + 本根大阳吞没三根全部区间。"""
+    if i < 3:
+        return None
+    for k in (i - 3, i - 2, i - 1):
+        if not (C[k] < O[k]):              # 前三根均阴
+            return None
+    if not (C[i - 3] > C[i - 2] > C[i - 1]):  # 逐级走低
+        return None
+    if not (C[i] >= O[i]):                 # 本根阳
+        return None
+    hh = max(H[i - 3], H[i - 2], H[i - 1])
+    ll = min(L[i - 3], L[i - 2], L[i - 1])
+    if C[i] >= hh and O[i] <= ll:
+        return ("three_line_strike", "三线打击")
+    return None
