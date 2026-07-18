@@ -151,8 +151,8 @@ def test_generate_stock_conclusion_skips_error_holding():
     assert generate_stock_conclusion(r) == ""
 
 
-def test_extract_technicals_backfills_19_fields():
-    """_extract_technicals should surface 19 indicator fields (18 + regime)."""
+def test_extract_technicals_backfills_20_fields():
+    """_extract_technicals should surface 20 fields (18 indicators + regime + candle_patterns)."""
     import pandas as pd
     from investbrief.holdings.analyzer import _extract_technicals
 
@@ -169,6 +169,7 @@ def test_extract_technicals_backfills_19_fields():
         "return_5d", "return_10d", "volume_ratio",
         "new_high_60d", "new_low_60d", "high_60d",
         "regime",
+        "candle_patterns",
     }
     assert set(result.keys()) == expected_keys, (
         f"missing: {expected_keys - set(result.keys())}; "
@@ -180,4 +181,6 @@ def test_extract_technicals_backfills_19_fields():
     assert result["return_5d"] is not None
     # regime inferred for this uptrend synthetic
     assert result["regime"] in ("trending_up", "trending_down", "volatile", "sideways")
+    # candle_patterns present (empty here — synthetic hist lacks open/high/low columns)
+    assert result["candle_patterns"] == []
 
