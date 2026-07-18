@@ -117,4 +117,4 @@ def test_cn_activity_no_batch_falls_back_to_single():
          patch.object(a._ak, "get_institutional_research", return_value=research_data) as mock_single:
         act = a._fetch_cn_activity("002371")
     assert act["institution_research_count"] == 1
-    mock_single.assert_called_once_with("002371", days=90)
+    mock_single.assert_called_once_with("002371", days=1)

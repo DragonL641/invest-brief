@@ -36,7 +36,8 @@ def _base_mocks(monkeypatch, picks_mod, picks_map):
     monkeypatch.setattr(picks_mod, "_renderer",
                         MagicMock(render_pick_section=lambda *a, **k: ""))
     monkeypatch.setattr(picks_mod, "_brief", MagicMock())  # skip_summary=True 不调, mock 兜底
-    monkeypatch.setattr(picks_mod, "_safe_build", lambda prof, mkt: picks_map[prof])
+    monkeypatch.setattr(picks_mod, "_safe_build",
+                        lambda prof, mkt, exclude_symbols=None: picks_map[prof])
     # run_picks_report 内函数级 import → patch 源模块而非 picks_mod
     monkeypatch.setattr("investbrief.holdings.analyzer.init_cache", lambda *a, **k: None)
 
@@ -77,10 +78,10 @@ def test_run_picks_report_batch_prefetch_and_enrich(monkeypatch, capsys):
     args = MagicMock(force=False, skip_summary=True, dry_run=True, preview=False)
     picks_mod.run_picks_report(args)
 
-    # ① batch 用 2 只 Top1 symbol(按 _PROFILES 出现顺序 swing→medium, long=None 剔除)+ days=90
+    # ① batch 用 2 只 Top1 symbol(按 _PROFILES 出现顺序 swing→medium, long=None 剔除)+ days=1(当天事件型)
     assert batch_calls.get("symbols") == ["000001", "600000"], \
         f"batch 应接收 2 只 Top1 symbol, 实际 {batch_calls.get('symbols')}"
-    assert batch_calls.get("days") == 90
+    assert batch_calls.get("days") == 1
     # ② set_research_batch 注入(batch 非空)
     fake_analyzer.set_research_batch.assert_called_once()
     injected = fake_analyzer.set_research_batch.call_args[0][0]
