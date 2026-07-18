@@ -295,3 +295,35 @@ def test_format_holding_without_pattern():
     from investbrief.holdings.brief import _format_holding
     r = HoldingResult(symbol="000001", market="cn", type="stock", name="平安", technicals={})
     assert "K线信号" not in _format_holding(r)
+
+
+# ---------- Task 8: renderer 集成 ----------
+
+def test_pick_key_signals_with_bull_pattern():
+    from investbrief.holdings.analyzer import HoldingResult
+    from investbrief.holdings.renderer import _pick_key_signals
+    r = HoldingResult(
+        symbol="000001", market="cn", type="stock", rating={},
+        technicals={"candle_patterns": [{"name_cn": "看涨吞没", "direction": "bull"}]})
+    sigs = _pick_key_signals(r)
+    labels = [s["label"] for s in sigs]
+    assert "看涨吞没" in labels
+    assert next(s for s in sigs if s["label"] == "看涨吞没")["cls"] == "up"
+
+
+def test_pick_key_signals_with_bear_pattern():
+    from investbrief.holdings.analyzer import HoldingResult
+    from investbrief.holdings.renderer import _pick_key_signals
+    r = HoldingResult(
+        symbol="000001", market="cn", type="stock", rating={},
+        technicals={"candle_patterns": [{"name_cn": "看跌吞没", "direction": "bear"}]})
+    sigs = _pick_key_signals(r)
+    assert next(s for s in sigs if s["label"] == "看跌吞没")["cls"] == "down"
+
+
+def test_pick_key_signals_no_pattern_unchanged():
+    from investbrief.holdings.analyzer import HoldingResult
+    from investbrief.holdings.renderer import _pick_key_signals
+    r = HoldingResult(symbol="000001", market="cn", type="stock", rating={}, technicals={})
+    sigs = _pick_key_signals(r)
+    assert all("吞没" not in s["label"] and "白兵" not in s["label"] for s in sigs)

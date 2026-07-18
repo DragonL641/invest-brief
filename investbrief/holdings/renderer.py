@@ -303,6 +303,11 @@ def _pick_key_signals(r: HoldingResult) -> list[dict]:
         cls = "up" if ("买" in rating_txt or "增" in rating_txt) else (
             "down" if ("减" in rating_txt or "卖" in rating_txt) else "up")
         sigs.append({"label": f"评级{rating_txt}", "cls": cls})
+    # 2b. candle pattern (反转形态,强信号)
+    for cp in (r.technicals or {}).get("candle_patterns") or []:
+        cls = "up" if cp.get("direction") == "bull" else "down"
+        sigs.append({"label": cp.get("name_cn", ""), "cls": cls})
+        break  # 只取最近一次触发进 key signals
     # 3. RSI overbought/oversold
     rsi = (r.technicals or {}).get("rsi")
     if rsi is not None and rsi > 70:
