@@ -4,7 +4,7 @@
 不依赖外部 technicals(其字段是「最新一日」语义,而形态可能在 i<最新日触发)。
 
 定位:辅助择时,非买卖指令。tier=B 形态,扣费后效力有限(Marshall 2006)。
-三要素(位置=趋势 + 量能 + 次日确认)过滤裸形态噪音。
+位置过滤(趋势方向)+ 量能/次日确认标注,滤除震荡区裸形态噪音。
 """
 import logging
 
@@ -22,15 +22,116 @@ VOL_MA_WINDOW = 5            # 量比均线窗口
 def detect_patterns(hist_df, *, lookback: int = LOOKBACK_DEFAULT) -> list[dict]:
     """检测近 lookback 根内的 K 线反转形态(第一梯队 5 形态)。
 
-    返回 list[dict],按 trigger_date 降序(最近在前)。失败/数据不足 → []。
+    返回 list[dict],按 trigger_date 降序(最近在前);同日多形态取首个命中。
+    失败/数据不足 → []。
     """
     if hist_df is None or not hasattr(hist_df, "empty") or hist_df.empty:
         return []
-    if not {"open", "high", "low", "close", "volume"}.issubset(hist_df.columns):
+    try:
+        df = hist_df.sort_index()
+    except Exception as e:
+        logger.warning(f"detect_patterns sort_index failed: {e}")
         return []
-    if len(hist_df) < 5:
+    if not {"open", "high", "low", "close", "volume"}.issubset(df.columns):
         return []
-    return []
+    if len(df) < 5:
+        return []
+
+    O = df["open"].to_numpy(dtype=float)
+    H = df["high"].to_numpy(dtype=float)
+    L = df["low"].to_numpy(dtype=float)
+    C = df["close"].to_numpy(dtype=float)
+    V = df["volume"].to_numpy(dtype=float)
+    idx = df.index
+    n = len(df)
+
+    results = []
+    start = max(3, n - lookback)           # 三线打击需回看 3 根
+    for i in range(start, n):
+        ctx = _context(C, V, i)
+        hit = _detect_at(O, H, L, C, i, ctx)
+        if hit is None:
+            continue
+        hit["trigger_date"] = _date_str(idx[i])
+        hit["status"] = _confirm(C, i, hit["direction"])
+        results.append(hit)
+
+    results.sort(key=lambda r: r["trigger_date"], reverse=True)
+    seen = set()
+    deduped = []
+    for r in results:                       # 同日去重留首个
+        if r["trigger_date"] in seen:
+            continue
+        seen.add(r["trigger_date"])
+        deduped.append(r)
+    return deduped
+
+
+def _context(C, V, i):
+    """触发日 i 的局部上下文:近 TREND_WINDOW 日 close 趋势收益 + 量比。"""
+    j = max(0, i - TREND_WINDOW)
+    if i - 1 > j and C[j] > 0:
+        trend_ret = (C[i - 1] - C[j]) / C[j]     # 用 i-1,避开形态本身大阳/阴的扭曲
+    else:
+        trend_ret = 0.0
+    vlo = max(0, i - VOL_MA_WINDOW)
+    vol_ma = V[vlo:i].mean() if i > vlo else 0.0
+    vol_ratio = V[i] / vol_ma if vol_ma > 0 else 0.0
+    return {"trend_ret": trend_ret, "vol_ratio": vol_ratio}
+
+
+def _confirm(C, i, direction):
+    """次日确认:i+1 不存在 → pending;方向一致 → confirmed;否则 unconfirmed。"""
+    if i + 1 >= len(C):
+        return "pending"
+    if direction == "bull":
+        return "confirmed" if C[i + 1] > C[i] else "unconfirmed"
+    return "confirmed" if C[i + 1] < C[i] else "unconfirmed"
+
+
+def _detect_at(O, H, L, C, i, ctx):
+    """对触发日 i 套 5 形态(判定顺序:三线打击→吞没→白兵/乌鸦;更具体优先)+ 三要素位置过滤。
+
+    位置过滤:看涨需 trend_ret < -TREND_THR(跌势);看跌需 trend_ret > TREND_THR(涨势);
+    |trend_ret| <= TREND_THR(震荡/不明)→ 丢弃。返回命中 dict 或 None。
+    """
+    tr = ctx["trend_ret"]
+    vol_confirmed = ctx["vol_ratio"] >= VOLUME_RATIO_MIN
+
+    bull = _three_line_strike(O, H, L, C, i)
+    if bull is None:
+        bull = _bullish_engulfing(O, H, L, C, i)
+    if bull is None:
+        bull = _three_white_soldiers(O, H, L, C, i)
+    if bull is not None:
+        if tr < -TREND_THR:                    # 跌势 → 看涨有效
+            return _wrap(bull, "bull", vol_confirmed)
+        return None                            # 非跌势(涨势/震荡)→ 丢弃
+
+    bear = _bearish_engulfing(O, H, L, C, i)
+    if bear is None:
+        bear = _three_black_crows(O, H, L, C, i)
+    if bear is not None:
+        if tr > TREND_THR:                     # 涨势 → 看跌有效
+            return _wrap(bear, "bear", vol_confirmed)
+        return None
+    return None
+
+
+def _wrap(hit, direction, vol_confirmed):
+    id_, cn = hit
+    return {
+        "name": id_,
+        "name_cn": cn,
+        "direction": direction,
+        "volume_confirmed": bool(vol_confirmed),
+        "tier": "B",
+    }
+
+
+def _date_str(label):
+    s = str(label)
+    return s[:10]
 
 
 def _bullish_engulfing(O, H, L, C, i):

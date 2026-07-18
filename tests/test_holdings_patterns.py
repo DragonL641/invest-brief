@@ -146,3 +146,108 @@ def test_three_black_crows_not_declining():
     # 三根均阴但非逐级走低(close 108>104, 104<104.5)→ None
     O, H, L, C = _arr([(112, 113, 107, 108), (110, 111, 103, 104), (109, 110, 104, 104.5)])
     assert patterns._three_black_crows(O, H, L, C, 2) is None
+
+
+# ---------- Task 5: detect_patterns 端到端 ----------
+
+def test_e2e_bullish_engulfing_at_downtrend():
+    # 58 根下跌(100→71.5),末尾 阴+阳吞没(处于跌势,趋势收益<-2%)
+    rows = _trend(58, 100.0, -0.5)
+    rows.append((72.0, 73.0, 70.5, 71.0, 1500))       # i-1 阴
+    rows.append((70.0, 74.0, 69.5, 73.5, 2200))       # i 阳吞没(O70<=70.5, C73.5>=73)
+    res = patterns.detect_patterns(_df_from_rows(rows))
+    assert len(res) == 1
+    assert res[0]["name_cn"] == "看涨吞没"
+    assert res[0]["direction"] == "bull"
+    assert res[0]["volume_confirmed"] is True
+    assert res[0]["status"] == "pending"              # 最后根无 i+1
+    assert res[0]["tier"] == "B"
+
+
+def test_e2e_bearish_engulfing_at_uptrend():
+    # 58 根上涨(50→78.5),末尾 阳+阴吞没(处于涨势)
+    rows = _trend(58, 50.0, 0.5)
+    rows.append((78.0, 79.0, 77.5, 78.5, 1500))       # i-1 阳
+    rows.append((79.5, 80.0, 77.0, 77.5, 2200))       # i 阴吞没
+    res = patterns.detect_patterns(_df_from_rows(rows))
+    assert len(res) == 1
+    assert res[0]["name_cn"] == "看跌吞没"
+    assert res[0]["direction"] == "bear"
+    assert res[0]["status"] == "pending"
+
+
+def test_e2e_position_filter_drops_ranging():
+    # 58 根窄幅震荡(close 在 99/101 交替,|趋势收益|<2%),末尾看涨吞没 → 丢弃
+    rows = []
+    for k in range(58):
+        c = 101 if k % 2 == 0 else 99
+        rows.append((c, c + 0.5, c - 0.5, c, 1000))
+    rows.append((100.0, 100.5, 98.5, 99.0, 1500))     # 阴
+    rows.append((98.0, 101.0, 97.5, 100.5, 2200))     # 阳吞没
+    assert patterns.detect_patterns(_df_from_rows(rows)) == []
+
+
+def test_e2e_position_filter_wrong_direction():
+    # 有效看跌吞没出现在下跌趋势(看跌需涨势,方向错位)→ 位置过滤丢弃
+    rows = _trend(58, 100.0, -0.5)
+    rows.append((70.0, 75.0, 69.5, 74.0, 1500))       # 阳 i-1
+    rows.append((75.5, 76.0, 68.5, 69.0, 2200))       # 阴吞没 i(O75.5>=H75, C69<=L69.5)
+    res = patterns.detect_patterns(_df_from_rows(rows))
+    assert res == []
+
+
+def test_e2e_confirm_states():
+    base = _trend(58, 100.0, -0.5) + [(72.0, 73.0, 70.5, 71.0, 1500), (70.0, 74.0, 69.5, 73.5, 2200)]
+    # confirmed: i+1 收阳更高
+    rows_confirmed = base + [(73.0, 75.5, 72.5, 75.0, 1800)]
+    assert patterns.detect_patterns(_df_from_rows(rows_confirmed))[0]["status"] == "confirmed"
+    # unconfirmed: i+1 收阴更低
+    rows_unconfirmed = base + [(73.0, 73.5, 71.0, 71.5, 1800)]
+    assert patterns.detect_patterns(_df_from_rows(rows_unconfirmed))[0]["status"] == "unconfirmed"
+    # pending: 形态在最后根(无 i+1)
+    assert patterns.detect_patterns(_df_from_rows(base))[0]["status"] == "pending"
+
+
+def test_e2e_volume_not_confirmed():
+    rows = _trend(58, 100.0, -0.5)
+    rows.append((72.0, 73.0, 70.5, 71.0, 1000))       # 阴
+    rows.append((70.0, 74.0, 69.5, 73.5, 1000))       # 阳吞没但缩量(量比=1.0)
+    res = patterns.detect_patterns(_df_from_rows(rows))
+    assert len(res) == 1
+    assert res[0]["volume_confirmed"] is False        # 仍触发,仅标缩量
+
+
+def test_e2e_unsorted_index():
+    rows = _trend(58, 100.0, -0.5) + [(72.0, 73.0, 70.5, 71.0, 1500), (70.0, 74.0, 69.5, 73.5, 2200)]
+    df = _df_from_rows(rows).sort_index(ascending=False)   # 降序输入
+    res = patterns.detect_patterns(df)
+    assert len(res) == 1 and res[0]["name_cn"] == "看涨吞没"
+
+
+def test_e2e_lookback_boundary():
+    # 形态在倒数第 7 根,lookback=5 → 不报告
+    rows = _trend(52, 100.0, -0.5)
+    rows.append((74.0, 75.0, 72.5, 73.0, 1500))       # 阴
+    rows.append((72.0, 77.0, 71.5, 76.0, 2200))       # 阳吞没(在 i=53)
+    rows += _flat(6, 76.0)                            # 推到 lookback 之外
+    assert patterns.detect_patterns(_df_from_rows(rows), lookback=5) == []
+
+
+def test_e2e_no_false_positive_flat():
+    rows = [(100.0, 100.3, 99.7, 100.0, 1000)] * 60   # 完全平淡
+    assert patterns.detect_patterns(_df_from_rows(rows)) == []
+
+
+def test_e2e_three_line_strike_at_downtrend():
+    # 56 根下跌 + 末尾 3 阴逐级低 + 大阳吞没(三线打击,处于跌势)
+    rows = _trend(56, 100.0, -0.5)
+    rows.append((74.0, 75.0, 71.0, 72.0, 1500))   # i-3 阴
+    rows.append((72.0, 73.0, 69.0, 70.0, 1500))   # i-2 阴
+    rows.append((70.0, 71.0, 67.0, 68.0, 1500))   # i-1 阴
+    rows.append((66.0, 76.0, 65.5, 75.5, 3000))   # i 大阳吞没三根
+    res = patterns.detect_patterns(_df_from_rows(rows))
+    assert len(res) == 1
+    assert res[0]["name_cn"] == "三线打击"          # NOT 看涨吞没 — this is the bug proof
+    assert res[0]["direction"] == "bull"
+    assert res[0]["volume_confirmed"] is True
+    assert res[0]["status"] == "pending"
