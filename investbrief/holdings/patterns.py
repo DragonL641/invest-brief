@@ -75,3 +75,46 @@ def _three_line_strike(O, H, L, C, i):
     if C[i] >= hh and O[i] <= ll:
         return ("three_line_strike", "三线打击")
     return None
+
+
+def _in_body(O, C, k, prev):
+    """第 k 根 open 是否落在第 prev 根实体 [min(O,C), max(O,C)] 内。"""
+    lo = min(O[prev], C[prev])
+    hi = max(O[prev], C[prev])
+    return lo <= O[k] <= hi
+
+
+def _three_white_soldiers(O, H, L, C, i):
+    """三白兵:三根阳线逐级走高,开盘在前根实体内,实体较长。"""
+    if i < 2:
+        return None
+    for k in (i - 2, i - 1, i):
+        if not (C[k] >= O[k]):             # 均阳
+            return None
+        body = abs(C[k] - O[k])
+        rng = H[k] - L[k]
+        if rng <= 0 or body / rng < BODY_RATIO_MIN:
+            return None
+    if not (C[i - 2] < C[i - 1] < C[i]):   # 逐级走高
+        return None
+    if not (_in_body(O, C, i - 1, i - 2) and _in_body(O, C, i, i - 1)):
+        return None
+    return ("three_white_soldiers", "三白兵")
+
+
+def _three_black_crows(O, H, L, C, i):
+    """三只黑乌鸦:三根阴线逐级走低,开盘在前根实体内,实体较长。"""
+    if i < 2:
+        return None
+    for k in (i - 2, i - 1, i):
+        if not (C[k] < O[k]):              # 均阴
+            return None
+        body = abs(C[k] - O[k])
+        rng = H[k] - L[k]
+        if rng <= 0 or body / rng < BODY_RATIO_MIN:
+            return None
+    if not (C[i - 2] > C[i - 1] > C[i]):   # 逐级走低
+        return None
+    if not (_in_body(O, C, i - 1, i - 2) and _in_body(O, C, i, i - 1)):
+        return None
+    return ("three_black_crows", "三只黑乌鸦")

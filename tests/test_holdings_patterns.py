@@ -116,3 +116,33 @@ def test_three_line_strike_not_declining():
     # 前3根均阴但非逐级走低 → None
     O, H, L, C = _arr([(110, 111, 105, 106), (108, 109, 100, 101), (105, 106, 99, 102), (96.5, 112, 96, 111.5)])
     assert patterns._three_line_strike(O, H, L, C, 3) is None
+
+
+# ---------- Task 4: 三白兵 / 三只黑乌鸦 ----------
+
+def test_three_white_soldiers_hit():
+    O, H, L, C = _arr([(98, 104, 97, 103), (103, 109, 102, 108), (108, 114, 107, 113)])
+    assert patterns._three_white_soldiers(O, H, L, C, 2) == ("three_white_soldiers", "三白兵")
+
+
+def test_three_white_soldiers_small_body():
+    # 实体太小(十字)→ 不算
+    O, H, L, C = _arr([(100, 104, 96, 100.5), (100.5, 108, 95, 101), (101, 112, 94, 101.5)])
+    assert patterns._three_white_soldiers(O, H, L, C, 2) is None
+
+
+def test_three_white_soldiers_open_outside_body():
+    # 第3根开盘不在第2根实体内(O108.5 > 第2根实体上沿 108)
+    O, H, L, C = _arr([(98, 104, 97, 103), (103, 109, 102, 108), (108.5, 114, 107, 113)])
+    assert patterns._three_white_soldiers(O, H, L, C, 2) is None
+
+
+def test_three_black_crows_hit():
+    O, H, L, C = _arr([(112, 113, 107, 108), (110, 111, 103, 104), (106, 107, 99, 100)])
+    assert patterns._three_black_crows(O, H, L, C, 2) == ("three_black_crows", "三只黑乌鸦")
+
+
+def test_three_black_crows_not_declining():
+    # 三根均阴但非逐级走低(close 108>104, 104<104.5)→ None
+    O, H, L, C = _arr([(112, 113, 107, 108), (110, 111, 103, 104), (109, 110, 104, 104.5)])
+    assert patterns._three_black_crows(O, H, L, C, 2) is None
