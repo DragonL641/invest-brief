@@ -193,7 +193,7 @@ def run_macro_report(args):
     except Exception as e:
         logger.warning(f"ERP valuation compute failed: {e}")
         erp_val = None
-    if erp_val:
+    if erp_val and overseas_html:
         overseas_data["erp"] = erp_val
         overseas_html = render_overseas_card(overseas_data)  # 重新渲染含 erp cell
     overseas_for_claude = {
@@ -208,18 +208,19 @@ def run_macro_report(args):
         "ERP近10年分位": erp_val.get("pct_10y") if erp_val else None,
     }
 
-    # 红利低波注入 Claude 上下文（get_monetary_policy 不含，独立 dividend_valuation dict）
+    # 红利低波：邮件卡片（dividend_valuation，render_section 读）+ Claude 上下文（monetary_policy 人类可读 key）
     cn_macro = market_macro.get("cn", {})
-    if "cn" in providers:
+    if "cn" in providers and hasattr(providers["cn"], "get_dividend_valuation"):
         try:
             div_val = providers["cn"].get_dividend_valuation()
             if div_val:
+                cn_macro["dividend_valuation"] = div_val
                 mp = cn_macro.setdefault("monetary_policy", {})
                 mp["红利低波100股息率(930955)"] = f"{div_val['yield']}%"
                 if div_val.get("spread") is not None:
                     mp["股息率−CN10Y利差"] = f"{div_val['spread']}%"
         except Exception as e:
-            logger.warning(f"dividend valuation for claude failed: {e}")
+            logger.warning(f"dividend valuation failed: {e}")
 
     # Claude ①⑥（传外围 + cn macro + 全市场 risk/regime）
     if skip_summary:

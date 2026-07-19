@@ -79,3 +79,17 @@ def test_render_monetary_policy_cn10y_no_pct_omits_sub():
     html = p._render_monetary_policy(mp, {})
     assert "中国10Y国债" in html
     assert "近10年" not in html
+
+
+def test_render_section_includes_dividend_card_when_data_present():
+    # 模拟 pipeline 组装：market_macro["cn"] 含 dividend_valuation → render_section 渲染卡片
+    p = CNMarketProvider.__new__(CNMarketProvider)
+    p.country_name = "A股市场"
+    data = {
+        "monetary_policy": {},
+        "asset_performance": [],
+        "economic_calendar": [],
+        "dividend_valuation": {"yield": 4.94, "cn_10y": 1.74, "spread": 3.20, "signal": "低估"},
+    }
+    html = p.render_section(data, {"color_up": "#e74c3c", "color_down": "#27ae60"})
+    assert "红利低波100" in html  # dividend card 渲染
