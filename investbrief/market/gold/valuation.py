@@ -45,24 +45,27 @@ def render_gold_valuation_card(valuation: dict) -> str:
     has_aisc = aisc is not None and gold is not None
 
     if not has_tips and not has_aisc:
+        logger.info("gold valuation: all indicators missing, card skipped")
         return ""
 
     rows = []
     if has_tips:
         tips_pct = valuation.get("tips_pct_10y")
-        pct_str = f"，近10年 {tips_pct:.1f}%分位" if isinstance(tips_pct, (int, float)) else ""
+        explain = f"近10年 {tips_pct:.1f}%分位" if isinstance(tips_pct, (int, float)) else ""
         rows.append(
-            f'<div class="ind-line"><span class="ind-name">实际利率 TIPS</span>'
+            f'<div class="ind"><div class="ind-line">'
+            f'<span class="ind-name">实际利率 TIPS</span>'
             f'<span class="ind-val">{_fmt(tips, "%")}</span>'
-            f'<span class="ind-explain">{pct_str.lstrip("，")}</span></div>'
+            f'</div><div class="ind-explain">{explain}</div></div>'
         )
     if has_aisc:
         aisc_pct = valuation.get("aisc_pct_14y")
-        pct_str = f"，成本近14年 {aisc_pct:.1f}%分位" if isinstance(aisc_pct, (int, float)) else ""
+        cost_pct = f"，成本近14年 {aisc_pct:.1f}%分位" if isinstance(aisc_pct, (int, float)) else ""
         rows.append(
-            f'<div class="ind-line"><span class="ind-name">金价 vs 开采成本</span>'
+            f'<div class="ind"><div class="ind-line">'
+            f'<span class="ind-name">金价 vs 开采成本</span>'
             f'<span class="ind-val">溢价 {_fmt(premium, "%", spec=".1f")}</span>'
-            f'<span class="ind-explain">金价 ${gold:,.0f} / AISC ${aisc:,.0f}{pct_str}</span></div>'
+            f'</div><div class="ind-explain">金价 ${gold:,.0f} / AISC ${aisc:,.0f}{cost_pct}</div></div>'
         )
 
     return (

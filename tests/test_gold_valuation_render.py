@@ -58,3 +58,26 @@ def test_render_card_aisc_missing_skips_premium_row():
 def test_render_card_all_missing_returns_empty():
     v = fetch_gold_valuation(_ds(tips=None, tips_pct=None, aisc=None, aisc_pct=None, gold=None), {})
     assert render_gold_valuation_card(v) == ""
+
+
+def test_fetch_gold_valuation_aisc_zero_no_premium():
+    # aisc=0 防除零 → premium None（aisc 本身仍读出为 0.0）
+    v = fetch_gold_valuation(_ds(aisc=0.0, aisc_pct=50.0), {})
+    assert v["aisc"] == 0.0
+    assert v["premium_pct"] is None  # 除零守卫
+
+
+def test_render_card_tips_pct_none():
+    # tips 有值但 tips_pct=None → TIPS 行渲染，explain 空
+    v = fetch_gold_valuation(_ds(tips_pct=None), {})
+    html = render_gold_valuation_card(v)
+    assert "2.35" in html
+    assert "近10年" not in html  # pct None → explain 空
+
+
+def test_render_card_gold_none_skips_aisc_row():
+    # aisc 有但 gold=None → has_aisc False（需 gold+aisc 都有），AISC 行不渲染
+    v = fetch_gold_valuation(_ds(gold=None), {})
+    html = render_gold_valuation_card(v)
+    assert "2.35" in html          # TIPS 行在
+    assert "开采成本" not in html   # AISC 行不渲染（gold 缺）
