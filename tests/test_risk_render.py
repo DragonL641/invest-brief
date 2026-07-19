@@ -132,3 +132,18 @@ def test_render_gold_section_wraps_with_header():
 
 def test_render_gold_section_empty_returns_blank():
     assert render_gold_section({}) == ""
+
+
+def test_render_gold_section_injects_valuation_html():
+    s = _score(69.0, {"估值风险": 9.7}, market="gold")
+    val_html = '<div class="card">黄金估值信号</div>'
+    html = render_gold_section(s, valuation_html=val_html)
+    assert "黄金估值信号" in html
+    # valuation card 在 risk card 之前
+    assert html.index("黄金估值信号") < html.index("69")
+
+
+def test_render_gold_section_no_valuation_html_ok():
+    s = _score(69.0, {}, market="gold")
+    html = render_gold_section(s)  # 不传 valuation_html
+    assert "69" in html
