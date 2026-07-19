@@ -138,7 +138,7 @@ class CNMarketProvider(MarketProvider):
         return assets
 
     def get_dividend_valuation(self) -> dict:
-        """红利低波100 股息率 + 股息率−CN10Y spread + 绝对信号。缺失返回 {}。"""
+        """红利低波100 股息率 + 股息率-CN10Y spread + 绝对信号。缺失返回 {}。"""
         dy = self.data.latest_macro("DIVIDEND_YIELD_930955", "cn")
         cn_10y = self.data.latest_macro("10Y_TREASURY", "cn")
         if dy is None:
@@ -198,7 +198,7 @@ class CNMarketProvider(MarketProvider):
         spread_str = f"{spread:.2f}%" if isinstance(spread, (int, float)) else "-"
         cells = [
             f'<td class="metric" valign="top"><span class="label">股息率:</span> {dy:.2f}%</td>',
-            f'<td class="metric" valign="top"><span class="label">−CN10Y利差:</span> {spread_str}</td>',
+            f'<td class="metric" valign="top"><span class="label">-CN10Y利差:</span> {spread_str}</td>',
             f'<td class="metric" valign="top"><span class="label">信号:</span> {signal}</td>',
         ]
         return (

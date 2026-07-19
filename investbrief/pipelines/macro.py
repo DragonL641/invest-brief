@@ -218,7 +218,7 @@ def run_macro_report(args):
                 mp = cn_macro.setdefault("monetary_policy", {})
                 mp["红利低波100股息率(930955)"] = f"{div_val['yield']}%"
                 if div_val.get("spread") is not None:
-                    mp["股息率−CN10Y利差"] = f"{div_val['spread']}%"
+                    mp["股息率-CN10Y利差"] = f"{div_val['spread']}%"
         except Exception as e:
             logger.warning(f"dividend valuation failed: {e}")
 

@@ -60,8 +60,8 @@ def test_render_dividend_valuation_spread_none_shows_dash():
     p = CNMarketProvider.__new__(CNMarketProvider)
     html = p._render_dividend_valuation({"yield": 4.94, "cn_10y": None, "spread": None, "signal": "中性"})
     assert "4.94" in html
-    assert "−CN10Y利差" in html  # U+2212 minus（与 provider.py 一致）
-    assert "<span class=\"label\">−CN10Y利差:</span> -" in html  # spread None → spread_str "-"
+    assert "-CN10Y利差" in html  # ASCII hyphen（与 provider.py 一致）
+    assert "<span class=\"label\">-CN10Y利差:</span> -" in html  # spread None → spread_str "-"
 
 
 def test_render_monetary_policy_cn10y_pct_sub():
