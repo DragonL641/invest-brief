@@ -108,6 +108,13 @@ def run_macro_report(args):
         for code, p in providers.items():
             ex.submit(lambda p=p, c=code: _safe_refresh(p.refresh, c.upper()))
 
+    # ERP（multpl）：独立于 market provider 的估值序列，单独 refresh
+    try:
+        from investbrief.data.valuation_data import ValuationData
+        ValuationData().update_erp()
+    except Exception as e:
+        logger.warning(f"ERP refresh failed: {e}")
+
     # 各市场收集 macro 数据（按能力声明调 macro_brief 仍接收 us/cn 字段）
     market_macro = {}
     for code, p in providers.items():
@@ -132,6 +139,7 @@ def run_macro_report(args):
     from investbrief.risk.config import load_indicators
     any_data = next(iter(providers.values())).data
     risk_scores, risk_html = {}, {}
+    gold_val = None
     for code, p in providers.items():
         if not p.risk_group:
             continue
@@ -144,7 +152,17 @@ def run_macro_report(args):
             logger.warning(f"Risk score for {code} failed: {e}")
             risk_scores[code] = {}
         if code == "gold":
-            risk_html[code] = render_gold_section(risk_scores[code])
+            try:
+                from investbrief.market.gold.valuation import (
+                    fetch_gold_valuation, render_gold_valuation_card)
+                gold_val = fetch_gold_valuation(p.data, config)
+                gold_val_html = render_gold_valuation_card(gold_val)
+                risk_html[code] = render_gold_section(
+                    risk_scores[code], valuation_html=gold_val_html)
+            except Exception as e:
+                logger.warning(f"Gold valuation for {code} failed: {e}")
+                gold_val = None
+                risk_html[code] = render_gold_section(risk_scores[code])
         else:
             risk_html[code] = render_risk_card(risk_scores[code])
 
@@ -168,6 +186,16 @@ def run_macro_report(args):
     except Exception as e:
         logger.warning(f"Overseas card failed: {e}")
         overseas_data, overseas_html = {}, ""
+    # ERP 注入外围卡 + Claude 上下文
+    try:
+        from investbrief.market.overseas import compute_erp_valuation
+        erp_val = compute_erp_valuation(any_data)
+    except Exception as e:
+        logger.warning(f"ERP valuation compute failed: {e}")
+        erp_val = None
+    if erp_val:
+        overseas_data["erp"] = erp_val
+        overseas_html = render_overseas_card(overseas_data)  # 重新渲染含 erp cell
     overseas_for_claude = {
         "美联储利率": overseas_data.get("fed_rate"),
         "美债10Y": (overseas_data.get("us_10y") or {}).get("value"),
@@ -175,7 +203,23 @@ def run_macro_report(args):
         "纳斯达克": (overseas_data.get("nasdaq") or {}).get("point"),
         "USDCNY": (overseas_data.get("usdcny") or {}).get("value"),
         "WTI原油": (overseas_data.get("wti") or {}).get("point"),
+        "ERP": erp_val.get("erp") if erp_val else None,
+        "Shiller PE": erp_val.get("shiller_pe") if erp_val else None,
+        "ERP近10年分位": erp_val.get("pct_10y") if erp_val else None,
     }
+
+    # 红利低波注入 Claude 上下文（get_monetary_policy 不含，独立 dividend_valuation dict）
+    cn_macro = market_macro.get("cn", {})
+    if "cn" in providers:
+        try:
+            div_val = providers["cn"].get_dividend_valuation()
+            if div_val:
+                mp = cn_macro.setdefault("monetary_policy", {})
+                mp["红利低波100股息率(930955)"] = f"{div_val['yield']}%"
+                if div_val.get("spread") is not None:
+                    mp["股息率−CN10Y利差"] = f"{div_val['spread']}%"
+        except Exception as e:
+            logger.warning(f"dividend valuation for claude failed: {e}")
 
     # Claude ①⑥（传外围 + cn macro + 全市场 risk/regime）
     if skip_summary:
@@ -186,8 +230,9 @@ def run_macro_report(args):
         logger.info("Generating macro brief via Claude (①⑥)")
         from investbrief.market.macro_brief import generate_macro_brief
         macro_summary, risk_outlook = generate_macro_brief(
-            overseas_for_claude, market_macro.get("cn", {}), news,
-            risk_scores=risk_scores, regime_data=regime_data)
+            overseas_for_claude, cn_macro, news,
+            risk_scores=risk_scores, regime_data=regime_data,
+            gold_valuation=gold_val)
 
     # Research views (sell-side market commentary) — Tavily fetch + Claude synthesis
     research_views_html = ""
