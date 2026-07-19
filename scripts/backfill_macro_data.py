@@ -40,6 +40,12 @@ def main():
             logger.info("Backfilling cn (update_all)...")
             ds.update_all()
             logger.info("cn backfill done")
+            # 红利低波100 股息率（akshare 当日值，历史接口不存在；update_all 已含一次，显式再跑一次以独立日志确认）
+            try:
+                ds._update_dividend_yield()
+                logger.info("红利低波100 股息率 (当日) backfilled")
+            except Exception as e:
+                logger.error(f"红利低波 backfill failed: {e}")
         except Exception as e:
             logger.error(f"cn backfill failed: {e}")
         finally:
@@ -51,10 +57,29 @@ def main():
             logger.info("Backfilling gold (update_all)...")
             ds.update_all()
             logger.info("gold backfill done")
+            # AISC（WGC，全量季度 2012-至今；update_all 已含一次，显式再跑一次以独立日志确认）
+            try:
+                ds.update_gold_aisc()
+                logger.info("Gold AISC (WGC) backfilled")
+            except Exception as e:
+                logger.error(f"AISC backfill failed: {e}")
         except Exception as e:
             logger.error(f"gold backfill failed: {e}")
         finally:
             ds.close()
+
+    # ERP（multpl，全量月度历史；不依赖 market 分支，cn/gold/all 均回填）
+    try:
+        from investbrief.data.valuation_data import ValuationData
+        vd = ValuationData()
+        try:
+            logger.info("Backfilling ERP (multpl Shiller PE + US 10Y)...")
+            vd.update_erp()
+            logger.info("ERP backfill done")
+        finally:
+            vd.close()
+    except Exception as e:
+        logger.error(f"ERP backfill failed: {e}")
 
     logger.info("Backfill complete")
 
