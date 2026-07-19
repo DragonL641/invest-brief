@@ -2,7 +2,7 @@
 
 import sqlite3
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -235,6 +235,26 @@ class BaseData(ABC):
         if df.empty or pd.isna(df.iloc[0]["value"]):
             return None
         return float(df.iloc[0]["value"])
+
+    def latest_percentile(self, indicator: str, country: str, years: int) -> float | None:
+        """当前值在近 N 年序列中的百分位（小于当前值的占比 %）。
+
+        当前值取 latest_macro；序列按 date >= 今天-N年 过滤。
+        当前值缺失 / 序列为空 → None。
+        """
+        from investbrief.core.timeutil import now_cn
+        current = self.latest_macro(indicator, country)
+        if current is None:
+            return None
+        cutoff = (now_cn() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
+        df = self.query(
+            "SELECT value FROM macro_data WHERE indicator = ? AND country = ? "
+            "AND value IS NOT NULL AND date >= ? ORDER BY date",
+            params=(indicator, country, cutoff),
+        )
+        if df.empty:
+            return None
+        return round((df["value"].astype(float) < current).sum() / len(df) * 100, 1)
 
     def latest_macro_yoy(self, indicator: str, country: str, period: int) -> float | None:
         """绝对值宏观序列 → 同比(%)。period=一年期数(月频 12 / 季频 4)。
