@@ -191,6 +191,8 @@ class CNMarketProvider(MarketProvider):
         if not dv:
             return ""
         dy = dv.get("yield")
+        if dy is None:
+            return ""
         spread = dv.get("spread")
         signal = dv.get("signal", "")
         spread_str = f"{spread:.2f}%" if isinstance(spread, (int, float)) else "-"
