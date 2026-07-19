@@ -62,7 +62,7 @@ class CNData(BaseData):
                 logger.error(f"Failed to update CN index {code}: {e}")
 
     def update_macro(self):
-        """Fetch GDP, CPI, treasury yield, LPR, M2/M1, 社融, USDCNY."""
+        """Fetch GDP, CPI, treasury yield, LPR, M2/M1, 社融, USDCNY, 红利低波股息率."""
         self._update_gdp()
         self._update_cpi()
         self._update_treasury_yield()
@@ -70,6 +70,7 @@ class CNData(BaseData):
         self._update_money_supply()
         self._update_social_financing()
         self._update_usdcny()
+        self._update_dividend_yield()
 
     def _update_gdp(self):
         try:
@@ -245,6 +246,29 @@ class CNData(BaseData):
             self.set_update_date("macro_data_usdcny_global", today)
         except Exception as e:
             logger.error(f"Failed to update USDCNY: {e}")
+
+    def _update_dividend_yield(self):
+        """中证红利低波100(930955) 最新股息率 → macro_data。仅入当前值，不算历史分位。
+
+        失败 try/except 隔离，不阻塞其它 macro 更新。
+        """
+        try:
+            df = self._retry_api(lambda: ak.stock_zh_index_value_csindex(symbol="930955"))
+            if df is None or df.empty:
+                return
+            latest = df.iloc[-1]
+            dy = latest.get("股息率1")
+            if dy is None or pd.isna(dy):
+                return
+            today = datetime.now().strftime("%Y-%m-%d")
+            rows = pd.DataFrame([{
+                "indicator": "DIVIDEND_YIELD_930955", "country": "cn",
+                "date": today, "value": float(dy),
+            }])
+            self.upsert_df("macro_data", rows)
+            self.set_update_date("macro_data_dividend_yield_cn", today)
+        except Exception as e:
+            logger.error(f"Failed to update 红利低波100 dividend yield: {e}")
 
     def update_sentiment(self):
         """Fetch margin balance, accounts, market cap, PE."""

@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from investbrief.data.valuation_data import ValuationData
+from investbrief.data.cn_data import CNData
 
 
 @pytest.fixture
@@ -91,3 +92,21 @@ def test_latest_percentile_empty_series(tmp_db):
     vd = ValuationData(db_path=tmp_db)
     # 指标不存在 → latest_macro None → percentile None
     assert vd.latest_percentile("NONEXISTENT", "us", years=10) is None
+
+
+def test_update_dividend_yield_stores_latest(tmp_db):
+    cn = CNData(db_path=tmp_db)
+    fake = pd.DataFrame([{
+        "日期": "2026-07-17", "市盈率1": 8.38, "股息率1": 4.94,
+    }])
+    with patch("investbrief.data.cn_data.ak.stock_zh_index_value_csindex", return_value=fake):
+        cn._update_dividend_yield()
+    assert cn.latest_macro("DIVIDEND_YIELD_930955", "cn") == pytest.approx(4.94)
+
+
+def test_update_dividend_yield_skips_on_failure(tmp_db):
+    cn = CNData(db_path=tmp_db)
+    with patch("investbrief.data.cn_data.ak.stock_zh_index_value_csindex",
+               side_effect=Exception("em blocked")):
+        cn._update_dividend_yield()  # 不抛
+    assert cn.latest_macro("DIVIDEND_YIELD_930955", "cn") is None
