@@ -1,6 +1,8 @@
-"""外围环境卡:对 A 股有直接影响的外围信号(美联储利率/美债10Y/标普500/USDCNY)。
+"""外围环境卡:对 A 股有直接影响的外围信号。
 
-全 akshare 数据源,零 yfinance 依赖。由 pipelines/macro.py 调算后插入报告。
+6 项基础(美联储利率/美债10Y/标普500/纳斯达克/USDCNY/WTI原油, akshare) +
+条件性 ERP cell(股权风险溢价=1/CAPE−美债10Y, multpl 爬虫, compute_erp_valuation 注入)。
+零 yfinance 依赖。由 pipelines/macro.py 调算后插入报告。
 联邦基金利率为静态常量(FOMC 调整时手动更新)。
 """
 import logging
@@ -132,7 +134,7 @@ def render_overseas_card(data: dict[str, Any]) -> str:
         sub_str = f"{pct_str} · CAPE {erp.get('shiller_pe')}".strip(" ·")
         cells.append(
             _cell("股权风险溢价 ERP", erp.get("erp"), value_suffix="%",
-                  delta_text=erp.get("signal"), delta_cls=erp_cls,
+                  delta_text=erp.get("signal") or "", delta_cls=erp_cls,
                   sub=sub_str)
         )
     grid = stat_grid_html(cells, per_row=3)
