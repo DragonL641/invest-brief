@@ -55,7 +55,7 @@ def test_cn_indices_contract_keys(cn_provider):
 def test_cn_monetary_contract_keys(cn_provider):
     mp = cn_provider.get_monetary_policy()
     assert set(mp.keys()) == {"lpr_1y", "lpr_5y", "m2_yoy", "m1_yoy",
-                              "social_financing", "cn_10y_yield",
+                              "social_financing", "cn_10y_yield", "cn_10y_pct",
                               "cpi_yoy", "gdp_yoy"}
     assert mp["lpr_1y"] == 3.1
     assert mp["cn_10y_yield"] == 2.3

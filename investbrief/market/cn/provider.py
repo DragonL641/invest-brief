@@ -106,6 +106,7 @@ class CNMarketProvider(MarketProvider):
             "m1_yoy": self.data.latest_macro("M1_YOY", "cn"),
             "social_financing": self.data.latest_macro("SOCIAL_FIN", "cn"),
             "cn_10y_yield": self.data.latest_macro("10Y_TREASURY", "cn"),
+            "cn_10y_pct": self.data.latest_percentile("10Y_TREASURY", "cn", 10),
             # 宏观指标（已在 macro_data 采集，喂给 Claude 写"宏观环境"，原仅入库 provider 不取）
             "cpi_yoy": self.data.latest_macro("CPI", "cn"),          # 源即同比 %
             "gdp_yoy": self.data.latest_macro_yoy("GDP", "cn", 4),   # 绝对值 → 同比(季频)
@@ -136,12 +137,23 @@ class CNMarketProvider(MarketProvider):
         assets.append({"name": "人民币汇率(USDCNY)", "point": point, "change": change})
         return assets
 
+    def get_dividend_valuation(self) -> dict:
+        """红利低波100 股息率 + 股息率−CN10Y spread + 绝对信号。缺失返回 {}。"""
+        dy = self.data.latest_macro("DIVIDEND_YIELD_930955", "cn")
+        cn_10y = self.data.latest_macro("10Y_TREASURY", "cn")
+        if dy is None:
+            return {}
+        spread = round(dy - cn_10y, 2) if cn_10y is not None else None
+        signal = "低估" if dy >= 5 else ("偏高" if dy < 4 else "中性")
+        return {"yield": round(float(dy), 2), "cn_10y": cn_10y, "spread": spread, "signal": signal}
+
     def fetch_all(self) -> dict[str, Any]:
         from investbrief.market.cn.calendar import get_upcoming_events
         return {
             "monetary_policy": self.get_monetary_policy(),
             "asset_performance": self.get_asset_performance(),
             "economic_calendar": get_upcoming_events(),
+            "dividend_valuation": self.get_dividend_valuation(),
         }
 
     def get_sentiment(self) -> dict:
@@ -171,6 +183,26 @@ class CNMarketProvider(MarketProvider):
             '<div class="card"><div class="card-head">A股恐慌指数 QVIX</div>'
             '<div class="card-body">'
             f'{metrics_table_html(cells, per_row=4)}'
+            '</div></div>'
+        )
+
+    def _render_dividend_valuation(self, dv: dict | None) -> str:
+        """红利低波100 估值信号 card。无数据返回空串。"""
+        if not dv:
+            return ""
+        dy = dv.get("yield")
+        spread = dv.get("spread")
+        signal = dv.get("signal", "")
+        spread_str = f"{spread:.2f}%" if isinstance(spread, (int, float)) else "-"
+        cells = [
+            f'<td class="metric" valign="top"><span class="label">股息率:</span> {dy:.2f}%</td>',
+            f'<td class="metric" valign="top"><span class="label">−CN10Y利差:</span> {spread_str}</td>',
+            f'<td class="metric" valign="top"><span class="label">信号:</span> {signal}</td>',
+        ]
+        return (
+            '<div class="card"><div class="card-head">红利低波100 估值信号 (930955)</div>'
+            '<div class="card-body">'
+            f'{metrics_table_html(cells, per_row=3)}'
             '</div></div>'
         )
 
@@ -205,6 +237,7 @@ class CNMarketProvider(MarketProvider):
         </div>
       </div>
       {monetary_html}
+      {self._render_dividend_valuation(data.get("dividend_valuation"))}
       {self._render_sentiment(sentiment)}
       {econ_html}
       {regime_html}
@@ -218,22 +251,23 @@ class CNMarketProvider(MarketProvider):
         if not monetary:
             return ""
         pairs = [
-            ("LPR1Y", monetary.get("lpr_1y"), "%"),
-            ("LPR5Y", monetary.get("lpr_5y"), "%"),
-            ("M2同比", monetary.get("m2_yoy"), "%"),
-            ("M1同比", monetary.get("m1_yoy"), "%"),
-            ("社融增量", monetary.get("social_financing"), "亿元"),
-            ("中国10Y国债", monetary.get("cn_10y_yield"), "%"),
-            ("CPI同比", monetary.get("cpi_yoy"), "%"),
-            ("GDP同比", monetary.get("gdp_yoy"), "%"),
+            ("LPR1Y", monetary.get("lpr_1y"), "%", None),
+            ("LPR5Y", monetary.get("lpr_5y"), "%", None),
+            ("M2同比", monetary.get("m2_yoy"), "%", None),
+            ("M1同比", monetary.get("m1_yoy"), "%", None),
+            ("社融增量", monetary.get("social_financing"), "亿元", None),
+            ("中国10Y国债", monetary.get("cn_10y_yield"), "%", monetary.get("cn_10y_pct")),
+            ("CPI同比", monetary.get("cpi_yoy"), "%", None),
+            ("GDP同比", monetary.get("gdp_yoy"), "%", None),
         ]
         cells = []
-        for label, val, suffix in pairs:
+        for label, val, suffix, pct in pairs:
             if val is None:
                 continue
             val_str = f"{val:.2f}" if isinstance(val, (int, float)) else str(val)
+            pct_str = f" <span class='stat-sub'>(近10年 {pct:.0f}%分位)</span>" if isinstance(pct, (int, float)) else ""
             cells.append(
-                f'<td class="metric" valign="top"><span class="label">{label}:</span> {val_str}{suffix}</td>'
+                f'<td class="metric" valign="top"><span class="label">{label}:</span> {val_str}{suffix}{pct_str}</td>'
             )
         if not cells:
             return ""
