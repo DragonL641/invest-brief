@@ -14,6 +14,29 @@ logger = logging.getLogger(__name__)
 FED_FUNDS_RATE = 5.25
 
 
+def compute_erp_valuation(data_source) -> dict | None:
+    """读 DB 的 ERP / SHILLER_PE + 近10年分位，算信号。
+
+    返回 {erp, shiller_pe, pct_10y, signal}；ERP 或 CAPE 缺失 → None。
+    signal: >4%便宜 / >0中性 / >−3%偏贵 / 否则极贵。
+    """
+    erp = data_source.latest_macro("ERP", "us")
+    pe = data_source.latest_macro("SHILLER_PE", "us")
+    if erp is None or pe is None:
+        return None
+    pct = data_source.latest_percentile("ERP", "us", 10)
+    if erp > 4:
+        signal = "便宜"
+    elif erp > 0:
+        signal = "中性"
+    elif erp > -3:
+        signal = "偏贵"
+    else:
+        signal = "极贵"
+    return {"erp": round(float(erp), 2), "shiller_pe": round(float(pe), 1),
+            "pct_10y": pct, "signal": signal}
+
+
 def fetch_overseas_data(ak_client, fed_rate: float = FED_FUNDS_RATE) -> dict[str, Any]:
     """从 akshare 组装外围卡数据(6 项)。任一接口失败该键为 None(渲染降级)。
 
@@ -82,6 +105,8 @@ def render_overseas_card(data: dict[str, Any]) -> str:
             f'{delta_html}{sub_html}</td>'
         )
 
+    erp = data.get("erp") or {}
+
     u10_txt, u10_cls = _fmt_bp(us_10y.get("change") if isinstance(us_10y, dict) else None)
     sp_txt, sp_cls = _fmt_pct(sp.get("change") if isinstance(sp, dict) else None)
     ns_txt, ns_cls = _fmt_pct(nsdq.get("change") if isinstance(nsdq, dict) else None)
@@ -100,6 +125,16 @@ def render_overseas_card(data: dict[str, Any]) -> str:
         _cell("WTI原油", wti.get("point") if isinstance(wti, dict) else None,
               delta_text=wti_txt, delta_cls=wti_cls),
     ]
+    # ERP cell：有值才追加（stat_grid 自动按 per_row=3 排版，多一个变 3×3，少则 3×2）
+    if erp:
+        erp_cls = "pos" if erp.get("signal") == "便宜" else "neg" if erp.get("signal") in ("偏贵", "极贵") else "neutral"
+        pct_str = f"近10年 {erp['pct_10y']:.0f}%分位" if isinstance(erp.get("pct_10y"), (int, float)) else ""
+        sub_str = f"{pct_str} · CAPE {erp.get('shiller_pe')}".strip(" ·")
+        cells.append(
+            _cell("股权风险溢价 ERP", erp.get("erp"), value_suffix="%",
+                  delta_text=erp.get("signal"), delta_cls=erp_cls,
+                  sub=sub_str)
+        )
     grid = stat_grid_html(cells, per_row=3)
 
     return f'''
