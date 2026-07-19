@@ -57,12 +57,6 @@ def main():
             logger.info("Backfilling gold (update_all)...")
             ds.update_all()
             logger.info("gold backfill done")
-            # AISC（WGC，全量季度 2012-至今；update_all 已含一次，显式再跑一次以独立日志确认）
-            try:
-                ds.update_gold_aisc()
-                logger.info("Gold AISC (WGC) backfilled")
-            except Exception as e:
-                logger.error(f"AISC backfill failed: {e}")
         except Exception as e:
             logger.error(f"gold backfill failed: {e}")
         finally:
