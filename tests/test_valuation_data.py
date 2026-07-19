@@ -72,3 +72,22 @@ def test_latest_percentile(tmp_db):
     pct = vd.latest_percentile("X", "us", years=10)
     # 当前值 50（最大），5 个值里小于它的有 4 个 → 80%
     assert pct == 80.0
+
+
+def test_latest_percentile_current_is_minimum(tmp_db):
+    vd = ValuationData(db_path=tmp_db)
+    # date 最大行值最小（5）；序列内小于 5 的有 0 个 → 0%
+    rows2 = pd.DataFrame([
+        {"indicator": "Z", "country": "us", "date": "2020-01-01", "value": 50.0},
+        {"indicator": "Z", "country": "us", "date": "2020-02-01", "value": 10.0},
+        {"indicator": "Z", "country": "us", "date": "2020-03-01", "value": 5.0},
+    ])
+    vd.upsert_df("macro_data", rows2)
+    pct = vd.latest_percentile("Z", "us", years=10)
+    assert pct == 0.0
+
+
+def test_latest_percentile_empty_series(tmp_db):
+    vd = ValuationData(db_path=tmp_db)
+    # 指标不存在 → latest_macro None → percentile None
+    assert vd.latest_percentile("NONEXISTENT", "us", years=10) is None

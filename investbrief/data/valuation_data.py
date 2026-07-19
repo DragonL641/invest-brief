@@ -8,10 +8,10 @@
 DB-First：update_time 为今天则跳过（multpl 月度更新，单日多次跑只爬一次）。
 """
 import logging
-from datetime import datetime
 
 import pandas as pd
 
+from investbrief.core.timeutil import now_cn
 from investbrief.data.base import BaseData
 from investbrief.datasources import multpl
 
@@ -34,7 +34,7 @@ class ValuationData(BaseData):
 
         DB-First：今天已爬过则跳过。失败返回 False（不抛，pipeline 不阻塞）。
         """
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = now_cn().strftime("%Y-%m-%d")
         last_run = self.get_update_time("macro_data_erp_us")
         if last_run and str(last_run)[:10] == today:
             logger.info("ERP already fetched today, skip")
@@ -46,6 +46,7 @@ class ValuationData(BaseData):
             logger.warning(f"multpl fetch failed, ERP not updated: {e}")
             return False
         merged = pd.merge(pe_df, bond_df, on="date", suffixes=("_pe", "_bond"))
+        merged = merged[merged["value_pe"] > 0]  # 防 CAPE=0 除零 → inf
         merged["erp"] = 1.0 / merged["value_pe"] * 100 - merged["value_bond"]
         rows = []
         for _, r in merged.iterrows():
