@@ -147,3 +147,10 @@ def test_render_gold_section_no_valuation_html_ok():
     s = _score(69.0, {}, market="gold")
     html = render_gold_section(s)  # 不传 valuation_html
     assert "69" in html
+
+
+def test_render_gold_section_score_empty_but_valuation_renders():
+    # risk score 失败(score_data={})但 valuation 有值 → valuation 独立渲染
+    html = render_gold_section({}, valuation_html='<div class="card">黄金估值信号</div>')
+    assert "黄金估值信号" in html
+    assert "黄金市场" in html  # section header 仍在

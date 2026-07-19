@@ -176,11 +176,9 @@ def render_gold_section(score_data: dict, valuation_html: str = "") -> str:
 
     在 render_risk_card 外面包一层 section + 金色 header, 风格对齐 US/CN country-header。
     valuation_html（黄金估值 card，由 pipeline 通过 data-only 注入）插在 risk card 之前。
-    无分数返回 ''。
+    risk score 与 valuation 相互独立：任一非空即渲染该部分；两者都空才返回 ''。
     """
-    if not score_data:
-        return ""
-    card = render_risk_card(score_data)
+    card = render_risk_card(score_data) if score_data else ""
     if not card and not valuation_html:
         return ""
     return (
