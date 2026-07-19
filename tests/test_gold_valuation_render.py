@@ -3,7 +3,9 @@ from unittest.mock import MagicMock
 from investbrief.market.gold.valuation import fetch_gold_valuation, render_gold_valuation_card
 
 
-def _ds(tips=2.35, tips_pct=30.0, aisc=1706.23, aisc_pct=100.0, gold=3500.0):
+def _ds(tips: float | None = 2.35, tips_pct: float | None = 30.0,
+        aisc: float | None = 1706.23, aisc_pct: float | None = 100.0,
+        gold: float | None = 3500.0):
     ds = MagicMock()
     ds.latest_macro.side_effect = lambda ind, c: {
         ("REAL_YIELD_10Y", "us"): tips,
@@ -41,7 +43,7 @@ def test_render_card_full():
     assert "黄金估值信号" in html
     assert "2.35" in html
     assert "30.0" in html  # TIPS 分位
-    assert "1706" in html
+    assert "1,706" in html   # AISC 千分位
     assert "105.1" in html  # 溢价
 
 

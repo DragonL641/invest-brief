@@ -62,7 +62,7 @@ def render_gold_valuation_card(valuation: dict) -> str:
         rows.append(
             f'<div class="ind-line"><span class="ind-name">金价 vs 开采成本</span>'
             f'<span class="ind-val">溢价 {_fmt(premium, "%", spec=".1f")}</span>'
-            f'<span class="ind-explain">金价 ${gold:.0f} / AISC ${aisc:.0f}{pct_str}</span></div>'
+            f'<span class="ind-explain">金价 ${gold:,.0f} / AISC ${aisc:,.0f}{pct_str}</span></div>'
         )
 
     return (
