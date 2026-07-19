@@ -27,14 +27,17 @@ def fetch_multpl_series(path: str) -> pd.DataFrame:
     r.raise_for_status()
     dfs = pd.read_html(io.StringIO(r.text), match="Date")
     df = dfs[0].copy()
-    # 清洗数值：去 % / 空格（含 en-space）/ 千位逗号
+    # 清洗数值：去 % / 各类空格(含 en-space U+2002、nbsp U+00A0、thin U+2009、narrow nbsp U+202F)
+    # / 千位逗号。multpl 偶尔在数值内部塞 en-space(如 "1 ensp 34.5")，不清洗会被 to_numeric 丢行。
+    # re 模块把 \uXXXX 解释为对应 Unicode 码位；\s 已 Unicode-aware，这里显式列出做文档+防御。
     df["Value"] = (df["Value"].astype(str)
                    .str.replace("%", "", regex=False)
-                   .str.replace(" ", "", regex=False)
+                   .str.replace(r"[\s\u00A0\u2002\u2007\u2009\u202F]", "", regex=True)
                    .str.replace(",", "", regex=False)
                    .str.strip())
     df["Value"] = pd.to_numeric(df["Value"], errors="coerce")
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     df = df.dropna(subset=["Date", "Value"]).sort_values("Date").reset_index(drop=True)
     df.columns = ["date", "value"]
+    logger.info("multpl %s fetched %d rows", path, len(df))
     return df
