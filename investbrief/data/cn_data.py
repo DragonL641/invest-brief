@@ -255,10 +255,15 @@ class CNData(BaseData):
         try:
             df = self._retry_api(lambda: ak.stock_zh_index_value_csindex(symbol="930955"))
             if df is None or df.empty:
+                logger.warning("红利低波100 csindex 返回空 frame，跳过")
                 return
-            latest = df.iloc[-1]
+            # akshare frame 顺序不可信（CLAUDE.md），按日期列降序后取最新
+            date_col = "日期" if "日期" in df.columns else df.columns[0]
+            df = df.sort_values(date_col, ascending=False).reset_index(drop=True)
+            latest = df.iloc[0]
             dy = latest.get("股息率1")
             if dy is None or pd.isna(dy):
+                logger.warning("红利低波100 股息率1 为空/NaN，跳过")
                 return
             today = datetime.now().strftime("%Y-%m-%d")
             rows = pd.DataFrame([{

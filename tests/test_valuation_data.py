@@ -110,3 +110,25 @@ def test_update_dividend_yield_skips_on_failure(tmp_db):
                side_effect=Exception("em blocked")):
         cn._update_dividend_yield()  # 不抛
     assert cn.latest_macro("DIVIDEND_YIELD_930955", "cn") is None
+
+
+def test_update_dividend_yield_skips_nan(tmp_db):
+    cn = CNData(db_path=tmp_db)
+    fake = pd.DataFrame([{"日期": "2026-07-17", "市盈率1": 8.38, "股息率1": float("nan")}])
+    with patch("investbrief.data.cn_data.ak.stock_zh_index_value_csindex", return_value=fake):
+        cn._update_dividend_yield()  # 股息率 NaN → 跳过
+    assert cn.latest_macro("DIVIDEND_YIELD_930955", "cn") is None
+
+
+def test_update_dividend_yield_picks_latest_when_unsorted(tmp_db):
+    """验证 sort_values 生效：乱序 frame 取最新日期行。"""
+    cn = CNData(db_path=tmp_db)
+    fake = pd.DataFrame([
+        {"日期": "2026-07-10", "市盈率1": 8.0, "股息率1": 5.0},
+        {"日期": "2026-07-17", "市盈率1": 8.38, "股息率1": 4.94},  # 最新
+        {"日期": "2026-07-03", "市盈率1": 8.1, "股息率1": 4.8},
+    ])
+    with patch("investbrief.data.cn_data.ak.stock_zh_index_value_csindex", return_value=fake):
+        cn._update_dividend_yield()
+    # 即便 frame 乱序，取到最新 2026-07-17 的 4.94，而非 iloc[-1] 的 4.8
+    assert cn.latest_macro("DIVIDEND_YIELD_930955", "cn") == pytest.approx(4.94)
