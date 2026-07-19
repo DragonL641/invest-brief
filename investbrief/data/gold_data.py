@@ -93,6 +93,7 @@ class GoldData(BaseData):
         self.update_world_gdp()
         self.update_fred_series("DEXCHUS", "USDCNY", "global")  # 汇率先入库
         self.update_gold_price()  # 用库里最新汇率换算当日金价(USD/oz)
+        self.update_gold_aisc()
         logger.info("Gold data download complete")
 
     def update_world_gdp(self):
@@ -227,6 +228,40 @@ class GoldData(BaseData):
             logger.info(f"FRED {series_id} -> {indicator}: {inserted} rows stored")
         except Exception as e:
             logger.error(f"Failed FRED {series_id}: {e}")
+
+    def update_gold_aisc(self):
+        """WGC fsapi 行业 AISC 季度序列 → macro_data(GOLD_AISC, global)。
+
+        失败（API 不可达 / 返回 None）→ 跳过，保留 DB 旧值，不 fallback 静态常量。
+        """
+        try:
+            from investbrief.datasources.wgc import fetch_gold_aisc
+            series = fetch_gold_aisc()
+            if not series:
+                logger.warning("WGC AISC empty, skip")
+                return
+            rows = []
+            for quarter_label, value in series:
+                d = self._quarter_label_to_date(quarter_label)
+                if d:
+                    rows.append({"indicator": "GOLD_AISC", "country": "global",
+                                 "date": d, "value": float(value)})
+            if rows:
+                self.upsert_df("macro_data", pd.DataFrame(rows))
+                self.set_update_date("macro_data_gold_aisc_global", rows[-1]["date"])
+                logger.info(f"Gold AISC: {len(rows)} quarters stored, latest {rows[-1]}")
+        except Exception as e:
+            logger.error(f"Failed to update gold AISC: {e}")
+
+    @staticmethod
+    def _quarter_label_to_date(label: str) -> str | None:
+        """'Q4 2025' → '2025-12-31'。无法解析返回 None。"""
+        import re
+        m = re.match(r"Q([1-4])\s+(\d{4})", str(label))
+        if not m:
+            return None
+        q, y = int(m.group(1)), m.group(2)
+        return {1: f"{y}-03-31", 2: f"{y}-06-30", 3: f"{y}-09-30", 4: f"{y}-12-31"}[q]
 
     # ---------- history seeding ----------
 

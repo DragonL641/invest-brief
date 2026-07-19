@@ -4,6 +4,7 @@ import pytest
 
 from investbrief.data.valuation_data import ValuationData
 from investbrief.data.cn_data import CNData
+from investbrief.data.gold_data import GoldData
 
 
 @pytest.fixture
@@ -132,3 +133,18 @@ def test_update_dividend_yield_picks_latest_when_unsorted(tmp_db):
         cn._update_dividend_yield()
     # 即便 frame 乱序，取到最新 2026-07-17 的 4.94，而非 iloc[-1] 的 4.8
     assert cn.latest_macro("DIVIDEND_YIELD_930955", "cn") == pytest.approx(4.94)
+
+
+def test_update_gold_aisc_stores_quarterly(tmp_db):
+    gd = GoldData(db_path=tmp_db)
+    series = [("Q1 2012", 926.78), ("Q4 2025", 1706.23)]
+    with patch("investbrief.datasources.wgc.fetch_gold_aisc", return_value=series):
+        gd.update_gold_aisc()
+    assert gd.latest_macro("GOLD_AISC", "global") == pytest.approx(1706.23)
+
+
+def test_update_gold_aisc_skips_when_fetch_none(tmp_db):
+    gd = GoldData(db_path=tmp_db)
+    with patch("investbrief.datasources.wgc.fetch_gold_aisc", return_value=None):
+        gd.update_gold_aisc()  # 不抛
+    assert gd.latest_macro("GOLD_AISC", "global") is None
